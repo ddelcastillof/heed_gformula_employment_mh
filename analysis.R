@@ -176,7 +176,6 @@ data <- as.data.frame(panel_data)
 # 15 "Ret_both"
 
 data <- data |> mutate(
-  lag1_econ_econ = (econ_emp - 1) * 4 + lag1_econ_emp - 1,
 wnw_race = ifelse(racel_dv %in% 1:4, 0, ifelse(racel_dv %in% 5:97, 1, NA)),
 econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1)
 )
