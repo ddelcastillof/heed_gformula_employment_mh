@@ -189,7 +189,7 @@ data <- as.data.frame(panel_data)
 #bysort	pidp:	gen	cum_emp=sum(econ_emp_bin)
 #gen Lcum_emp=L.cum_emp
 
-data <- data[data$age_dv <= 65 & data$age_dv >= 25, ]
+data <- data[data$age_dv <= 64 & data$age_dv >= 25, ]
 data <- data |> mutate(ukcount = case_when(gor_dv <= 10 & gor_dv >= 1~ 1, gor_dv == 11 ~ 2, gor_dv == 12 ~ 3, gor_dv == 13 ~ 4))
 
 panel_data <- pdata.frame(data, c('pidp', 'wave'))
