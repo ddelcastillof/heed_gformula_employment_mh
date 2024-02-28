@@ -16,115 +16,15 @@ lagged_variables <- c("econ_emp",
 )
 # TODO add intdaty_lag?
 
-data <- read_stata("./Test_Harry14.dta")
-data <- data |> select(-c("age_sq")) # we generate age_sq when needed
+data <- read_stata("T:/projects/HEED/Data/USoc prepared data/Test_Harry14.dta")
+data <- data |> select(-age_sq) # we generate age_sq when needed
 
 data <-
-  data %>% mutate(across(
-    c("pidp", "ppid", "hidp", "wave", "pns1pid", "pns2pid"),
-    as.integer
-  ),
-  across(
-    c(
-      "hours",
-      "wage_hour",
-      "lwage_hour",
-      "swage_hour",
-      "dimlwt",
-      "wgt",
-      "econ_realequivwinct",
-      "econ_realequivwinc",
-      "log_income",
-      "inc_increase",
-      "inc_decrease",
-      "weight_house",
-      "samp_medianinc",
-      "samp_poverty",
-      "exp_povgap",
-      "inc_winsann",
-      "econ_realequivinc",
-      "econ_realequivinct",
-      "yplgrs_dv",
-      "econ_incchange",
-      "econ_percent",
-      "inc_wins",
-      "econ_realnetinc",
-      "econ_cpi",
-      "indinus_xw",
-      "indinui_xw",
-      "hhdenub_xw",
-      "hhdenus_xw",
-      "indinub_lw",
-      "indinus_lw",
-      "indinub_xw",
-      "indinui_lw",
-      "indscus_lw"
-    ),
-    as.numeric
-  ),)
-
-data <- data %>% mutate(across(matches("scsf"), as.integer),
-                        across(
-                          c(
-                            "jbstat",
-                            "age_dv",
-                            "racel_dv",
-                            "gor_dv",
-                            "mastat_dv",
-                            "depchl_dv",
-                            "bame",
-                            "home_owner",
-                            "finnow",
-                            "finfut",
-                            "sex_dv",
-                            "intdaty_dv",
-                            "sf1",
-                            "sf2a",
-                            "sf2b",
-                            "sf3a",
-                            "sf3b",
-                            "sf4a",
-                            "sf4b",
-                            "sf5",
-                            "sf6a",
-                            "sf6b",
-                            "sf6c",
-                            "sf7",
-                            "sclfsato",
-                            "econ_savings",
-                            "dlltsd",
-                            "econ_benefits",
-                            "econ_incdec",
-                            "econ_incquint",
-                            "ydses_c10",
-                            "ydses_c5",
-                            "house_type",
-                            "dnc2",
-                            "dnc",
-                            "econ_poverty",
-                            "exp_poverty",
-                            "exp_incchange",
-                            "exp_emp",
-                            "econ_emp",
-                            "econ_educ",
-                            "econ_retire",
-                            "econ_ltsick",
-                            "econ_empqal",
-                            "econ_state",
-                            "econ_dist",
-                            "ghqcase3",
-                            "ghqcase4",
-                            "ghq_severe",
-                            "nonepar_dv",
-                            "tenure_dv",
-                            "hhtype_dv",
-                            "hiqual_dv",
-                            "scghq1_dv",
-                            "scghq2_dv"
-                          ),
-                          as.integer
-                        ),
-)
+  data |>
+  mutate(across(c(pidp, ppid, hidp, wave, pns1pid, pns2pid),
+                as.integer),
+         across(where(haven::is.labelled),
+                haven::zap_labels))
 
 raw_columns <- c(
   "jbhrs",
