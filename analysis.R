@@ -17,7 +17,12 @@ lagged_variables <- c("econ_emp",
 # TODO add intdaty_lag?
 
 data <- read_stata("T:/projects/HEED/Data/USoc prepared data/Test_Harry14.dta")
-data <- data |> select(-age_sq) # we generate age_sq when needed
+data <- data |>
+  select(-age_sq)  |> 
+  mutate(
+    wnw_race = case_when(racel_dv %in% 1:4 ~ 0, racel_dv %in% 5:97 ~  1, .default = NA),
+    econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1)
+  )
 
 data <-
   data |>
@@ -26,76 +31,21 @@ data <-
          across(where(haven::is.labelled),
                 haven::zap_labels))
 
-raw_columns <- c(
-  "jbhrs",
-  "jshrs",
-  "j2hrs",
-  "fimnlabgrs_dv",
-  "fiyrinvinc_dv",
-  "sf12pcs_dv",
-  "sf12mcs_dv",
-  "fihhmnnet1_dv",
-  "fihhmnsben_dv",
-  "ieqmoecd_dv",
-  "_merge",
-  "depChild",
-  "depChild2"
-)
-
-panel_data <- pdata.frame(data, c('pidp', 'wave'))
-
-if (length(lagged_variables) == 1) {
-  panel_data[paste("lag1", lagged_variables[1], sep = "_")] <- plm::lag(panel_data[, lagged_variables])
-} else {
-  for (column_name in lagged_variables) {
-    panel_data[paste("lag1", column_name, sep = "_")] <- plm::lag(panel_data[, c(column_name)])
-  }
-  #lags <- data.frame(lapply(as.list(panel_data[, lagged_variables], keep.attributes = TRUE), plm::lag))
-  #colnames(lags) <- paste(colnames(lags), "lag1", sep = "_")
-  #panel_data <- cbind(panel_data, lags)
-}
-# TODO make sure there is no OPCODEs in these variables
-
-data <- as.data.frame(panel_data)
-
-# 0 "Emp_both"
-# 1 "Emp_stu"
-# 2 "Emp_notemp" 
-# 3 "Emp_ret" 
-# 4 "Stu_emp" 
-# 5 "Stu_both" 
-# 6 "Stu_notemp" 
-# 7 "Stu_ret" 
-# 8 "Notemp_emp" 
-# 9 "Notemp_stu" 
-# 10 "Notemp_both" 
-# 11 "Notemp_ret" 
-# 12 "Ret_emp" 
-# 13 "Ret_stu" 
-# 14 "Ret_nonemp" 
-# 15 "Ret_both"
-
-data <- data |> mutate(
-  lag1_econ_econ = (econ_emp - 1) * 4 + lag1_econ_emp - 1,
-wnw_race = ifelse(racel_dv %in% 1:4, 0, ifelse(racel_dv %in% 5:97, 1, NA)),
-econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1)
-)
-
-panel_data <- pdata.frame(data, c('pidp', 'wave'))
-panel_data["lag1_econ_emp_bin"] <- plm::lag(panel_data[, c("econ_emp_bin")])
-data <- as.data.frame(panel_data)
-
-
-###################################
-#bysort	pidp:	gen	cum_emp=sum(econ_emp_bin)
-#gen Lcum_emp=L.cum_emp
-
-data <- data[data$age_dv <= 65 & data$age_dv >= 25, ]
-data <- data |> mutate(ukcount = case_when(gor_dv <= 10 & gor_dv >= 1~ 1, gor_dv == 11 ~ 2, gor_dv == 12 ~ 3, gor_dv == 13 ~ 4))
-
-panel_data <- pdata.frame(data, c('pidp', 'wave'))
-panel_data["lag1_ukcount"] <- plm::lag(panel_data[, c("ukcount")])
-data <- as.data.frame(panel_data)
+# raw_columns <- c(
+#   "jbhrs",
+#   "jshrs",
+#   "j2hrs",
+#   "fimnlabgrs_dv",
+#   "fiyrinvinc_dv",
+#   "sf12pcs_dv",
+#   "sf12mcs_dv",
+#   "fihhmnnet1_dv",
+#   "fihhmnsben_dv",
+#   "ieqmoecd_dv",
+#   "_merge",
+#   "depChild",
+#   "depChild2"
+# )
 
 ###################
 
