@@ -3,7 +3,7 @@ library(dplyr)
 library(plm)
 library(gfoRmula)
 
-lagged_variables <- c("econ_emp",
+lagged_variables <- c("econ_emp_bin",
                       "intdaty_dv",
                       "home_owner",
                       "mastat_dv",
