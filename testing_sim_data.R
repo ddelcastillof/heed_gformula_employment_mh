@@ -20,25 +20,30 @@ dt2 <- df2 |>
 time_points <- 4
 
 # Simple interventions
-# intvars <- list('a', 'a')
-# interventions <- list(list(c(static, rep(0, time_points))),
-#                       list(c(static, rep(1, time_points))))
-# int_description <- c('Never treat', 'Always treat')
+intvars <- list('a', 'a')
+interventions <- list(list(c(static, rep(0, time_points))),
+                      list(c(static, rep(1, time_points))))
+int_description <- c('Never treat', 'Always treat')
 
 # Complex interventions
-intvars <-  as.list(rep("a", 16))
+# intvars <-  as.list(rep("a", 16))
+# 
+# interventions <- tibble(a = 0:1, b = 0:1, c = 0:1, d = 0:1) |>
+#   expand.grid() |>
+#   arrange(a, b, c, d) |> 
+#   # mutate(e = 0) |>
+#   t() |>
+#   as_tibble() |>
+#   unclass() |>
+#   map(~list(c(static, .x)))
+# 
+# int_description <-
+#   map(interventions, ~paste(.x[[1]][2:5], collapse = "-") |> paste0("Unemployed:", x = _))
 
-interventions <- tibble(a = 0:1, b = 0:1, c = 0:1, d = 0:1) |>
-  expand.grid() |>
-  arrange(a, b, c, d) |> 
-  # mutate(e = 0) |>
-  t() |>
-  as_tibble() |>
-  unclass() |>
-  map(~list(c(static, .x)))
+# dt2[,cum_a := cumsum(a), by = "id"]
+dt2[,rn := sample(0:1, nrow(dt2), replace= TRUE)]
+dt2 <- dt2[-300]
 
-int_description <-
-  map(interventions, ~paste(.x[[1]][2:5], collapse = "-") |> paste0("Unemployed:", x = _))
 
 gf_out <- gformula(
   dt2,
@@ -50,8 +55,8 @@ gf_out <- gformula(
   covparams = list(
     covmodels = c(
       # y ~ a_lag + a_lag2 # ... eq(y:a_lag ...)
-      l ~ lag1_a + lag1_l,
-      a ~ l + lag1_a
+      l ~ lag1_a + lag1_l + t0,
+      a ~ l + lag1_a + cum_a + t0
     )
   ),
   time_name = "t0", #t(t)
@@ -59,14 +64,14 @@ gf_out <- gformula(
   intvars = intvars,
   interventions = interventions,
   int_descript = int_description,
-  histories = c(lagged),  # remember to add cumavg
-  histvars = list(c("a", "l")),
+  histories = c(lagged, accum),  # remember to add cumavg
+  histvars = list(c("a", "l"), c("a")),
   ymodel = y ~ a + l + lag1_a + lag2_a + lag3_a + lag1_l + lag2_l + lag3_l,
   seed = 1234,
-  parallel = TRUE,
+  parallel = FALSE,
   nsamples = 20, # Number of bootstrap samples 
-  nsimul = 2000,
-  ncores = 6
+  nsimul = 2000
+  # ncores = 6
 )
 
 gf_out
