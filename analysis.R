@@ -3,33 +3,45 @@ library(dplyr)
 library(plm)
 library(gfoRmula)
 
-lagged_variables <- c("econ_emp_bin",
-                      "intdaty_dv",
-                      "home_owner",
-                      "mastat_dv",
-                      "dnc",
-                      "gor_dv",
-                      "ghqcase4",
-                      "log_income",
-                      "econ_dist",
-                      "sf12pcs_dv"
-)
+
 # TODO add intdaty_lag?
 
 data_in <- read_stata("T:/projects/HEED/Data/USoc prepared data/Test_Harry14.dta")
 data <- data_in |>
-  select(-age_sq)  |> 
-  mutate(
-    wnw_race = case_when(racel_dv %in% 1:4 ~ 0, racel_dv %in% 5:97 ~  1, .default = NA),
-    econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1)
-  )
+  select(-age_sq)
 
 data <-
   data |>
-  mutate(across(c(pidp, ppid, hidp, wave, pns1pid, pns2pid),
-                as.integer),
-         across(where(haven::is.labelled),
-                haven::zap_labels))
+  filter(wave >= 6) |> 
+  mutate(
+    across(c(pidp, ppid, hidp, wave, pns1pid, pns2pid),
+           as.integer),
+    across(where(haven::is.labelled),
+           haven::zap_labels),
+    wnw_race = case_when(racel_dv %in% 1:4 ~ 0, racel_dv %in% 5:97 ~  1, .default = NA),
+    econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1),
+    t0 = wave - 6)
+  # mutate(
+  #   t0 = wave - min(wave),
+  #   .by = pidp
+  # )
+
+age_correctors <- data |> 
+  filter(!is.na(age_dv)) |> 
+  summarise(base_age = mean(age_dv - t0) |> round(), .by = pidp)
+
+expanded_data <- data |>
+  select(pidp) |> 
+  expand_grid(tibble(t0 = 0:4)) |> 
+  unique() |> 
+  full_join(data)
+
+expanded_data <- expanded_data |> 
+  inner_join(age_correctors, by = "pidp") |> 
+  mutate(age_dv = t0 + base_age)
+
+
+expanded_data$age_dv <- age_corr
 
 # raw_columns <- c(
 #   "jbhrs",
@@ -115,7 +127,7 @@ covparams <- list(
       poly(age_dv, 2) + lag1_home_owner +
       lag1_mastat_dv + lag1_dnc + lag1_gor_dv +
       lag1_ghqcase4 + lag1_log_income + sf12pcs_dv +
-      lag1_econ_dist + lag1_t0,
+      lag1_econ_dist + t0,
     mastat_dv ~ sex_dv + poly(age_dv, 2) +
       hiqual_dv + lag1_ghqcase4 + lag1_sf12pcs_dv +
       lag1_home_owner + lag1_mastat_dv + lag1_dnc +
