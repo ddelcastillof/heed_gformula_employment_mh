@@ -105,7 +105,7 @@ covparams <- list(
       lag1_econ_dist + lag1_intdaty_dv,
     econ_dist ~ sex_dv + hiqual_dv + age_dv +
       poly(age_dv, 2) + home_owner + mastat_dv +
-      dnc + gor_dv + ghqcase4 log_income +
+      dnc + gor_dv + ghqcase4 + log_income +
       econ_emp_bin + intdaty_dv,
     ghqcase4 ~ sex_dv + age_dv + poly(age_dv, 2) +
       hiqual_dv + lag1_ghqcase4 + lag1_sf12pcs_dv +
@@ -130,7 +130,7 @@ covparams <- list(
       lag1_home_owner + lag1_mastat_dv + lag1_dnc +
       lag1_gor_dv + lag1_log_income +
       lag1_econ_emp_bin + econ_emp_bin +
-      lag1_econ_dist + econ_dist + intdaty_lag,
+      lag1_econ_dist + econ_dist + intdaty_lag
   )
 )
 
