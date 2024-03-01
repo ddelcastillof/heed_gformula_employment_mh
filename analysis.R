@@ -178,7 +178,7 @@ interventions <- tibble(econ_emp_bin1 = 0:1,
     map(~list(c(static, .x)))
 
 int_description <-
-  map(interventions, ~paste(.x[[1]][2:5], collapse = "-") |> paste0("econ_emp_bin:", x = _))
+  map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
 time_points <- length(unique(data$t0))
 
