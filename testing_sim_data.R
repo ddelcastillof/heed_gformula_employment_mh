@@ -41,8 +41,8 @@ int_description <- c('Never treat', 'Always treat')
 #   map(interventions, ~paste(.x[[1]][2:5], collapse = "-") |> paste0("Unemployed:", x = _))
 
 # dt2[,cum_a := cumsum(a), by = "id"]
-dt2[,rn := sample(0:1, nrow(dt2), replace= TRUE)]
-dt2 <- dt2[-300]
+# dt2[,rn := sample(0:1, nrow(dt2), replace= TRUE)]
+# dt2 <- dt2[-300]
 
 
 gf_out <- gformula(
@@ -59,6 +59,7 @@ gf_out <- gformula(
       a ~ l + lag1_a + cum_a + t0
     )
   ),
+  # covpredict_custom = c(NA, NA, \() {browser() ; lag1_cum_a + 1}),
   time_name = "t0", #t(t)
   time_points = time_points,
   intvars = intvars,
@@ -66,7 +67,7 @@ gf_out <- gformula(
   int_descript = int_description,
   histories = c(lagged, accum),  # remember to add cumavg
   histvars = list(c("a", "l"), c("a")),
-  ymodel = y ~ a + l + lag1_a + lag2_a + lag3_a + lag1_l + lag2_l + lag3_l,
+  ymodel = y ~ a + l + lag1_a + lag2_a + lag3_a + lag1_l + lag2_l + lag3_l  + cum_a,
   seed = 1234,
   parallel = FALSE,
   nsamples = 20, # Number of bootstrap samples 
