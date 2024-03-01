@@ -3,6 +3,7 @@
 # redo with harry dat -----------------------------------------------------
 df2 <- haven::read_dta("T:/projects/HEED/Data/heed_gform_example.dta")
 
+source("custom_helpers.R")
 library(tidyverse)
 library(data.table)
 library(gfoRmula)
@@ -54,7 +55,6 @@ gf_out <- gformula(
   covtypes = c("binary", "binary"),  # see above
   covparams = list(
     covmodels = c(
-      # y ~ a_lag + a_lag2 # ... eq(y:a_lag ...)
       l ~ lag1_a + lag1_l + t0,
       a ~ l + lag1_a + cum_a + t0
     )
