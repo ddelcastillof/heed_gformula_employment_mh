@@ -55,7 +55,6 @@ gf_out <- gformula(
   covtypes = c("binary", "binary"),  # see above
   covparams = list(
     covmodels = c(
-      # y ~ a_lag + a_lag2 # ... eq(y:a_lag ...)
       l ~ lag1_a + lag1_l + t0,
       a ~ l + lag1_a + cum_a + t0
     )
