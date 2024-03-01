@@ -30,10 +30,13 @@ age_correctors <- data |>
   summarise(base_age = mean(age_dv - t0) |> round(), .by = pidp)
 
 expanded_data <- data |>
+  filter(!is.na(age_dv)) |> 
   select(pidp) |> 
+  unique() |> 
+  slice_sample(n = 2000) |> 
   expand_grid(tibble(t0 = 0:4)) |> 
   unique() |> 
-  full_join(data)
+  left_join(data)
 
 expanded_data <- expanded_data |> 
   inner_join(age_correctors, by = "pidp") |> 
@@ -154,12 +157,13 @@ histvars <- list(lagged_variables)
 nsimul <- 100 # Monte Carlo sample size
 ncores <- parallel::detectCores() - 1
 
-ymodel <- sf12pcs_dv ~  sex_dv + poly(age_dv, 2) + hiqual_dv +
+ymodel <- sf12pcs_dv ~  sex_dv + stats::poly(age_dv, 2) + hiqual_dv +
   lag1_sf12pcs_dv + home_owner + lag1_home_owner + mastat_dv + lag1_mastat_dv +
   dnc + lag1_dnc + gor_dv + lag1_gor_dv + ghqcase4 + lag1_ghqcase4 +
   log_income + lag1_log_income + econ_emp_bin + lag1_econ_emp_bin + econ_dist +
   lag1_econ_dist + t0 #  if wave>=7 
 # TODO add proper wave handling
+
 
 intvars <- as.list(rep("econ_emp_bin", 8))
 
@@ -199,5 +203,5 @@ gform_cont_eof <- gformula(obs_data = expanded_data,
                           basecovs = basecovs,
                           seed = 1234,
                           parallel = FALSE,
-                          nsamples = 200, # Number of bootstrap samples 
+                          # nsamples = 200, # Number of bootstrap samples 
                           nsimul = nsimul)
