@@ -92,12 +92,12 @@ covparams <- list(
       econ_emp_bin + home_owner + mastat_dv + dnc +
       ghqcase4 + gor_dv + lag1_dnc + lag1_ghqcase4 +
       t0,
-    econ_emp_bin ~ sex_dv + hiqual_dv + age_dv +
+    econ_emp_bin ~ sex_dv + hiqual_dv + 
       stats::poly(age_dv, 2) + lag1_home_owner +
       lag1_mastat_dv + lag1_dnc + lag1_gor_dv +
       lag1_ghqcase4 + lag1_log_income + sf12pcs_dv +
       lag1_econ_dist + t0,
-    econ_dist ~ sex_dv + hiqual_dv + age_dv +
+    econ_dist ~ sex_dv + hiqual_dv + 
       stats::poly(age_dv, 2) + home_owner + mastat_dv +
       dnc + gor_dv + ghqcase4 + log_income +
       econ_emp_bin + t0,
@@ -107,7 +107,7 @@ covparams <- list(
       lag1_gor_dv + lag1_log_income +
       lag1_econ_emp_bin + econ_emp_bin +
       lag1_econ_dist + econ_dist + t0,
-    home_owner ~ sex_dv + hiqual_dv + age_dv +
+    home_owner ~ sex_dv + hiqual_dv + 
       stats::poly(age_dv, 2) + lag1_home_owner +
       lag1_mastat_dv + lag1_dnc + lag1_gor_dv +
       lag1_ghqcase4 + lag1_log_income + sf12pcs_dv +
@@ -161,7 +161,7 @@ ymodel <- sf12pcs_dv ~  sex_dv + stats::poly(age_dv, 2) + hiqual_dv +
   lag1_sf12pcs_dv + home_owner + lag1_home_owner + mastat_dv + lag1_mastat_dv +
   dnc + lag1_dnc + gor_dv + lag1_gor_dv + ghqcase4 + lag1_ghqcase4 +
   log_income + lag1_log_income + econ_emp_bin + lag1_econ_emp_bin + econ_dist +
-  lag1_econ_dist + t0 #  if wave>=7 
+  lag1_econ_dist #  if wave>=7 
 # TODO add proper wave handling
 
 
@@ -194,9 +194,9 @@ gform_cont_eof <- gformula(obs_data = expanded_data,
                           # covpredict_custom = covpredict_custom,
                           ymodel = ymodel,
                           
-                          intvars = intvars, # FIXME
-                          interventions = interventions, # FIXME
-                          int_descript = int_description, # FIXME
+                          intvars = intvars,
+                          interventions = interventions,
+                          int_descript = int_description,
                           
                           histories = histories,
                           histvars = histvars,

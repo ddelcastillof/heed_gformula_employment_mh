@@ -67,7 +67,7 @@ gf_out <- gformula(
   int_descript = int_description,
   histories = c(lagged, accum),  # remember to add cumavg
   histvars = list(c("a", "l"), c("a")),
-  ymodel = y ~ a + l + lag1_a + lag2_a + lag3_a + lag1_l + lag2_l + lag3_l  + cum_a,
+  ymodel = y ~ a + l + lag1_a + lag2_a + lag1_l + lag2_l + lag3_l  + cum_a,
   seed = 1234,
   parallel = FALSE,
   nsamples = 20, # Number of bootstrap samples 
