@@ -1,60 +1,48 @@
-accum <- function (pool, histvars, time_name, t, id_name) 
+accum <- function (pool, histvars, time_name, t, id_name)
 {
-      # current_ids <- unique(pool[pool[[time_name]] == t][[id_name]])
-      # lapply(histvars, FUN = function(histvar) {
-      #   pool[pool[[time_name]] == t, `:=`((paste("cum", "_", histvar, sep = "")),
-      #                                     as.double(tapply(pool[get(id_name) %in% current_ids &
-      #                                                             get(time_name) <= t][[histvar]],
-      #                                                      pool[get(id_name) %in% current_ids &
-      #                                                             get(time_name) <= t][[id_name]],
-      #                                                      FUN = sum)))]
-      # })
-      # browser()
-  
-    if (t == 0) {
-      lapply(histvars, FUN = function(histvar) {
+  if (t == 0) {
+    lapply(
+      histvars,
+      FUN = function(histvar) {
         pool[get(time_name) == t, `:=`((paste("cum_",
                                               histvar, sep = "")), as.double(pool[get(time_name) ==
                                                                                     t][[histvar]]))]
+      }
+    )
+  }
+  else {
+    current_ids <- unique(pool[get(time_name) == t][[id_name]])
+    lapply(
+      histvars,
+      FUN = function(histvar) {
+        pool[get(time_name) == t, `:=`((paste("cum_",
+                                              histvar, sep = "")), tapply(pool[get(id_name) %in%
+                                                                                           current_ids &
+                                                                                           get(time_name) <= t][[histvar]],
+                                                                                    pool[get(id_name) %in% current_ids &
+                                                                                                      get(time_name) <= t][[id_name]], FUN = sum))]
+      }
+    )
+  }
+  
+}
+
+increment <- function (pool, histvars, time_name, t, id_name) 
+{
+    if (t == 0) {
+      current_ids <- unique(pool[pool[[time_name]] == t][[id_name]])
+      lapply(histvars, FUN = function(histvar) {
+        pool[pool[[time_name]] == t, `:=`((paste(histvar, "_incr", sep = "")), pool[pool[[time_name]] == 
+                                                                                      t & get(id_name) %in% current_ids][[histvar]])]
+      })
+    } else {
+      current_ids <- unique(pool[pool[[time_name]] == t][[id_name]])
+      lapply(histvars, FUN = function(histvar) {
+        pool[pool[[time_name]] == t, `:=`((paste(histvar, "_incr", sep = "")), pool[pool[[time_name]] == 
+                                                                                                  t - 1 & get(id_name) %in% current_ids][[paste(histvar, "_incr", sep = "")]] + 1)]
       })
     }
-    else {
-      current_ids <- unique(pool[get(time_name) == t][[id_name]])
-      colnam <- colnames(pool)
-      if (!(paste("cum_", "_", histvars[1], sep = "") %in%
-            colnam)) {
-        id_factor <- is.factor(pool[[id_name]])
-        if (id_factor) {
-          lapply(histvars, FUN = function(histvar) {
-            pool[get(time_name) == t, `:=`((paste("cum_",
-                                                  histvar, sep = "")), as.double(tapply(pool[get(id_name) %in%
-                                                                                               current_ids & get(time_name) <= t][[histvar]],
-                                                                                        droplevels(pool[get(id_name) %in% current_ids &
-                                                                                                          get(time_name) <= t][[id_name]]), FUN = sum)))]
-          })
-        }
-        else {
-          lapply(histvars, FUN = function(histvar) {
-            pool[get(time_name) == t, `:=`((paste("cum_",
-                                                  histvar, sep = "")), as.double(tapply(pool[get(id_name) %in%
-                                                                                               current_ids & get(time_name) <= t][[histvar]],
-                                                                                        pool[get(id_name) %in% current_ids & get(time_name) <=
-                                                                                               t][[id_name]], FUN = sum)))]
-          })
-        }
-      }
-      else {
-        for (histvar in histvars) {
-          pool[get(time_name) == t, `:=`((paste("cum_",
-                                                histvar, sep = "")), as.double((pool[get(id_name) %in%
-                                                                                       current_ids & get(time_name) == (t - 1)][[paste("cumavg_",
-                                                                                                                                       histvar, sep = "")]] * (denom - 1) + pool[get(id_name) %in%
-                                                                                                                                                                                   current_ids & get(time_name) == t][[histvar]])/denom))]
-        }
-      }
-    }
-  
-  }
+}
 
 
 
