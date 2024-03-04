@@ -33,9 +33,9 @@ expanded_data <- data |>
   filter(!is.na(age_dv)) |> 
   select(pidp) |> 
   unique() |> 
-  slice_sample(n = 2000) |> 
+  # slice_sample(n = 2000) |> 
   expand_grid(tibble(t0 = 0:4)) |> 
-  unique() |> 
+  # unique() |> 
   left_join(data)
 
 expanded_data <- expanded_data |> 
@@ -202,6 +202,9 @@ gform_cont_eof <- gformula(obs_data = expanded_data,
                           histvars = histvars,
                           basecovs = basecovs,
                           seed = 1234,
-                          parallel = FALSE,
-                          # nsamples = 200, # Number of bootstrap samples 
-                          nsimul = nsimul)
+                          parallel = TRUE,
+                          nsamples = 1000, # Number of bootstrap samples
+                          # nsimul = nsimul,
+                          ncores = 32)
+
+saveRDS(gform_cont_eof, "model_outputs/empl_3way.rds")
