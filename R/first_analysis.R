@@ -127,7 +127,7 @@ covparams <- list(
       lag1_sf12mcs_dv + lag1_sf12pcs_dv + home_owner_base + mastat_dv_base + dnc_base + gor_dv_base + 
       lag1_log_income + lag1_econ_emp_bin + lag1_econ_dist,
     ymodel,
-    age_dv ~ 1
+    age_dv ~ age_dv_base + t0
   )
 )
 
@@ -167,7 +167,7 @@ interventions <- tibble(econ_emp_bin1 = 0:1,
 int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
-time_points <- length(unique(data$t0))
+time_points <- length(unique(expanded_data$t0))
 
 gform_cont_eof <- gformula(obs_data = expanded_data,
                            outcome_type = outcome_type,
@@ -190,5 +190,6 @@ gform_cont_eof <- gformula(obs_data = expanded_data,
                            basecovs = basecovs,
                            seed = 1234,
                            parallel = FALSE,
-                           nsamples = 200) # Number of bootstrap samples
-
+                           # nsamples = 200,
+                           nsimul = 2000
+                           ) # Number of bootstrap samples
