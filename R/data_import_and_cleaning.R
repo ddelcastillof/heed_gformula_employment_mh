@@ -17,8 +17,7 @@ interim_new_vars <- data_in |>
            as.integer),
     across(where(haven::is.labelled),
            haven::zap_labels),
-    econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1),
-    t0 = wave - 6)
+    econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1))
 
 tidied_data <- interim_new_vars |> 
   mutate(
@@ -69,18 +68,44 @@ tidied_data <- interim_new_vars |>
 # should hiqual be included here?
 # Expanding and only including wave 6 onwards
 
-pop_data <- tidied_data |> 
+expanded_data <- tidied_data |>
+  select(# id and time vars
+    pidp,
+    wave,
+    # time-varying vars
+    sf12mcs_dv,
+    sf12pcs_dv,
+    log_income,
+    econ_emp_bin,
+    econ_dist,
+    age_dv,
+    sex_dv,
+    gor_dv,
+    mastat_dv,
+    home_owner,
+    dnc,
+    hiqual_dv) |>
+  full_join(tibble(wave = 1:10) |> 
+              expand_grid(tibble(pidp = unique(tidied_data$pidp))),
+            by = join_by(wave, pidp)) |> 
+  arrange(pidp, wave) |> 
+  group_by(pidp) |> 
+  fill(everything()) |> 
+  ungroup()
+  
+
+pop_data <- expanded_data |> 
   select(pidp, wave, age_dv, sex_dv, gor_dv, mastat_dv, home_owner, dnc, hiqual_dv) |> 
   filter(wave == 6, !is.na(age_dv)) |>
   select(-wave) |> 
   rename_with(~paste0(.x, "_base"), -c(pidp)) |> 
   expand_grid(
     tibble(
-      wave = 6:10,
-      t0 = 0:4
+      wave = 1:10,
+      t0 = -5:4
     )
   ) |> 
-  left_join(tidied_data, by = join_by(pidp, wave, t0)) |>
+  left_join(expanded_data, by = join_by(pidp, wave)) |>
   select(
     # id and time vars
     pidp,
@@ -102,8 +127,6 @@ pop_data <- tidied_data |>
     dnc_base,
     hiqual_dv_base,
   ) |> 
-  # group_by(pidp) |> 
-  # fill(everything())
   as.data.table()
 
 

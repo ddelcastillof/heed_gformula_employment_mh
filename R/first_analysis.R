@@ -1,5 +1,6 @@
 library(gfoRmula)
 source("custom_helpers.R")
+source("R/data_import_and_cleaning.R")
 
 # stata code in -----------------------------------------------------------
 
@@ -65,8 +66,8 @@ covnames <-
     "econ_dist",
     "log_income",
     "sf12mcs_dv",
-    "sf12pcs_dv",
-    "age_dv"
+    "sf12pcs_dv"
+    # "age_dv"
   )
 
 outcome_name <- "sf12pcs_dv"
@@ -77,8 +78,8 @@ covtypes <- c(
   "binary", # econ_dist
   "normal", # log_income
   "normal", # sf12mcs_dv
-  "normal", # sf12pcs_dv
-  "normal" # age_dv
+  "normal" # sf12pcs_dv
+  # "normal" # age_dv
 )
 
 basecovs <- c(
@@ -95,7 +96,7 @@ basecovs <- c(
 # i.mastat_dv_base i.dnc_base i.gor_re_base i.Lecon_emp_bin i.Lecon_dist
 # Llog_income i.intdaty_dv
 
-ymodel <- sf12pcs_dv ~  sex_dv_base + stats::poly(age_dv_incr, 2) + hiqual_dv_base +
+ymodel <- sf12pcs_dv ~  sex_dv_base + stats::poly(age_dv_base, 2) + hiqual_dv_base +
   lag1_sf12mcs_dv + lag1_sf12pcs_dv + home_owner_base + mastat_dv_base + dnc_base + gor_dv_base + 
   lag1_log_income + lag1_econ_emp_bin + lag1_econ_dist
 
@@ -106,28 +107,28 @@ covparams <- list(
 #    i.mastat_dv_base i.dnc_base i.gor_re_base Llog_income sf12pcs_dv
 #    Lsf12mcs_dv i.Lecon_emp_bin i.intdaty_dv, ///
     econ_emp_bin ~ sex_dv_base + hiqual_dv_base + 
-      age_dv_incr + home_owner_base +
+      age_dv_base + home_owner_base +
       mastat_dv_base + dnc_base + gor_dv_base +
       lag1_log_income + lag1_sf12pcs_dv + lag1_sf12mcs_dv +
-      lag1_econ_emp_bin,
+      lag1_econ_emp_bin + t0,
 #    econ_dist: i.sex_dv i.hiqual_dv Lage_dv i.home_owner_base i.mastat_dv_base
 #    i.dnc_base i.gor_re_base Lsf12pcs_dv log_income i.econ_emp_bin
 #    i.intdaty_dv, ///
     econ_dist ~ sex_dv_base + hiqual_dv_base + 
-      age_dv_incr + home_owner_base + mastat_dv_base +
+      age_dv_base + home_owner_base + mastat_dv_base +
       dnc_base + gor_dv_base + lag1_sf12pcs_dv + log_income +
-      econ_emp_bin,
+      econ_emp_bin + t0,
 #    log_income: i.sex_dv i.hiqual_dv Lage_dv i.home_owner_base i.mastat_dv_base
 #    i.dnc_base i.gor_re_base Lsf12pcs_dv Llog_income i.econ_emp_bin Lsf12mcs_dv
 #    i.intdaty_dv) ///
     log_income ~ sex_dv_base + hiqual_dv_base + 
-      age_dv_incr + home_owner_base + mastat_dv_base +
-      dnc_base + gor_dv_base + lag1_sf12pcs_dv + lag1_log_income + econ_emp_bin + lag1_sf12mcs_dv,
-    sf12mcs_dv ~ sex_dv_base + stats::poly(age_dv_incr, 2) + hiqual_dv_base +
+      age_dv_base + home_owner_base + mastat_dv_base +
+      dnc_base + gor_dv_base + lag1_sf12pcs_dv + lag1_log_income + econ_emp_bin + lag1_sf12mcs_dv + t0,
+    sf12mcs_dv ~ sex_dv_base + stats::poly(age_dv_base, 2) + hiqual_dv_base +
       lag1_sf12mcs_dv + lag1_sf12pcs_dv + home_owner_base + mastat_dv_base + dnc_base + gor_dv_base + 
-      lag1_log_income + lag1_econ_emp_bin + lag1_econ_dist,
-    ymodel,
-    age_dv ~ age_dv_base + t0
+      lag1_log_income + lag1_econ_emp_bin + lag1_econ_dist + t0,
+    ymodel
+    # age_dv ~ age_dv_base + t0
   )
 )
 
@@ -148,8 +149,11 @@ increment_variables <- c(
 histories <- c(lagged, increment)
 histvars <- list(lagged_variables, increment_variables)
 
+histories <- c(lagged)
+histvars <- list(lagged_variables)
+
 nsimul <- 100 # Monte Carlo sample size
-ncores <- parallel::detectCores() - 1
+ncores <- min(32, parallel::detectCores() - 1)
 
 
 intvars <- as.list(rep("econ_emp_bin", 8))
@@ -167,9 +171,9 @@ interventions <- tibble(econ_emp_bin1 = 0:1,
 int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
-time_points <- length(unique(expanded_data$t0))
+time_points <- 5
 
-gform_cont_eof <- gformula(obs_data = expanded_data,
+gform_cont_eof <- gformula(obs_data = pop_data,
                            outcome_type = outcome_type,
                            id = "pidp",
                            time_name = "t0",
@@ -190,6 +194,6 @@ gform_cont_eof <- gformula(obs_data = expanded_data,
                            basecovs = basecovs,
                            seed = 1234,
                            parallel = FALSE,
-                           # nsamples = 200,
-                           nsimul = 2000
-                           ) # Number of bootstrap samples
+                           # nsamples = 200, # Number of bootstrap samples
+                           nsimul = nsimul
+                           )
