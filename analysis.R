@@ -33,7 +33,7 @@ expanded_data <- data |>
   filter(!is.na(age_dv)) |> 
   select(pidp) |> 
   unique() |> 
-  slice_sample(n = 2000) |> 
+  # slice_sample(n = 2000) |> 
   expand_grid(tibble(t0 = 0:4)) |> 
   unique() |> 
   left_join(data)
@@ -178,7 +178,7 @@ interventions <- tibble(econ_emp_bin1 = 0:1,
     map(~list(c(static, .x)))
 
 int_description <-
-  map(interventions, ~paste(.x[[1]][2:5], collapse = "-") |> paste0("econ_emp_bin:", x = _))
+  map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
 time_points <- length(unique(data$t0))
 
@@ -203,5 +203,5 @@ gform_cont_eof <- gformula(obs_data = expanded_data,
                           basecovs = basecovs,
                           seed = 1234,
                           parallel = FALSE,
-                          # nsamples = 200, # Number of bootstrap samples 
-                          nsimul = nsimul)
+                          nsamples = 200, # Number of bootstrap samples
+                          nsimul = 20)
