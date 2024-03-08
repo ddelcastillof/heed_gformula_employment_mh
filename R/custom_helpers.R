@@ -57,3 +57,11 @@ random <- function (pool, histvars, time_name, t, id_name)
   })
   
 }
+
+incr_fit <- function(...) {}
+
+incr_pred <- function(obs_data, newdf, fitcov, time_name, t, condition, covname, ...) {
+  
+  return(newdf[[paste0("lag1_", covname)]] + 1)
+  
+}

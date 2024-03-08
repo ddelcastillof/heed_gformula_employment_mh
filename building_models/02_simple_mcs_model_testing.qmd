@@ -1,5 +1,6 @@
 ---
 title: "GFormula comparisons"
+author: "Andy Baxter"
 format: 
   docx:
     number-sections: true
@@ -10,10 +11,13 @@ editor: visual
 
 ```{r}
 #| output: false
+
+here::i_am("building_models/02_simple_mcs_model_testing.qmd")
+
 library(gfoRmula)
 library(magrittr)
 library(DiagrammeR)
-source("R/data_import_and_cleaning.R")
+source(here::here("R", "data_import_and_cleaning.R"))
 ```
 
 # Simple version - two time-points
@@ -90,7 +94,7 @@ basecovs <- c(
   "sex_dv_base"
 )
 
-ymodel <- sf12mcs_dv ~  sex_dv_base +  # Baseline - sex
+ymodel <- sf12mcs_dv ~ sex_dv_base +  # Baseline - sex
   sf12pcs_dv + lag1_sf12pcs_dv +       # Time-varying confounders
   econ_emp_bin + lag1_econ_emp_bin     # Time-varying exposures
 
@@ -290,7 +294,6 @@ mi_results <-
 
 ```
 
-
 ## Comparing results
 
 ```{r}
@@ -302,4 +305,3 @@ gform_cont_eof$result |>
   knitr::kable(digits = 3)
   
 ```
-
