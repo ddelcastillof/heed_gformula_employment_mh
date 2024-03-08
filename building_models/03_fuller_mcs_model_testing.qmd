@@ -16,6 +16,7 @@ here::i_am("building_models/02_simple_mcs_model_testing.qmd")
 library(gfoRmula)
 library(magrittr)
 library(DiagrammeR)
+library(gFormulaMI)
 source(here::here("R", "data_import_and_cleaning.R"))
 source(here::here("R", "custom_helpers.R"))
 
@@ -32,48 +33,6 @@ missings <-
 late_pop <- late_pop[!missings, on = .(pidp)]
 ```
 
-# More complex model:
-
-```{r}
-#| echo: false
-
-grViz("digraph {
-  // rankdir='LR'
-  graph []
-  node [fontname=Arial]
-  A0 [label=<Empl<SUB>0</SUB>>]
-  A1 [label=<Empl<SUB>1</SUB>>]
-  A2 [label=<Empl<SUB>2</SUB>>]
-  I0 [label=<Income<SUB>0</SUB>>]
-  I1 [label=<Income<SUB>1</SUB>>]
-  I2 [label=<Income<SUB>2</SUB>>]
-  L0 [label=<L<SUB>0</SUB>>]
-  L1 [label=<L<SUB>1</SUB>>]
-  Y0 [label=<MCS<SUB>0</SUB>>]
-  Y1 [label=<MCS<SUB>1</SUB>>]
-  Y2 [label=<MCS<SUB>2</SUB>>]
-  edge []
-  A0 -> A1 -> A2
-  Y0 -> Y1 -> Y2
-  I0 -> I1 -> I2
-  L0 -> L1
-  Y0 -> I1, A1
-  A0 -> Y1
-  A1 -> Y2
-  Y1 -> I2, A2
-  Y0 -> L0
-  Y1 -> L1
-  A0 -> I0 -> Y0
-  L0 -> A1
-  A1 -> I1 -> Y1
-  I2 -> Y2
-  L1 -> A2
-  {rank = min; L0; L1}
-  {rank = same; A0; A1; A2}
-  {rank = max; Y0; Y1; Y2}
-}")
-```
-
 # `gfoRmula`
 
 ```{r}
@@ -84,18 +43,18 @@ intvars <- c("econ_emp_bin")
 time_points <- 3
 
 ymodel <- sf12mcs_dv ~ 
-  sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base +  # Baseline
-  lag1_sf12pcs_dv + lag1_sf12mcs_dv + log_income +      # Time-varying confounders
-  econ_emp_bin +    # Time-varying exposures
-  lag1_age_dv # Incrementing age
+  sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base + # Baseline
+  econ_emp_bin + log_income +   
+  lag1_sf12pcs_dv + lag1_sf12mcs_dv   # Time-varying confounders
+   # Static base age
 
 covnames <-
   c(
     "econ_emp_bin",
     "sf12pcs_dv",
     "log_income",
-    "sf12mcs_dv",
-    "age_dv"
+    "sf12mcs_dv"
+    # "age_dv"
   )
 
 
@@ -103,33 +62,34 @@ covtypes <- c(
   "binary", # econ_emp_bin
   "normal", # sf12pcs_dv
   "normal", # log_income
-  "normal", # sf12mcs_dv
-  "custom" # age_dv
+  "normal" # sf12mcs_dv
+  # "custom" # age_dv
 )
 
 covparams <- list(
   covmodels = c(
     econ_emp_bin ~ 
-      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base +
-      lag1_sf12pcs_dv + lag1_econ_emp_bin + lag1_log_income + lag1_age_dv + lag1_sf12mcs_dv,
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+      lag1_sf12pcs_dv + lag1_econ_emp_bin + lag1_log_income + lag1_sf12mcs_dv,
     sf12pcs_dv ~
-      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base +
-      lag1_sf12pcs_dv + econ_emp_bin + log_income + age_dv + sf12mcs_dv,
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+      lag1_sf12pcs_dv + econ_emp_bin + log_income + sf12mcs_dv,
     log_income ~
-      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base +
-      lag1_sf12pcs_dv + econ_emp_bin + lag1_log_income + lag1_age_dv + lag1_sf12mcs_dv,
-    ymodel,
-    age_dv ~ 1
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+      lag1_sf12pcs_dv + econ_emp_bin + lag1_log_income + lag1_sf12mcs_dv,
+    ymodel
+    # age_dv ~ 1
   )
 )
 
-covpredict_custom <- c(NA, NA, NA, NA, incr_pred)
+# covpredict_custom <- c(NA, NA, NA, NA, incr_pred)
 
 basecovs <- c(
   "sex_dv_base",
   "home_owner_base",
   "wnw_race_base",
-  "hiqual_dv_base"
+  "hiqual_dv_base",
+  "age_dv_base"
   # "gor_dv_base",
   # "dnc_base",
   # "mastat_dv_base",
@@ -144,8 +104,8 @@ lagged_variables <- c(
   "sf12pcs_dv",
   "econ_emp_bin",
   "log_income",
-  "sf12mcs_dv",
-  "age_dv"
+  "sf12mcs_dv"
+  # "age_dv"
 )
 
 
@@ -185,8 +145,8 @@ gform_cont_eof <- gformula(obs_data = late_pop,
                            interventions = interventions,
                            int_descript = int_description,
                            
-                           covfits_custom = c(NA, NA, NA, NA, incr_fit),
-                           covpredict_custom = covpredict_custom,
+                           # covfits_custom = c(NA, NA, NA, NA, incr_fit),
+                           # covpredict_custom = covpredict_custom,
                            
                            histories = histories,
                            histvars = histvars,
@@ -217,7 +177,7 @@ wide_data <- as_tibble(late_pop) |>
     home_owner_base,
     wnw_race_base,
     hiqual_dv_base,
-    age_dv_0,
+    age_dv_base,
     econ_emp_bin_0,
     log_income_0,
     sf12mcs_dv_0,
@@ -237,7 +197,7 @@ matrix(c(
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_base
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_0
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_base
 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # log_income_0
 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sf12mcs_dv_0
