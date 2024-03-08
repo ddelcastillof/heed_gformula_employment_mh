@@ -1,0 +1,278 @@
+---
+title: "Fuller MCS models"
+author: "Andy Baxter"
+format: 
+  docx:
+    number-sections: true
+---
+
+# Reading in data
+
+```{r}
+#| output: false
+
+here::i_am("building_models/02_simple_mcs_model_testing.qmd")
+
+library(gfoRmula)
+library(magrittr)
+library(DiagrammeR)
+source(here::here("R", "data_import_and_cleaning.R"))
+source(here::here("R", "custom_helpers.R"))
+
+# All observations with complete data across waves 8, 9 and 10
+late_pop <-
+  pop_data[wave %in% 8:10][, `:=`(t0 = t0 - 2)]
+
+missings <-
+  late_pop[is.na(sf12mcs_dv) |
+             is.na(sf12pcs_dv) | is.na(sex_dv_base) |
+             is.na(hiqual_dv_base) | is.na(log_income) | is.na(home_owner_base) |
+            is.na(wnw_race_base) | is.na(econ_emp_bin), .(pidp)]
+
+late_pop <- late_pop[!missings, on = .(pidp)]
+```
+
+# More complex model:
+
+```{r}
+#| echo: false
+
+grViz("digraph {
+  // rankdir='LR'
+  graph []
+  node [fontname=Arial]
+  A0 [label=<Empl<SUB>0</SUB>>]
+  A1 [label=<Empl<SUB>1</SUB>>]
+  A2 [label=<Empl<SUB>2</SUB>>]
+  I0 [label=<Income<SUB>0</SUB>>]
+  I1 [label=<Income<SUB>1</SUB>>]
+  I2 [label=<Income<SUB>2</SUB>>]
+  L0 [label=<L<SUB>0</SUB>>]
+  L1 [label=<L<SUB>1</SUB>>]
+  Y0 [label=<MCS<SUB>0</SUB>>]
+  Y1 [label=<MCS<SUB>1</SUB>>]
+  Y2 [label=<MCS<SUB>2</SUB>>]
+  edge []
+  A0 -> A1 -> A2
+  Y0 -> Y1 -> Y2
+  I0 -> I1 -> I2
+  L0 -> L1
+  Y0 -> I1, A1
+  A0 -> Y1
+  A1 -> Y2
+  Y1 -> I2, A2
+  Y0 -> L0
+  Y1 -> L1
+  A0 -> I0 -> Y0
+  L0 -> A1
+  A1 -> I1 -> Y1
+  I2 -> Y2
+  L1 -> A2
+  {rank = min; L0; L1}
+  {rank = same; A0; A1; A2}
+  {rank = max; Y0; Y1; Y2}
+}")
+```
+
+# `gfoRmula`
+
+```{r}
+outcome_type <- "continuous_eof"
+outcome_name <- "sf12mcs_dv"
+intvars <- c("econ_emp_bin")
+
+time_points <- 3
+
+ymodel <- sf12mcs_dv ~ 
+  sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base +  # Baseline
+  lag1_sf12pcs_dv + lag1_sf12mcs_dv + log_income +      # Time-varying confounders
+  econ_emp_bin +    # Time-varying exposures
+  lag1_age_dv # Incrementing age
+
+covnames <-
+  c(
+    "econ_emp_bin",
+    "sf12pcs_dv",
+    "log_income",
+    "sf12mcs_dv",
+    "age_dv"
+  )
+
+
+covtypes <- c(
+  "binary", # econ_emp_bin
+  "normal", # sf12pcs_dv
+  "normal", # log_income
+  "normal", # sf12mcs_dv
+  "custom" # age_dv
+)
+
+covparams <- list(
+  covmodels = c(
+    econ_emp_bin ~ 
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base +
+      lag1_sf12pcs_dv + lag1_econ_emp_bin + lag1_log_income + lag1_age_dv + lag1_sf12mcs_dv,
+    sf12pcs_dv ~
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base +
+      lag1_sf12pcs_dv + econ_emp_bin + log_income + age_dv + sf12mcs_dv,
+    log_income ~
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base +
+      lag1_sf12pcs_dv + econ_emp_bin + lag1_log_income + lag1_age_dv + lag1_sf12mcs_dv,
+    ymodel,
+    age_dv ~ 1
+  )
+)
+
+covpredict_custom <- c(NA, NA, NA, NA, incr_pred)
+
+basecovs <- c(
+  "sex_dv_base",
+  "home_owner_base",
+  "wnw_race_base",
+  "hiqual_dv_base"
+  # "gor_dv_base",
+  # "dnc_base",
+  # "mastat_dv_base",
+)
+
+
+
+
+# laggedvars(Lsf12mcs_dv Lsf12pcs_dv Lage_dv Llog_income Lecon_emp_bin Lecon_dist intdaty_lag)
+
+lagged_variables <- c(
+  "sf12pcs_dv",
+  "econ_emp_bin",
+  "log_income",
+  "sf12mcs_dv",
+  "age_dv"
+)
+
+
+histories <- c(lagged)
+histvars <- list(lagged_variables)
+
+nsimul <- 2000 # Monte Carlo sample size
+ncores <- min(32, parallel::detectCores() - 1)
+
+
+
+interventions <- expand_grid(0:1, 0:1, 0:1) |>
+  t() |>
+  as_tibble(.name_repair = "minimal") |>
+  unclass() |>
+  map( ~ list(c(static, .x)))
+
+intvars <- as.list(rep("econ_emp_bin", length(interventions)))
+
+int_description <-
+  map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
+
+
+gform_cont_eof <- gformula(obs_data = late_pop,
+                           outcome_type = outcome_type,
+                           id = "pidp",
+                           time_name = "t0",
+                           time_points = time_points,
+                           covnames = covnames,
+                           outcome_name = outcome_name,
+                           covtypes = covtypes,
+                           covparams = covparams,
+                           # covpredict_custom = covpredict_custom,
+                           ymodel = ymodel,
+                           
+                           intvars = intvars,
+                           interventions = interventions,
+                           int_descript = int_description,
+                           
+                           covfits_custom = c(NA, NA, NA, NA, incr_fit),
+                           covpredict_custom = covpredict_custom,
+                           
+                           histories = histories,
+                           histvars = histvars,
+                           basecovs = basecovs,
+                           seed = 1234,
+                           parallel = FALSE,
+                           # nsamples = 200, # Number of bootstrap samples
+                           # nsimul = nsimul,
+                           ref_int = 1
+)
+```
+
+
+# MI method
+
+```{r}
+
+regimes <- expand_grid(0:1, 0:1, 0:1) |>
+  t() |>
+  as_tibble(.name_repair = "minimal") |>
+  unclass()
+
+wide_data <- as_tibble(late_pop) |> 
+  select(-wave) |> 
+  pivot_wider(id_cols = c(pidp, ends_with("base")), names_from = t0, values_from = sf12mcs_dv:econ_dist) |> 
+  select(
+    sex_dv_base,
+    home_owner_base,
+    wnw_race_base,
+    hiqual_dv_base,
+    age_dv_0,
+    econ_emp_bin_0,
+    log_income_0,
+    sf12mcs_dv_0,
+    sf12pcs_dv_0,
+    econ_emp_bin_1,
+    log_income_1,
+    sf12mcs_dv_1,
+    sf12pcs_dv_1,
+    econ_emp_bin_2,
+    log_income_2,
+    sf12mcs_dv_2
+  )
+
+pred_matrix <- 
+matrix(c(
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_0
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
+1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # log_income_0
+1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sf12mcs_dv_0
+1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sf12pcs_dv_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_1
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,  # log_income_1
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,  # sf12mcs_dv_1
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,  # sf12pcs_dv_1
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0,  # econ_emp_bin_2
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0,  # log_income_2
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,  # sf12mcs_dv_2
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0   # regime
+),ncol = 17L, byrow = TRUE)
+
+imps <- gFormulaImpute(
+  wide_data,
+  M = 20,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtRegimes = regimes,
+  predictorMatrix = pred_matrix
+)
+
+
+fits <- imps %$%
+  lm(sf12mcs_dv_2 ~ factor(regime))
+
+outvals <- syntheticPool(fits)
+
+mi_results <-
+  outvals |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(MI_result = ifelse(Intervention == 1,
+                               Estimate,
+                               Estimate[Intervention == 1] + Estimate)) |> 
+  bind_rows(tibble(MI_result = NA_real_), x = _)
+```
+
