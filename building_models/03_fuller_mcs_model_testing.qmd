@@ -236,3 +236,39 @@ mi_results <-
   bind_rows(tibble(MI_result = NA_real_), x = _)
 ```
 
+# Manual method
+
+```{r}
+
+main_mod <- wide_data %$%
+  lm(sf12mcs_dv_2 ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+       log_income_2 + econ_emp_bin_2 + sf12pcs_dv_1 + sf12mcs_dv_1)
+
+# All intervention populations set up
+data_to_test <- expand_grid(econ_emp_bin_1 = 0:1, econ_emp_bin_2 = 0:1) |> 
+  mutate(
+    intervention = paste(econ_emp_bin_1, econ_emp_bin_2, sep = "-"),
+    data_newvals = map2(econ_emp_bin_1, econ_emp_bin_2, \(a1, a2) mutate(pop_df, econ_emp_bin_1 = a1, econ_emp_bin_2 = a2))
+  ) |> 
+  bind_rows(
+    tibble(intervention = "natural", data_newvals = list(pop_df)),
+    x = _
+  ) |> 
+select(-A1, -A2)
+
+# Model to update time-varying covariate L at T=2
+modl2 <- pop_df %$%
+  lm(L2 ~ sex + L1 + A1)
+
+
+manual_results <- data_to_test |> 
+  mutate(
+    # Predict confounder at t2 based on t1 vars
+    data_update = map(data_newvals, ~mutate(.x, L2 = predict(modl2, newdata = .x))),
+    # re-do predicton from main model based on updated L2s
+    outcomes = map(data_update, ~predict(main_mod, newdata = .x)),
+    # means of new values
+    manual_result = map_dbl(outcomes, mean)
+  ) |> 
+  select(intervention, manual_result) 
+```
