@@ -8,6 +8,8 @@ library(tidyverse)
 library(data.table)
 library(gfoRmula)
 
+library(gFormulaMI)
+
 dt2 <- df2 |> 
   rename(y3 = y) |> 
   mutate(id = row_number()) |> 
@@ -21,25 +23,25 @@ dt2 <- df2 |>
 time_points <- 4
 
 # Simple interventions
-intvars <- list('a', 'a')
-interventions <- list(list(c(static, rep(0, time_points))),
-                      list(c(static, rep(1, time_points))))
-int_description <- c('Never treat', 'Always treat')
+# intvars <- list('a', 'a')
+# interventions <- list(list(c(static, rep(0, time_points))),
+#                       list(c(static, rep(1, time_points))))
+# int_description <- c('Never treat', 'Always treat')
 
 # Complex interventions
-# intvars <-  as.list(rep("a", 16))
-# 
-# interventions <- tibble(a = 0:1, b = 0:1, c = 0:1, d = 0:1) |>
-#   expand.grid() |>
-#   arrange(a, b, c, d) |> 
-#   # mutate(e = 0) |>
-#   t() |>
-#   as_tibble() |>
-#   unclass() |>
-#   map(~list(c(static, .x)))
-# 
-# int_description <-
-#   map(interventions, ~paste(.x[[1]][2:5], collapse = "-") |> paste0("Unemployed:", x = _))
+intvars <-  as.list(rep("a", 16))
+
+interventions <- tibble(a = 0:1, b = 0:1, c = 0:1, d = 0:1) |>
+  expand.grid() |>
+  arrange(a, b, c, d) |>
+  # mutate(e = 0) |>
+  t() |>
+  as_tibble() |>
+  unclass() |>
+  map(~list(c(static, .x)))
+
+int_description <-
+  map(interventions, ~paste(.x[[1]][2:5], collapse = "-") |> paste0("Exposed:", x = _))
 
 # dt2[,cum_a := cumsum(a), by = "id"]
 # dt2[,rn := sample(0:1, nrow(dt2), replace= TRUE)]
@@ -55,8 +57,8 @@ gf_out <- gformula(
   covtypes = c("binary", "binary"),  # see above
   covparams = list(
     covmodels = c(
-      l ~ lag1_a + lag1_l + t0,
-      a ~ l + lag1_a + cum_a + t0
+      l ~ lag1_a*lag1_l,
+      a ~ l*lag1_a
     )
   ),
   # covpredict_custom = c(NA, NA, \() {browser() ; lag1_cum_a + 1}),
@@ -65,15 +67,45 @@ gf_out <- gformula(
   intvars = intvars,
   interventions = interventions,
   int_descript = int_description,
-  histories = c(lagged, accum),  # remember to add cumavg
-  histvars = list(c("a", "l"), c("a")),
-  ymodel = y ~ a + l + lag1_a + lag2_a + lag1_l + lag2_l + lag3_l  + cum_a,
+  histories = c(lagged),
+  histvars = list(c("a", "l")),
+  ymodel = y ~ a + l + lag1_a + lag2_a + lag3_a + lag1_l + lag2_l + lag3_l ,
   seed = 1234,
-  parallel = FALSE,
-  nsamples = 20, # Number of bootstrap samples 
-  nsimul = 2000
-  # ncores = 6
+  parallel = TRUE,
+  nsamples = 200, # Number of bootstrap samples 
+  nsimul = 2000,
+  ncores = 6
 )
 
 gf_out
 
+
+# gFormulaMI next steps ---------------------------------------------------
+regimes <- tibble(a = 0:1, b = 0:1, c = 0:1, d = 0:1) |>
+  expand.grid() |>
+  arrange(a, b, c, d) |>
+  # mutate(e = 0) |>
+  t() |>
+  as_tibble() |>
+  unclass() |> unname()
+
+
+imps <- gFormulaImpute(
+  df2,
+  M = 20,
+  nSim = 10000,
+  trtVars = c("a0", "a1", "a2", "a3"),
+  trtRegimes = regimes
+)
+
+library(magrittr)
+
+fits <- imps %$%
+  lm(y ~ factor(regime))
+
+outvals <- syntheticPool(fits)
+
+outvals |> 
+  as_tibble() |> 
+  rownames_to_column("Intervention") |> 
+  mutate(Estimate = ifelse(Intervention == 1, Estimate,  Estimate[Intervention == 1] + Estimate) |> round(1))
