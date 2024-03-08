@@ -71,7 +71,6 @@ nsimul <- 2000 # Monte Carlo sample size
 ncores <- min(32, parallel::detectCores() - 1)
 
 
-
 interventions <- tibble(econ_emp_bin1 = 0:1,
                         econ_emp_bin2 = 0:1) |> 
   expand.grid() |>
@@ -240,6 +239,7 @@ full_ints |>
     gform_mean = map_dbl(outcomes, mean)
   ) 
 
+
 # by MI method ------------------------------------------------------------
 
 library(gFormulaMI)
@@ -254,9 +254,9 @@ regimes <- tibble(a = 0:1, b = 0:1) |>
 
 
 imps <- gFormulaImpute(
-  pop_df,
-  M = 40,
-  nSim = 100000,
+  pop_df |> select(sex, L1, L2, A1, A2, Y),
+  M = 30,
+  nSim = 10000,
   trtVars = c("A1", "A2"),
   trtRegimes = regimes
 )

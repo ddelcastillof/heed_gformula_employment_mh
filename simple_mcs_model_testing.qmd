@@ -1,14 +1,18 @@
 ---
 title: "GFormula comparisons"
-format: html
+format: 
+  docx:
+    number-sections: true
 editor: visual
 ---
 
 # Reading in data
 
 ```{r}
+#| output: false
 library(gfoRmula)
 library(magrittr)
+library(DiagrammeR)
 source("R/data_import_and_cleaning.R")
 ```
 
@@ -50,14 +54,16 @@ grViz("digraph {
   L2 [label=<PCS<SUB>1</SUB>>]
   Y [label='MCS']
   S [label='Sex', color=grey]
+  X [label='', color=none]
   edge []
   S -> A1, A2, L1, L2, Y [color=grey]
   A1 -> A2
+  A2 -> X -> Y [color=none]
   A1 -> Y
   L1 -> L2, A2 -> Y
   L1 -> A1 -> L2 -> A2
   {rank = same; L1; L2; Y}
-  {rank = same; A1; A2}
+  {rank = same; A1; A2; X}
   {rank = min; L1; L2; Y}
   {rank = max; S}
 }")
@@ -156,7 +162,6 @@ gform_cont_eof <- gformula(obs_data = late_pop,
                            ref_int = 1
 )
 
-knitr::kable(gform_cont_eof$result)
 ```
 
 ## Manually calculating
@@ -178,6 +183,7 @@ pop_df <- as_tibble(late_pop) |>
 ```
 
 ```{r}
+#| echo: false
 grViz("digraph {
   graph []
   node [fontname=Arial]
@@ -186,13 +192,15 @@ grViz("digraph {
   L1 
   L2 
   Y 
+  X [label='', color=none]
   edge []
   A1 -> A2
   A1 -> Y
   L1 -> L2, A2 -> Y
+  A2 -> X -> Y [color=none]
   L1 -> A1 -> L2 -> A2
   {rank = same; L1; L2; Y}
-  {rank = same; A1; A2}
+  {rank = same; A1; A2; X}
   {rank = min; L1; L2; Y}
 }")
 ```
@@ -217,15 +225,81 @@ modl2 <- pop_df %$%
   lm(L2 ~ sex + L1 + A1)
 
 
-data_to_test |> 
+manual_results <- data_to_test |> 
   mutate(
     # Predict confounder at t2 based on t1 vars
     data_update = map(data_newvals, ~mutate(.x, L2 = predict(modl2, newdata = .x))),
     # re-do predicton from main model based on updated L2s
     outcomes = map(data_update, ~predict(main_mod, newdata = .x)),
     # means of new values
-    gform_mean = map_dbl(outcomes, mean)
+    manual_result = map_dbl(outcomes, mean)
   ) |> 
-  select(intervention, gform_mean) |> 
-  knitr::kable()
+  select(intervention, manual_result) 
 ```
+
+## MI method
+
+```{r}
+
+library(gFormulaMI)
+
+regimes <- tibble(a = 0:1, b = 0:1) |>
+  expand.grid() |>
+  arrange(a, b) |>
+  t() |>
+  as_tibble() |>
+  unclass() |> unname()
+
+
+pred_matrix <- matrix(c(
+  0, 0, 1, 1, 1, 1, 1,
+  0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 1, 1,
+  0, 0, 0, 0, 1, 1, 1, 
+  0, 0, 0, 0, 0, 1, 1, 
+  0, 0, 0, 0, 0, 0, 1,
+  0, 0, 0, 0, 0, 0, 0),
+  nrow = 7, ncol = 7,
+  dimnames = list(
+    c("sex", "L1", "L2", "A1", "A2", "Y", "regime"),
+    c("sex", "L1", "L2", "A1", "A2", "Y", "regime")
+  ))
+
+imps <- gFormulaImpute(
+  pop_df |> select(sex, L1, L2, A1, A2, Y),
+  M = 20,
+  trtVars = c("A1", "A2"),
+  trtRegimes = regimes,
+  predictorMatrix = pred_matrix
+)
+
+
+fits <- imps %$%
+  lm(Y ~ factor(regime))
+
+outvals <- syntheticPool(fits)
+
+mi_results <-
+  outvals |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(MI_result = ifelse(Intervention == 1,
+                               Estimate,
+                               Estimate[Intervention == 1] + Estimate)) |> 
+  bind_rows(tibble(MI_result = NA_real_), x = _)
+
+```
+
+
+## Comparing results
+
+```{r}
+
+gform_cont_eof$result |> 
+  select(`g-form mean`) |>
+  bind_cols(mi_results) |> 
+  bind_cols(manual_results, x = _) |> 
+  knitr::kable(digits = 3)
+  
+```
+
