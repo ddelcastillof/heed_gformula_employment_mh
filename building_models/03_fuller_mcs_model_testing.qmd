@@ -8,32 +8,6 @@ format:
 
 # Reading in data
 
-```{r}
-grViz("digraph {
-  graph []
-  node [fontname=Arial]
-  A0 [label=<Empl<SUB>0</SUB>>]
-  A1 [label=<Empl<SUB>1</SUB>>]
-  I0 [label=<Inc<SUB>0</SUB>>]
-  I1 [label=<Inc<SUB>1</SUB>>]
-  L0 [label=<PCS<SUB>0</SUB>>]
-  Y0 [label=<MCS<SUB>0</SUB>>]
-  Y1 [label=<MCS<SUB>1</SUB>>]
-  edge []
-  A0 -> I0 -> Y0
-  A1 -> I1 -> Y1
-  A0 -> Y0, A1, L0
-  I0 -> I1, A1, L0
-  Y0 -> A1, I1, Y1
-  A1 -> Y1
-  Y0 -> L0 -> A1, I1, Y1
-  {rank = min; L0}
-  {rank = same; A0, A1}
-  {rank = same; I0, I1}
-  {rank = max; Y0, Y1}
-}")
-```
-
 
 ```{r}
 #| output: false
@@ -69,6 +43,34 @@ intervention_pattern <- expand_grid(0:1, 0:1) |>
   unclass()
 ```
 
+# Updated model
+
+```{r}
+grViz("digraph {
+  graph []
+  node [fontname=Arial]
+  A0 [label=<Empl<SUB>0</SUB>>]
+  A1 [label=<Empl<SUB>1</SUB>>]
+  I0 [label=<Inc<SUB>0</SUB>>]
+  I1 [label=<Inc<SUB>1</SUB>>]
+  L0 [label=<PCS<SUB>0</SUB>>]
+  Y0 [label=<MCS<SUB>0</SUB>>]
+  Y1 [label=<MCS<SUB>1</SUB>>]
+  edge []
+  A0 -> I0 -> Y0
+  A1 -> I1 -> Y1
+  A0 -> Y0, A1, L0
+  I0 -> I1, A1, L0
+  Y0 -> A1, I1, Y1
+  A1 -> Y1
+  Y0 -> L0 -> A1, I1, Y1
+  {rank = min; L0}
+  {rank = same; A0, A1}
+  {rank = same; I0, I1}
+  {rank = max; Y0, Y1}
+}")
+```
+
 # `gfoRmula`
 
 ```{r}
@@ -80,16 +82,16 @@ time_points <- 2
 
 ymodel <- sf12mcs_dv ~ 
   sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base + # Baseline
-  lag1_sf12mcs_dv + econ_emp_bin + log_income +   
-  lag1_sf12pcs_dv  # Time-varying confounders
+  econ_emp_bin + log_income +   
+  lag1_sf12mcs_dv + lag1_sf12pcs_dv  # Time-varying confounders
    # Static base age
 
 covnames <-
   c(
     "econ_emp_bin",
     "sf12pcs_dv",
-    "log_income",
-    "sf12mcs_dv"
+    "sf12mcs_dv",
+    "log_income"
     # "age_dv"
   )
 
@@ -97,8 +99,8 @@ covnames <-
 covtypes <- c(
   "binary", # econ_emp_bin
   "normal", # sf12pcs_dv
-  "normal", # log_income
-  "normal" # sf12mcs_dv
+  "normal", # sf12mcs_dv
+  "normal" # log_income
   # "custom" # age_dv
 )
 
@@ -106,14 +108,14 @@ covparams <- list(
   covmodels = c(
     econ_emp_bin ~ 
       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_econ_emp_bin + lag1_sf12pcs_dv + lag1_log_income + lag1_sf12mcs_dv,
+      lag1_econ_emp_bin + lag1_sf12mcs_dv + lag1_sf12pcs_dv + lag1_log_income,
     sf12pcs_dv ~
       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      econ_emp_bin + log_income + sf12mcs_dv,
+      lag1_sf12mcs_dv + econ_emp_bin + log_income,
+    ymodel,
     log_income ~
       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_log_income + lag1_sf12pcs_dv + econ_emp_bin + lag1_sf12mcs_dv,
-    ymodel
+      lag1_log_income + lag1_sf12pcs_dv + lag1_sf12mcs_dv + econ_emp_bin
     # age_dv ~ 1
   )
 )
@@ -139,8 +141,8 @@ basecovs <- c(
 lagged_variables <- c(
   "sf12pcs_dv",
   "econ_emp_bin",
-  "log_income",
-  "sf12mcs_dv"
+  "sf12mcs_dv",
+  "log_income"
   # "age_dv"
 )
 
