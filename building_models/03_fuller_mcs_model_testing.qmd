@@ -184,45 +184,36 @@ wide_data <- as_tibble(late_pop) |>
     sf12pcs_dv_0,
     econ_emp_bin_1,
     log_income_1,
-    sf12mcs_dv_1,
-    sf12pcs_dv_1,
-    econ_emp_bin_2,
-    log_income_2,
-    sf12mcs_dv_2
+    sf12mcs_dv_1
   )
 
 pred_matrix <- 
 matrix(c(
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_base
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_base
-1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
-1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # log_income_0
-1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sf12mcs_dv_0
-1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sf12pcs_dv_0
-1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_1
-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,  # log_income_1
-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,  # sf12mcs_dv_1
-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,  # sf12pcs_dv_1
-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0,  # econ_emp_bin_2
-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0,  # log_income_2
-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,  # sf12mcs_dv_2
-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0   # regime
-),ncol = 17L, byrow = TRUE)
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0,  # home_owner_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0,  # age_dv_base
+1, 1, 1, 1, 1,  0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
+1, 1, 1, 1, 1,  1, 0, 0, 0, 0, 0, 0,  # log_income_0
+1, 1, 1, 1, 1,  1, 1, 0, 0, 0, 0, 0,  # sf12mcs_dv_0
+1, 1, 1, 1, 1,  1, 1, 1, 0, 0, 0, 0,  # sf12pcs_dv_0
+1, 1, 1, 1, 1,  1, 1, 1, 1, 0, 0, 0,  # econ_emp_bin_1
+1, 1, 1, 1, 1,  0, 1, 1, 1, 1, 0, 0,  # log_income_1
+1, 1, 1, 1, 1,  0, 0, 1, 1, 1, 1, 0   # sf12mcs_dv_1
+),ncol = 12L, byrow = TRUE)
 
 imps <- gFormulaImpute(
   wide_data,
   M = 20,
-  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1"),
   trtRegimes = regimes,
   predictorMatrix = pred_matrix
 )
 
 
 fits <- imps %$%
-  lm(sf12mcs_dv_2 ~ factor(regime))
+  lm(sf12mcs_dv_1 ~ factor(regime))
 
 outvals <- syntheticPool(fits)
 
