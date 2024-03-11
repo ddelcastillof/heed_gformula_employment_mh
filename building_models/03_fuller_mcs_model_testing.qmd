@@ -382,48 +382,42 @@ intvars <- c("econ_emp_bin")
 
 time_points <- 2
 
-gform_data <- 
-  
-ymodel <- sf12mcs_dv ~ 
-  sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base + # Baseline
-  econ_emp_bin + log_income +   
-  lag1_sf12mcs_dv + sf12pcs_dv  # Time-varying confounders
+
+
+# super-simple addition -----------------
+
+covtypes <- c(
+  "binary", # econ_emp_bin
+  "normal", # sf12pcs_dv
+  "normal" # log_income
+)
+
+ymodel <- sf12mcs_dv ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +  # Baseline - sex
+  sf12pcs_dv +       # Time-varying confounders
+  econ_emp_bin + log_income    # Time-varying exposures
+
+
+covparams <- list(
+  covmodels = c(
+    econ_emp_bin ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+      sf12pcs_dv + lag1_sf12pcs_dv + lag1_log_income +
+      lag1_econ_emp_bin,
+    sf12pcs_dv ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+      lag1_sf12pcs_dv + 
+      lag1_econ_emp_bin + lag1_log_income,
+    log_income ~
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+      lag1_log_income + sf12pcs_dv + econ_emp_bin
+  )
+)
 
 covnames <-
   c(
     "econ_emp_bin",
     "sf12pcs_dv",
-    "sf12mcs_dv",
     "log_income"
-    # "age_dv"
   )
 
-
-covtypes <- c(
-  "binary", # econ_emp_bin
-  "normal", # sf12pcs_dv
-  "normal", # sf12mcs_dv
-  "normal" # log_income
-  # "custom" # age_dv
-)
-
-covparams <- list(
-  covmodels = c(
-    econ_emp_bin ~ 
-      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_econ_emp_bin + lag1_sf12mcs_dv + sf12pcs_dv + lag1_log_income,
-    sf12pcs_dv ~
-      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_sf12mcs_dv + lag1_sf12pcs_dv + lag1_econ_emp_bin + lag1_log_income,
-    ymodel,
-    log_income ~
-      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_log_income + sf12pcs_dv + lag1_sf12mcs_dv + econ_emp_bin
-    # age_dv ~ 1
-  )
-)
-
-# covpredict_custom <- c(NA, NA, NA, NA, incr_pred)
 
 basecovs <- c(
   "sex_dv_base",
@@ -442,7 +436,6 @@ basecovs <- c(
 lagged_variables <- c(
   "sf12pcs_dv",
   "econ_emp_bin",
-  "sf12mcs_dv",
   "log_income"
 )
 
@@ -492,6 +485,8 @@ gform_cont_eof <- gformula(obs_data = late_pop,
                            # nsimul = nsimul,
                            ref_int = 1
 )
+
+gform_cont_eof
 ```
 
 
@@ -522,20 +517,21 @@ wide_data <- as_tibble(late_pop) |>
 
 pred_matrix <- 
 matrix(c(
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_base
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_base
-1, 1, 1, 1, 1,  0, 0, 0, 0, 0, 0, 0, 0,  # sf12pcs_dv_0
-1, 1, 1, 1, 1,  1, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
-1, 1, 1, 1, 1,  1, 1, 0, 0, 0, 0, 0, 0,  # log_income_0
-1, 1, 1, 1, 1,  1, 1, 1, 0, 0, 0, 0, 0,  # sf12mcs_dv_0
-1, 1, 1, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0,  # sf12pcs_dv_1
-1, 1, 1, 1, 1,  0, 1, 1, 1, 1, 0, 0, 0,  # econ_emp_bin_1
-1, 1, 1, 1, 1,  0, 0, 1, 1, 1, 1, 0, 0,  # log_income_1
-1, 1, 1, 1, 1,  0, 0, 0, 1, 1, 1, 1, 0   # sf12mcs_dv_1
-),ncol = 13L, byrow = TRUE)
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_base
+1, 1, 1, 1, 1,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # sf12pcs_dv_0
+1, 1, 1, 1, 1,  1, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
+1, 1, 1, 1, 1,  1, 1, 0, 0, 0, 0, 0, 0, 0,  # log_income_0
+1, 1, 1, 1, 1,  1, 1, 1, 0, 0, 0, 0, 0, 0,  # sf12mcs_dv_0
+1, 1, 1, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0, 0,  # sf12pcs_dv_1
+1, 1, 1, 1, 1,  0, 1, 1, 1, 1, 0, 0, 0, 0,  # econ_emp_bin_1
+1, 1, 1, 1, 1,  0, 0, 1, 1, 1, 1, 0, 0, 0,  # log_income_1
+1, 1, 1, 1, 1,  0, 0, 0, 1, 1, 1, 1, 0, 0,   # sf12mcs_dv_1
+1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1, 0   # regime
+),ncol = 14L, byrow = TRUE)
 
 imps <- gFormulaImpute(
   wide_data,
