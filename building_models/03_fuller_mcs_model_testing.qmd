@@ -80,8 +80,8 @@ time_points <- 2
 
 ymodel <- sf12mcs_dv ~ 
   sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base + # Baseline
-  econ_emp_bin + log_income +   
-  lag1_sf12pcs_dv + lag1_sf12mcs_dv   # Time-varying confounders
+  lag1_sf12mcs_dv + econ_emp_bin + log_income +   
+  lag1_sf12pcs_dv  # Time-varying confounders
    # Static base age
 
 covnames <-
@@ -106,13 +106,13 @@ covparams <- list(
   covmodels = c(
     econ_emp_bin ~ 
       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_sf12pcs_dv + lag1_econ_emp_bin + lag1_log_income + lag1_sf12mcs_dv,
+      lag1_econ_emp_bin + lag1_sf12pcs_dv + lag1_log_income + lag1_sf12mcs_dv,
     sf12pcs_dv ~
       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_sf12pcs_dv + econ_emp_bin + log_income + sf12mcs_dv,
+      econ_emp_bin + log_income + sf12mcs_dv,
     log_income ~
       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_sf12pcs_dv + econ_emp_bin + lag1_log_income + lag1_sf12mcs_dv,
+      lag1_log_income + lag1_sf12pcs_dv + econ_emp_bin + lag1_sf12mcs_dv,
     ymodel
     # age_dv ~ 1
   )
