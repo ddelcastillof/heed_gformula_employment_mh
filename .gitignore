@@ -4,3 +4,5 @@
 .Ruserdata
 model_outputs/
 do/
+*.pdf
+*.docx
