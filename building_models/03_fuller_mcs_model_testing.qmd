@@ -1,6 +1,8 @@
 ---
 title: "Fuller MCS models"
 author: "Andy Baxter"
+execute: 
+  echo: false
 format: 
   docx:
     number-sections: true
@@ -340,7 +342,8 @@ out_results |>
 out_results |> 
   pivot_longer(-intervention, names_to = "Calculation method", values_to = "estimate") |> 
   ggplot(aes(estimate, intervention, colour = `Calculation method`)) +
-    geom_point(size = 3)
+    geom_point(size = 3) + +
+  scale_colour_sphsu()
 ```
 
 # Updated model - no MCS_0 or cross-laging and reversed pcs/mcs
@@ -632,7 +635,8 @@ out_results |>
 out_results |> 
   pivot_longer(-intervention, names_to = "Calculation method", values_to = "estimate") |> 
   ggplot(aes(estimate, intervention, colour = `Calculation method`)) +
-    geom_point(size = 3)
+    geom_point(size = 3)  +
+  scale_colour_sphsu() 
 ```
 
 
@@ -932,7 +936,8 @@ out_results |>
 out_results |> 
   pivot_longer(-intervention, names_to = "Calculation method", values_to = "estimate") |> 
   ggplot(aes(estimate, intervention, colour = `Calculation method`)) +
-    geom_point(size = 3)
+    geom_point(size = 3) +
+  scale_colour_sphsu()
 ```
 
 
@@ -1232,6 +1237,7 @@ out_results |>
 out_results |> 
   pivot_longer(-intervention, names_to = "Calculation method", values_to = "estimate") |> 
   ggplot(aes(estimate, intervention, colour = `Calculation method`)) +
-    geom_point(size = 3)
+    geom_point(size = 3)  +
+  scale_colour_sphsu()
 ```
 
