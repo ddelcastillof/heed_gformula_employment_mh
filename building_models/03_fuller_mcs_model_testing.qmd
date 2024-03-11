@@ -9,6 +9,33 @@ format:
 # Reading in data
 
 ```{r}
+grViz("digraph {
+  graph []
+  node [fontname=Arial]
+  A0 [label=<Empl<SUB>0</SUB>>]
+  A1 [label=<Empl<SUB>1</SUB>>]
+  I0 [label=<Inc<SUB>0</SUB>>]
+  I1 [label=<Inc<SUB>1</SUB>>]
+  L0 [label=<PCS<SUB>0</SUB>>]
+  Y0 [label=<MCS<SUB>0</SUB>>]
+  Y1 [label=<MCS<SUB>1</SUB>>]
+  edge []
+  A0 -> I0 -> Y0
+  A1 -> I1 -> Y1
+  A0 -> Y0, A1, L0
+  I0 -> I1, A1, L0
+  Y0 -> A1, I1, Y1
+  A1 -> Y1
+  Y0 -> L0 -> A1, I1, Y1
+  {rank = min; L0}
+  {rank = same; A0, A1}
+  {rank = same; I0, I1}
+  {rank = max; Y0, Y1}
+}")
+```
+
+
+```{r}
 #| output: false
 
 here::i_am("building_models/02_simple_mcs_model_testing.qmd")
