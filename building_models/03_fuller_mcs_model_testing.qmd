@@ -232,34 +232,77 @@ mi_results <-
 ```{r}
 
 main_mod <- wide_data %$%
-  lm(sf12mcs_dv_2 ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-       log_income_2 + econ_emp_bin_2 + sf12pcs_dv_1 + sf12mcs_dv_1)
+  lm(sf12mcs_dv_1 ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+       log_income_1 + econ_emp_bin_1 + sf12pcs_dv_0 + sf12mcs_dv_0)
 
 # All intervention populations set up
-data_to_test <- expand_grid(econ_emp_bin_1 = 0:1, econ_emp_bin_2 = 0:1) |> 
+data_to_test <- expand_grid(econ_emp_bin_0 = 0:1, econ_emp_bin_1 = 0:1) |> 
   mutate(
-    intervention = paste(econ_emp_bin_1, econ_emp_bin_2, sep = "-"),
-    data_newvals = map2(econ_emp_bin_1, econ_emp_bin_2, \(a1, a2) mutate(pop_df, econ_emp_bin_1 = a1, econ_emp_bin_2 = a2))
+    intervention = paste(econ_emp_bin_0, econ_emp_bin_1, sep = "-"),
+    data_newvals = map2(econ_emp_bin_0, econ_emp_bin_1, \(a0, a1) mutate(wide_data, econ_emp_bin_0 = a0, econ_emp_bin_1 = a1))
   ) |> 
   bind_rows(
-    tibble(intervention = "natural", data_newvals = list(pop_df)),
+    tibble(intervention = "natural", data_newvals = list(wide_data)),
     x = _
   ) |> 
-select(-A1, -A2)
+select(-econ_emp_bin_0, -econ_emp_bin_1)
 
-# Model to update time-varying covariate L at T=2
-modl2 <- pop_df %$%
-  lm(L2 ~ sex + L1 + A1)
+# Models to update time-varying covariates at T=0
+mod_inc0 <- wide_data %$%
+  lm(log_income_0 ~
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+       econ_emp_bin_0
+       )
 
+mod_mcs0 <- wide_data %$%
+  lm(sf12mcs_dv_0 ~ 
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+       econ_emp_bin_0 + log_income_0
+       )
+
+mod_pcs0 <- wide_data %$%
+  lm(sf12pcs_dv_0 ~
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+      econ_emp_bin_0 + log_income_0 + sf12mcs_dv_0)
+
+mod_inc1 <- wide_data %$%
+  lm(log_income_1 ~
+      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+       econ_emp_bin_1 + log_income_0 + sf12mcs_dv_0 + sf12pcs_dv_0
+       )
 
 manual_results <- data_to_test |> 
   mutate(
-    # Predict confounder at t2 based on t1 vars
-    data_update = map(data_newvals, ~mutate(.x, L2 = predict(modl2, newdata = .x))),
-    # re-do predicton from main model based on updated L2s
+    # Predict confounders at each time point based on prev vars
+    data_update = map(data_newvals, ~mutate(.x, log_income_0 = predict(mod_inc0, newdata = .x))),
+    data_update = map(data_update, ~mutate(.x, sf12mcs_dv_0 = predict(mod_mcs0, newdata = .x))),
+    data_update = map(data_update, ~mutate(.x, sf12pcs_dv_0 = predict(mod_pcs0, newdata = .x))),
+    data_update = map(data_update, ~mutate(.x, log_income_1 = predict(mod_inc1, newdata = .x))),
+    # re-do predicton from main model based on updated confounders
     outcomes = map(data_update, ~predict(main_mod, newdata = .x)),
     # means of new values
     manual_result = map_dbl(outcomes, mean)
   ) |> 
   select(intervention, manual_result) 
+```
+
+## Comparing results
+
+```{r}
+
+out_results <- gform_cont_eof$result |> 
+  select(`g-form mean`) |>
+  bind_cols(mi_results) |> 
+  bind_cols(manual_results, x = _)
+
+out_results |> 
+  knitr::kable(digits = 3)
+  
+```
+
+```{r}
+out_results |> 
+  pivot_longer(-intervention, names_to = "Calculation method", values_to = "estimate") |> 
+  ggplot(aes(estimate, intervention, colour = `Calculation method`)) +
+    geom_point(size = 3)
 ```
