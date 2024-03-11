@@ -44,12 +44,16 @@ library(gfoRmula)
 library(magrittr)
 library(DiagrammeR)
 library(gFormulaMI)
+library(SPHSUgraphs)
+library(ggplot2)
 source(here::here("R", "data_import_and_cleaning.R"))
 source(here::here("R", "custom_helpers.R"))
 
+ggplot2::theme_set(theme_sphsu_light())
+
 # All observations with complete data across waves 8, 9 and 10
 late_pop <-
-  pop_data[wave %in% 8:10][, `:=`(t0 = t0 - 2)]
+  pop_data[wave %in% 9:10][, `:=`(t0 = t0 - 3)]
 
 missings <-
   late_pop[is.na(sf12mcs_dv) |
@@ -58,6 +62,11 @@ missings <-
             is.na(wnw_race_base) | is.na(econ_emp_bin), .(pidp)]
 
 late_pop <- late_pop[!missings, on = .(pidp)]
+
+intervention_pattern <- expand_grid(0:1, 0:1) |>
+  t() |>
+  as_tibble(.name_repair = "minimal") |>
+  unclass()
 ```
 
 # `gfoRmula`
@@ -67,7 +76,7 @@ outcome_type <- "continuous_eof"
 outcome_name <- "sf12mcs_dv"
 intvars <- c("econ_emp_bin")
 
-time_points <- 3
+time_points <- 2
 
 ymodel <- sf12mcs_dv ~ 
   sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base + # Baseline
@@ -144,10 +153,7 @@ ncores <- min(32, parallel::detectCores() - 1)
 
 
 
-interventions <- expand_grid(0:1, 0:1, 0:1) |>
-  t() |>
-  as_tibble(.name_repair = "minimal") |>
-  unclass() |>
+interventions <- intervention_pattern |>
   map( ~ list(c(static, .x)))
 
 intvars <- as.list(rep("econ_emp_bin", length(interventions)))
@@ -191,10 +197,7 @@ gform_cont_eof <- gformula(obs_data = late_pop,
 
 ```{r}
 
-regimes <- expand_grid(0:1, 0:1, 0:1) |>
-  t() |>
-  as_tibble(.name_repair = "minimal") |>
-  unclass()
+regimes <- intervention_pattern
 
 wide_data <- as_tibble(late_pop) |> 
   select(-wave) |> 
@@ -333,3 +336,4 @@ out_results |>
   ggplot(aes(estimate, intervention, colour = `Calculation method`)) +
     geom_point(size = 3)
 ```
+
