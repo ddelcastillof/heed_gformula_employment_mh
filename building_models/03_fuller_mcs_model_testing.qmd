@@ -497,7 +497,7 @@ gform_cont_eof
 regimes <- intervention_pattern
 
 wide_data <- as_tibble(late_pop) |> 
-  select(-wave) |> 
+  select(-wave, -contains("lag")) |> 
   pivot_wider(id_cols = c(pidp, ends_with("base")), names_from = t0, values_from = sf12mcs_dv:econ_dist) |> 
   select(
     sex_dv_base,
@@ -508,7 +508,6 @@ wide_data <- as_tibble(late_pop) |>
     sf12pcs_dv_0,
     econ_emp_bin_0,
     log_income_0,
-    sf12mcs_dv_0,
     sf12pcs_dv_1,
     econ_emp_bin_1,
     log_income_1,
@@ -517,21 +516,20 @@ wide_data <- as_tibble(late_pop) |>
 
 pred_matrix <- 
 matrix(c(
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_base
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
-0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_base
-1, 1, 1, 1, 1,  0, 0, 0, 0, 0, 0, 0, 0, 0,  # sf12pcs_dv_0
-1, 1, 1, 1, 1,  1, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
-1, 1, 1, 1, 1,  1, 1, 0, 0, 0, 0, 0, 0, 0,  # log_income_0
-1, 1, 1, 1, 1,  1, 1, 1, 0, 0, 0, 0, 0, 0,  # sf12mcs_dv_0
-1, 1, 1, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0, 0,  # sf12pcs_dv_1
-1, 1, 1, 1, 1,  0, 1, 1, 1, 1, 0, 0, 0, 0,  # econ_emp_bin_1
-1, 1, 1, 1, 1,  0, 0, 1, 1, 1, 1, 0, 0, 0,  # log_income_1
-1, 1, 1, 1, 1,  0, 0, 0, 1, 1, 1, 1, 0, 0,   # sf12mcs_dv_1
-1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1, 0   # regime
-),ncol = 14L, byrow = TRUE)
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
+0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_base
+1, 1, 1, 1, 1,  0, 0, 0, 0, 0, 0, 0, 0,  # sf12pcs_dv_0
+1, 1, 1, 1, 1,  1, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
+1, 1, 1, 1, 1,  1, 1, 0, 0, 0, 0, 0, 0,  # log_income_0
+1, 1, 1, 1, 1,  1, 1, 1, 0, 0, 0, 0, 0,  # sf12pcs_dv_1
+1, 1, 1, 1, 1,  0, 1, 1, 1, 0, 0, 0, 0,  # econ_emp_bin_1
+1, 1, 1, 1, 1,  0, 0, 1, 1, 1, 0, 0, 0,  # log_income_1
+1, 1, 1, 1, 1,  0, 0, 0, 1, 1, 1, 0, 0,  # sf12mcs_dv_1
+1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 0   # regime
+), ncol = 13L, byrow = TRUE)
 
 imps <- gFormulaImpute(
   wide_data,
@@ -563,7 +561,7 @@ mi_results <-
 
 main_mod <- wide_data %$%
   lm(sf12mcs_dv_1 ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-       log_income_1 + econ_emp_bin_1 + sf12pcs_dv_1 + sf12mcs_dv_0)
+       log_income_1 + econ_emp_bin_1 + sf12pcs_dv_1)
 
 # All intervention populations set up
 data_to_test <- expand_grid(econ_emp_bin_0 = 0:1, econ_emp_bin_1 = 0:1) |> 
@@ -584,29 +582,29 @@ mod_inc0 <- wide_data %$%
       sf12pcs_dv_0 + econ_emp_bin_0
        )
 
-mod_mcs0 <- wide_data %$%
-  lm(sf12mcs_dv_0 ~ 
-      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      sf12pcs_dv_0 + econ_emp_bin_0 + log_income_0
-       )
+# mod_mcs0 <- wide_data %$%
+#   lm(sf12mcs_dv_0 ~ 
+#       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+#       sf12pcs_dv_0 + econ_emp_bin_0 + log_income_0
+#        )
 
-mod_pcs0 <- wide_data %$%
+mod_pcs1 <- wide_data %$%
   lm(sf12pcs_dv_1 ~
       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      sf12pcs_dv_0 + econ_emp_bin_0 + log_income_0 + sf12mcs_dv_0)
+      sf12pcs_dv_0 + econ_emp_bin_0 + log_income_0)
 
 mod_inc1 <- wide_data %$%
   lm(log_income_1 ~
       sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-       econ_emp_bin_1 + log_income_0 + sf12mcs_dv_0 + sf12pcs_dv_1
+       econ_emp_bin_1 + log_income_0 + sf12pcs_dv_1
        )
 
 manual_results <- data_to_test |> 
   mutate(
     # Predict confounders at each time point based on prev vars
     data_update = map(data_newvals, ~mutate(.x, log_income_0 = predict(mod_inc0, newdata = .x))),
-    data_update = map(data_update, ~mutate(.x, sf12mcs_dv_0 = predict(mod_mcs0, newdata = .x))),
-    data_update = map(data_update, ~mutate(.x, sf12pcs_dv_1 = predict(mod_pcs0, newdata = .x))),
+    # data_update = map(data_update, ~mutate(.x, sf12mcs_dv_0 = predict(mod_mcs0, newdata = .x))),
+    data_update = map(data_update, ~mutate(.x, sf12pcs_dv_1 = predict(mod_pcs1, newdata = .x))),
     data_update = map(data_update, ~mutate(.x, log_income_1 = predict(mod_inc1, newdata = .x))),
     # re-do predicton from main model based on updated confounders
     outcomes = map(data_update, ~predict(main_mod, newdata = .x)),
