@@ -1605,22 +1605,67 @@ grViz("digraph {
   I1 [label=<Inc<SUB>1</SUB>>]
   L0 [label=<PCS<SUB>0</SUB>>]
   L1 [label=<PCS<SUB>1</SUB>>]
+  YX [label=<<i>MCS<SUB>base</SUB></i>>]
+  Y0 [label=<MCS<SUB>0</SUB>>]
+  Y1 [label=<MCS<SUB>0</SUB>>]
+  edge []
+  A0 -> I0
+  A1 -> I1 -> Y1
+  A0 -> A1, L1
+  I0 -> I1, A1, L1
+  A1 -> Y1
+  L0 -> L1, A0, I0
+  L1 -> A1, I1, Y1
+  Y0 -> Y1
+  Y0 -> L1, A1, I1 [color=black]
+  L0, A0, I0 -> Y0
+  YX -> L0, A0, I0, Y0
+  {rank = min; L0, L1}
+  {rank = same; A0, A1}
+  {rank = same; I0, I1}
+  {rank = max; YX, Y0, Y1}
+}")
+```
+
+Alternative layout - MCS as time-varying confounder and MH output as 'separate column':
+
+```{r}
+#| echo: false
+grViz("digraph {
+  graph []
+  node [fontname=Arial]
+  A0 [label=<Empl<SUB>0</SUB>>]
+  A1 [label=<Empl<SUB>1</SUB>>]
+  I0 [label=<Inc<SUB>0</SUB>>]
+  I1 [label=<Inc<SUB>1</SUB>>]
+  L0 [label=<PCS<SUB>0</SUB>>]
+  L1 [label=<PCS<SUB>1</SUB>>]
   LY0 [label=<MCS<SUB>0</SUB>>]
   LY1 [label=<MCS<SUB>1</SUB>>]
   Y [label=<MH<SUB>out</SUB>>]
   edge []
   LY0 -> L0, A0, I0, LY1
-  L0 -> A0, I0, LY1, L1
-  A0 -> I0, LY1, L1, A1
-  I0 -> LY1, L1, A1, I1
+  # A0 -> I0, LY1, L1, A1
+  # L0 -> A0, I0, LY1, L1
+  # I0 -> LY1, L1, A1, I1
   LY1 -> L1, A1, I1
-  L1 -> A1, I1
-  A1 -> I1
+  # L1 -> A1, I1
+  # A1 -> I1
   LY1, L1, A1, I1 -> Y
+  L0 -> A0 -> I0
+  L1 -> A1 -> I1
+  L0, A0, I0 -> LY1
+  L0 -> I0
+  L1 -> I1
+  L0 -> L1
+  A0 -> A1
+  I0 -> I1
+  I0 -> A1, L1
+  A0 -> L1 [constraint = false]
   {rank = min; LY0, LY1}
-  {rank = same; L0, L1}
   {rank = same; A0, A1}
-  {rank = max; I0, I1}
+  {rank = same; L0, L1}
+  {rank = max; I0, I1, Y}
 }")
 ```
 
