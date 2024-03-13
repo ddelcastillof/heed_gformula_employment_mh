@@ -1607,7 +1607,7 @@ grViz("digraph {
   L1 [label=<PCS<SUB>1</SUB>>]
   YX [label=<<i>MCS<SUB>base</SUB></i>>]
   Y0 [label=<MCS<SUB>0</SUB>>]
-  Y1 [label=<MCS<SUB>0</SUB>>]
+  Y1 [label=<MCS<SUB>1</SUB>>]
   edge []
   A0 -> I0
   A1 -> I1 -> Y1
