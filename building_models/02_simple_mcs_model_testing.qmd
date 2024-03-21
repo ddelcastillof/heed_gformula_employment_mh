@@ -17,7 +17,10 @@ here::i_am("building_models/02_simple_mcs_model_testing.qmd")
 library(gfoRmula)
 library(magrittr)
 library(DiagrammeR)
+library(data.table)
 source(here::here("R", "data_import_and_cleaning.R"))
+pop_data <- import_data() |> 
+  as.data.table()
 ```
 
 # Simple version - two time-points
