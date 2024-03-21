@@ -7,3 +7,4 @@ do/
 *.pdf
 *.docx
 data/*
+!building_models/reference.docx
