@@ -16,7 +16,7 @@ format:
 
 ```{r setup}
 #| output: false
-here::i_am("building_models/02_simple_mcs_model_testing.qmd")
+here::i_am("building_models/04_changing_covariate_layout.qmd")
 source(here::here("R", "data_import_and_cleaning.R"))
 
 pop_data <- import_data() |> 
