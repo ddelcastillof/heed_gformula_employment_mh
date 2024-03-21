@@ -6,3 +6,4 @@ model_outputs/
 do/
 *.pdf
 *.docx
+data/*
