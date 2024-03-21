@@ -100,7 +100,7 @@ import_data <- function() {
       sf12mcs_dv,
       sf12pcs_dv
     ) |>
-    filter(wave == 6, !is.na(age_dv)) |>
+    filter(wave == 8, !is.na(age_dv)) |>
     select(-wave) |>
     rename_with( ~ paste0(.x, "_base"), -c(pidp)) |>
     expand_grid(tibble(wave = 1:10,
