@@ -8,3 +8,5 @@ do/
 *.docx
 data/*
 !building_models/reference.docx
+
+/.quarto/
