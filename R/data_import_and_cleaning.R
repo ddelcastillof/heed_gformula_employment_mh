@@ -1,6 +1,14 @@
 import_data <- function() {
   require(tidyverse)
   
+  data_file <- here::here("data", "pop_data.rds")
+  
+  if (file.exists(data_file)) {
+    pop_data <- readRDS(data_file)
+    message(data_file, " already exists, reading in...")
+  } else {
+    message("Creating ", data_file)
+    
   data_in <-
     haven::read_stata("T:/projects/HEED/Data/USoc prepared data/Test_Harry14.dta")
   
@@ -129,5 +137,11 @@ import_data <- function() {
       wnw_race_base,
       sf12mcs_dv_base,
       sf12pcs_dv_base
-    )
+    )  
+  
+  saveRDS(pop_data, data_file)
+  
+  }
+  
+  pop_data
 }
