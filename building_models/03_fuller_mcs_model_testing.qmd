@@ -14,7 +14,7 @@ format:
 <!-- # Reading in data -->
 
 
-```{r}
+```{r setup}
 #| output: false
 here::i_am("building_models/03_fuller_mcs_model_testing.qmd")
 source(here::here("R", "data_import_and_cleaning.R"))
@@ -67,7 +67,7 @@ Baseline confounders (not shown):
  - Education
  - Ethnicity
 
-```{r}
+```{r model1-dag}
 #| echo: false
 grViz("digraph {
   graph []
@@ -100,7 +100,7 @@ grViz("digraph {
 
 <!-- ## `gfoRmula` -->
 
-```{r}
+```{r model1-gformula}
 outcome_type <- "continuous_eof"
 outcome_name <- "sf12mcs_dv"
 intvars <- c("econ_emp_bin")
@@ -222,7 +222,7 @@ gform_cont_eof <- gformula(obs_data = late_pop,
 
 <!-- ## MI method -->
 
-```{r}
+```{r model1-mi}
 
 
 regimes <- intervention_pattern
@@ -266,7 +266,7 @@ matrix(c(
 
 imps <- gFormulaImpute(
   wide_data,
-  M = 20,
+  M = 50,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1"),
   trtRegimes = regimes,
   predictorMatrix = pred_matrix
@@ -290,7 +290,7 @@ mi_results <-
 
 <!-- ## Manual method -->
 
-```{r}
+```{r model1-manual}
 
 
 main_mod <- wide_data %$%
@@ -350,7 +350,7 @@ manual_results <- data_to_test |>
 
 <!-- ## Comparing results -->
 
-```{r}
+```{r model1-outtab}
 #| output: true
 
 
@@ -364,7 +364,7 @@ out_results |>
   
 ```
 
-```{r}
+```{r model1-graph}
 #| output: true
 
 
@@ -566,7 +566,7 @@ matrix(c(
 
 imps <- gFormulaImpute(
   wide_data,
-  M = 20,
+  M = 50,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1"),
   trtRegimes = regimes,
   predictorMatrix = pred_matrix
@@ -875,7 +875,7 @@ matrix(c(
 
 imps <- gFormulaImpute(
   wide_data,
-  M = 20,
+  M = 50,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1"),
   trtRegimes = regimes,
   predictorMatrix = pred_matrix
@@ -1178,7 +1178,7 @@ matrix(c(
 
 imps <- gFormulaImpute(
   wide_data,
-  M = 20,
+  M = 50,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1"),
   trtRegimes = regimes,
   predictorMatrix = pred_matrix
@@ -1483,7 +1483,7 @@ matrix(c(
 
 imps <- gFormulaImpute(
   wide_data,
-  M = 20,
+  M = 50,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1"),
   trtRegimes = regimes,
   predictorMatrix = pred_matrix
@@ -1841,7 +1841,7 @@ matrix(c(
 
 imps <- gFormulaImpute(
   wide_data,
-  M = 20,
+  M = 50,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1"),
   trtRegimes = regimes,
   predictorMatrix = pred_matrix

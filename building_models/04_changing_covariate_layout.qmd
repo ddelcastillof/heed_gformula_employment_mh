@@ -59,7 +59,7 @@ intervention_pattern <- expand_grid(0:1, 0:1) |>
 
 # Updating MCS and PCS from lags
 
-```{r}
+```{r model1-dag}
 grViz("digraph {
   graph []
   node [fontname=Arial]
@@ -89,7 +89,7 @@ grViz("digraph {
 }")
 ```
 
-```{r}
+```{r model1-gformula}
 outcome_type <- "continuous_eof"
 outcome_name <- "sf12mcs_dv"
 intvars <- c("econ_emp_bin")
@@ -208,7 +208,7 @@ gform_cont_eof <- gformula(obs_data = late_pop,
 
 <!-- ## MI method -->
 
-```{r}
+```{r model1-mi}
 
 regimes <- intervention_pattern
 
@@ -277,7 +277,7 @@ mi_results <-
 
 <!-- ## Manual method -->
 
-```{r}
+```{r model1-manual}
 
 main_mod <- wide_data %$%
   lm(sf12mcs_dv_1 ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
@@ -350,7 +350,7 @@ manual_results <- data_to_test |>
 
 ## Comparing results
 
-```{r}
+```{r model1-tab}
 #| output: true
 out_results_mod1 <- gform_cont_eof$result |> 
   select(`g-form mean`) |>
@@ -362,7 +362,7 @@ out_results_mod1 |>
   
 ```
 
-```{r}
+```{r model1-graph}
 #| output: true
 out_results_mod1 |> 
   pivot_longer(-intervention, names_to = "Calculation method", values_to = "estimate") |> 
@@ -373,7 +373,7 @@ out_results_mod1 |>
 
 # MCS baseline as static variable
 
-```{r}
+```{r model2-dag}
 #| echo: false
 grViz("digraph {
   graph []
@@ -407,7 +407,7 @@ grViz("digraph {
 
 <!-- ## `gfoRmula` -->
 
-```{r}
+```{r model2-gformula}
 outcome_type <- "continuous_eof"
 outcome_name <- "sf12mcs_dv"
 intvars <- c("econ_emp_bin")
@@ -528,7 +528,7 @@ gform_cont_eof
 
 <!-- ## MI method -->
 
-```{r}
+```{r model2-mi}
 
 regimes <- intervention_pattern
 
@@ -595,7 +595,7 @@ mi_results <-
 
 <!-- ## Manual method -->
 
-```{r}
+```{r model2-manual}
 
 main_mod <- wide_data %$%
   lm(sf12mcs_dv_1 ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
@@ -659,7 +659,7 @@ manual_results <- data_to_test |>
 
 ## Comparing results
 
-```{r}
+```{r model2-tab}
 #| output: true
 out_results_mod2 <- gform_cont_eof$result |> 
   select(`g-form mean`) |>
@@ -671,7 +671,7 @@ out_results_mod2 |>
   
 ```
 
-```{r}
+```{r model2-graph}
 #| output: true
 out_results_mod2 |> 
   pivot_longer(-intervention, names_to = "Calculation method", values_to = "estimate") |> 
@@ -682,7 +682,7 @@ out_results_mod2 |>
 
 # Combined results
 
-```{r}
+```{r combined-tab}
 #| output: true
 library(gt)
 
@@ -705,7 +705,7 @@ tibble(
 ```
 
 
-```{r}
+```{r combined-graph}
 #| output: true
 tibble(
   model = c("Model 1", "Model 2"),
