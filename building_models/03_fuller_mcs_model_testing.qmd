@@ -1486,6 +1486,7 @@ imps <- gFormulaImpute(
   M = 50,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1"),
   trtRegimes = regimes,
+  nSim = 100000,
   predictorMatrix = pred_matrix
 )
 

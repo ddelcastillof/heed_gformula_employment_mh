@@ -9,7 +9,7 @@ editor: visual
 
 # Reading in data
 
-```{r, setup}
+```{r setup}
 #| output: false
 
 here::i_am("building_models/02_simple_mcs_model_testing.qmd")
