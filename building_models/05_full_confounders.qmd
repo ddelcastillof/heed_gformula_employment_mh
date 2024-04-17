@@ -1,0 +1,308 @@
+---
+title: "Adding more covariates"
+author: "Andy Baxter"
+execute: 
+  echo: false
+  output: false
+  warning: false
+format: 
+  docx:
+    number-sections: true
+    reference-doc: reference.docx
+---
+
+<!-- # Reading in data -->
+
+
+```{r setup}
+#| output: false
+here::i_am("building_models/03_fuller_mcs_model_testing.qmd")
+source(here::here("R", "data_import_and_cleaning.R"))
+
+pop_data <- import_data() |> 
+  data.table::as.data.table()
+
+library(gfoRmula)
+library(magrittr)
+library(DiagrammeR)
+library(gFormulaMI)
+library(SPHSUgraphs)
+library(tidyverse)
+library(data.table)
+
+
+ggplot2::theme_set(theme_sphsu_light())
+
+# All observations, waves 8, 9 and 10
+
+late_pop <- pop_data[wave %in% 7:10][, `:=`(
+  t0 = t0 - 2,
+  pre_mcs = shift(sf12mcs_dv, type = "lag"),
+  pre_pcs = shift(sf12pcs_dv, type = "lag")
+)][wave != 7]
+
+
+intervention_pattern <- expand_grid(0:1, 0:1, 0:1) |>
+  t() |>
+  as_tibble(.name_repair = "minimal") |>
+  unclass()
+
+```
+
+# Confounders
+
+Baseline static confounders:
+
+ - Sex
+ - Age at baseline (and age squared)
+ - Ethnicity
+ - Education
+ - Location (`gor_dv`)
+
+Time-varying confounders:
+
+ - Physical health (`sf12pcs_dv`)
+ - Financial distress (`econ_dist`)
+ - Relationship status (`mastat_dv`)
+ - Number of dependents (`dnc`)
+ - Any income from benefits (`econ_benefits`)
+ - Home ownership (`home_owner`)
+ - Income (`log_income` or `econ_incquint`)
+ 
+Exposures:
+
+ - Employment (`econ_emp_bin`)
+
+
+
+## MI method
+
+```{r}
+
+regimes <- intervention_pattern
+
+wide_data <- as_tibble(late_pop) |> 
+  select(-wave, -contains("lag")) |> 
+  pivot_wider(id_cols = c(pidp, ends_with("base")), names_from = t0, values_from = c(sf12mcs_dv:dnc, pre_mcs, pre_pcs)) |> 
+  select(
+    sex_dv_base,
+    wnw_race_base,
+    hiqual_dv_base,
+    age_dv_base,
+    gor_dv_base,
+    pre_mcs_0,
+    pre_pcs_0,
+    econ_emp_bin_0,
+    econ_dist_0,
+    dnc_0,
+    econ_benefits_0,
+    home_owner_0,
+    log_income_0,
+    pre_mcs_1,
+    pre_pcs_1,
+    econ_emp_bin_1,
+    econ_dist_1,
+    dnc_1,
+    econ_benefits_1,
+    home_owner_1,
+    log_income_1,
+    pre_mcs_2,
+    pre_pcs_2,
+    econ_emp_bin_2,
+    econ_dist_2,
+    dnc_2,
+    econ_benefits_2,
+    home_owner_2,
+    log_income_2,
+    sf12mcs_dv_2
+  )
+
+predict_matrix <- 
+  matrix(
+ c(
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # gor_dv_base
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_mcs_0
+1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_pcs_0
+1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
+1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_dist_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # dnc_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_benefits_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # log_income_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_mcs_1
+1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_pcs_1
+1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_1
+1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_dist_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # dnc_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_benefits_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # log_income_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_mcs_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_pcs_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,  # econ_dist_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,  # dnc_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,  # econ_benefits_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0,  # home_owner_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0,  # log_income_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,  # sf12mcs_dv_2
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0   # regime
+), nrow = 31L, byrow = TRUE)
+
+
+
+imputed_sets <- mice::mice(wide_data, m = 40,
+                           defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+
+imps <- gFormulaImpute(
+  imputed_sets,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtRegimes = regimes,
+  predictorMatrix = predict_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_2 ~ 0 + factor(regime))
+
+outvals <- syntheticPool(fits)
+
+regimes_t <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+
+mi_results <-
+  outvals |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(MI_result = Estimate,
+            ll = `95% CI L`,
+            ul = `95% CI U`,
+            intervention = regimes_t$intervention)
+
+
+  ggplot(mi_results, aes(MI_result, intervention, xmin = ll, xmax = ul)) +
+    geom_point(size = 2)  +
+    geom_errorbar(width = 0.3) +
+  scale_colour_sphsu()
+```
+
+
+
+## MI method
+
+```{r}
+
+regimes <- intervention_pattern
+
+wide_data <- as_tibble(late_pop) |> 
+  select(-wave, -contains("lag")) |> 
+  pivot_wider(id_cols = c(pidp, ends_with("base")), names_from = t0, values_from = c(sf12mcs_dv:dnc, pre_mcs, pre_pcs)) |> 
+  select(
+    sex_dv_base,
+    wnw_race_base,
+    hiqual_dv_base,
+    age_dv_base,
+    gor_dv_base,
+    sf12mcs_dv_base,
+    pre_pcs_0,
+    econ_emp_bin_0,
+    econ_dist_0,
+    dnc_0,
+    econ_benefits_0,
+    home_owner_0,
+    log_income_0,
+    pre_pcs_1,
+    econ_emp_bin_1,
+    econ_dist_1,
+    dnc_1,
+    econ_benefits_1,
+    home_owner_1,
+    log_income_1,
+    pre_pcs_2,
+    econ_emp_bin_2,
+    econ_dist_2,
+    dnc_2,
+    econ_benefits_2,
+    home_owner_2,
+    log_income_2,
+    sf12mcs_dv_2
+  )
+
+predict_matrix <- 
+  matrix(
+ c(
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sex_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # wnw_race_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # hiqual_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # age_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # gor_dv_base
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # sf12_mcs_base
+1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_pcs_0
+1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_0
+1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_dist_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # dnc_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_benefits_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_0
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # log_income_0
+1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_pcs_1
+1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_1
+1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_dist_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # dnc_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_benefits_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # home_owner_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # log_income_1
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # pre_pcs_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,  # econ_emp_bin_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,  # econ_dist_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,  # dnc_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,  # econ_benefits_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0,  # home_owner_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0,  # log_income_2
+1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0,  # sf12mcs_dv_2
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0  # regime
+), nrow = 29L, byrow = TRUE)
+
+
+
+imputed_sets <- mice::mice(wide_data, m = 40,
+                           defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+
+imps <- gFormulaImpute(
+  imputed_sets,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtRegimes = regimes,
+  predictorMatrix = predict_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_2 ~ 0 + factor(regime))
+
+outvals <- syntheticPool(fits)
+
+regimes_t <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+
+mi_results_2 <-
+  outvals |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(MI_result = Estimate,
+            ll = `95% CI L`,
+            ul = `95% CI U`,
+            intervention = regimes_t$intervention)
+
+
+  ggplot(mi_results_2, aes(MI_result, intervention, xmin = ll, xmax = ul)) +
+    geom_point(size = 2)  +
+    geom_errorbar(width = 0.3) +
+  scale_colour_sphsu()
+```
+
+

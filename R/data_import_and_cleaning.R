@@ -18,6 +18,7 @@ import_data <- function() {
     #  keep if age_sample==1    /*Deleting all people younger than 25 (24 and younger) and older than 65 (65 included) */
     filter(age_dv >= 25, age_dv <= 65) |>
     mutate(
+      gor_dv = as_factor(gor_dv),
       across(c(pidp, ppid, hidp, wave, pns1pid, pns2pid),
              as.integer),
       across(where(haven::is.labelled),
@@ -73,8 +74,15 @@ import_data <- function() {
       sf12mcs_dv,
       sf12pcs_dv,
       log_income,
+      econ_incquint,
       econ_emp_bin,
       econ_dist,
+      econ_benefits,
+      gor_dv,
+      mastat_dv,
+      home_owner,
+      dnc,
+      # base vars
       age_dv,
       wnw_race,
       sex_dv,
@@ -84,6 +92,7 @@ import_data <- function() {
       dnc,
       hiqual_dv
     ) |>
+    mutate(dnc = factor(dnc)) |> 
     full_join(tibble(wave = 1:10) |>
                 expand_grid(tibble(pidp = unique(tidied_data$pidp))),
               by = join_by(wave, pidp)) |>
@@ -108,7 +117,8 @@ import_data <- function() {
       sf12mcs_dv,
       sf12pcs_dv
     ) |>
-    filter(wave == 8, !is.na(age_dv)) |>
+    fill(sex_dv, gor_dv, wnw_race, hiqual_dv, econ_incquint, .direction = "downup") |> 
+    filter(wave == 7) |>
     select(-wave) |>
     rename_with( ~ paste0(.x, "_base"), -c(pidp)) |>
     expand_grid(tibble(wave = 1:10,
@@ -122,10 +132,15 @@ import_data <- function() {
       # time-varying vars
       sf12mcs_dv,
       sf12pcs_dv,
-      age_dv,
       log_income,
+      econ_incquint,
       econ_emp_bin,
       econ_dist,
+      econ_benefits,
+      gor_dv,
+      mastat_dv,
+      home_owner,
+      dnc,
       # base vars
       age_dv_base,
       sex_dv_base,
