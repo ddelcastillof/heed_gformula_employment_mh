@@ -98,7 +98,7 @@ import_data <- function() {
               by = join_by(wave, pidp)) |>
     arrange(pidp, wave) |>
     group_by(pidp) |>
-    fill(everything()) |>
+    fill(econ_incquint, .direction = "up") |>
     ungroup()
   
   
@@ -117,7 +117,7 @@ import_data <- function() {
       sf12mcs_dv,
       sf12pcs_dv
     ) |>
-    fill(sex_dv, gor_dv, wnw_race, hiqual_dv, econ_incquint, .direction = "downup") |> 
+    fill(sex_dv, gor_dv, wnw_race, hiqual_dv, .direction = "downup") |> 
     filter(wave == 7) |>
     select(-wave) |>
     rename_with( ~ paste0(.x, "_base"), -c(pidp)) |>
