@@ -24,7 +24,6 @@ pop_data <- import_data() |>
 
 library(gfoRmula)
 library(magrittr)
-library(DiagrammeR)
 library(gFormulaMI)
 library(SPHSUgraphs)
 library(tidyverse)
@@ -75,10 +74,10 @@ Exposures:
 
 
 
-## MI method
+## MI method - updating MCS scores
 
 ```{r}
-
+#| output: true
 regimes <- intervention_pattern
 
 wide_data <- as_tibble(late_pop) |> 
@@ -183,8 +182,10 @@ mi_results <-
             ll = `95% CI L`,
             ul = `95% CI U`,
             intervention = regimes_t$intervention)
+```
 
-
+```{r}
+#| output: true
   ggplot(mi_results, aes(MI_result, intervention, xmin = ll, xmax = ul)) +
     geom_point(size = 2)  +
     geom_errorbar(width = 0.3) +
@@ -193,10 +194,10 @@ mi_results <-
 
 
 
-## MI method
+## MI method - static base MCS score
 
 ```{r}
-
+#| output: false
 regimes <- intervention_pattern
 
 wide_data <- as_tibble(late_pop) |> 
@@ -297,8 +298,10 @@ mi_results_2 <-
             ll = `95% CI L`,
             ul = `95% CI U`,
             intervention = regimes_t$intervention)
+```
 
-
+```{r}
+#| output: true
   ggplot(mi_results_2, aes(MI_result, intervention, xmin = ll, xmax = ul)) +
     geom_point(size = 2)  +
     geom_errorbar(width = 0.3) +
