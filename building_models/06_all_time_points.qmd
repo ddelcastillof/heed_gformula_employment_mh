@@ -1,0 +1,111 @@
+---
+title: "All time periods"
+format: html
+---
+
+```{r setup}
+#| output: false
+here::i_am("building_models/06_all_time_points.qmd")
+source(here::here("R", "data_import_and_cleaning.R"))
+source(here::here("R", "func_prep_data.R"))
+
+pop_data <- import_data() |> 
+  data.table::as.data.table()
+
+library(gfoRmula)
+library(magrittr)
+library(gFormulaMI)
+library(SPHSUgraphs)
+library(tidyverse)
+library(data.table)
+
+
+ggplot2::theme_set(theme_sphsu_light())
+
+
+late_pop <- pop_data[, `:=`(
+  t0 = t0 - 1,
+  pre_mcs = shift(sf12mcs_dv, type = "lag"),
+  pre_pcs = shift(sf12pcs_dv, type = "lag")
+)][wave != 1]
+
+intervention_pattern <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
+  t() |>
+  as_tibble(.name_repair = "minimal") |>
+  unclass()
+
+```
+
+# Confounders
+
+Baseline static confounders:
+
+ - Sex
+ - Age at baseline (and age squared)
+ - Ethnicity
+ - Education
+ - Location (`gor_dv`)
+
+Time-varying confounders:
+
+ - Physical health (`sf12pcs_dv`)
+ - Financial distress (`econ_dist`)
+ - Relationship status (`mastat_dv`)
+ - Number of dependents (`dnc`)
+ - Any income from benefits (`econ_benefits`)
+ - Home ownership (`home_owner`)
+ - Income (`log_income` or `econ_incquint`)
+ 
+Exposures:
+
+ - Employment at waves 7, 8, 9 and 10 (`econ_emp_bin`)
+
+# Method 1: updating MCS
+ 
+```{r}
+#| output: false
+regimes <- intervention_pattern
+
+wide_data <- late_pop |>
+  make_wide(
+    pidp,
+    t0,
+    base_cols = c(sex_dv_base,
+                  wnw_race_base,
+                  hiqual_dv_base,
+                  age_dv_base,
+                  gor_dv_base),
+    pre_mcs,
+    pre_pcs,
+    econ_dist,
+    dnc,
+    econ_benefits,
+    home_owner,
+    econ_emp_bin,
+    log_income
+  )
+
+
+predictor_matrix <- make_predictor_matrix(wide_data)
+
+imputed_sets <- mice::mice(wide_data, m = 20,
+                           defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+
+imps <- gFormulaImpute(
+  imputed_sets,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtRegimes = regimes,
+  predictorMatrix = predict_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_2 ~ 0 + factor(regime))
+
+outvals <- syntheticPool(fits)
+
+regimes_t <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+```
+

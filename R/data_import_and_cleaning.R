@@ -18,7 +18,7 @@ import_data <- function() {
     #  keep if age_sample==1    /*Deleting all people younger than 25 (24 and younger) and older than 65 (65 included) */
     filter(age_dv >= 25, age_dv <= 65) |>
     mutate(
-      gor_dv = as_factor(gor_dv),
+      across(c(gor_dv, hiqual_dv, econ_incquint), as_factor),
       across(c(pidp, ppid, hidp, wave, pns1pid, pns2pid),
              as.integer),
       across(where(haven::is.labelled),
@@ -98,7 +98,8 @@ import_data <- function() {
               by = join_by(wave, pidp)) |>
     arrange(pidp, wave) |>
     group_by(pidp) |>
-    fill(econ_incquint, .direction = "up") |>
+    fill(hiqual_dv, .direction = "down") |>
+    fill(sex_dv, wnw_race, .direction = "downup") |> 
     ungroup()
   
   
@@ -117,12 +118,12 @@ import_data <- function() {
       sf12mcs_dv,
       sf12pcs_dv
     ) |>
-    fill(sex_dv, gor_dv, wnw_race, hiqual_dv, .direction = "downup") |> 
-    filter(wave == 7) |>
+    mutate(age_dv = mean(age_dv - wave + 1, na.rm = TRUE) |> round(), .by = "pidp") |> 
+    filter(wave == 1) |>
     select(-wave) |>
     rename_with( ~ paste0(.x, "_base"), -c(pidp)) |>
     expand_grid(tibble(wave = 1:10,
-                       t0 = -5:4)) |>
+                       t0 = 0:9)) |>
     left_join(expanded_data, by = join_by(pidp, wave)) |>
     select(
       # id and time vars
