@@ -1,13 +1,15 @@
 
 
-make_wide <- function(df, id_col, time_col, base_cols, ...) {
+make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
   
   require(rlang)
   
   t_conf <- enquos(...)
   
+  t_max <- max(df |> pull({{time_col}}))
+  
   df_out <- df |> 
-    select({{id_col}}, {{time_col}}, {{base_cols}}, !!!t_conf) |> 
+    select({{id_col}}, {{time_col}}, {{base_cols}}, {{outcome}}, !!!t_conf) |> 
     pivot_wider(
       id_cols = c({{id_col}}, {{base_cols}}), 
       names_from = {{time_col}}, 
@@ -23,7 +25,9 @@ make_wide <- function(df, id_col, time_col, base_cols, ...) {
       ends_with("6"),
       ends_with("7"),
       ends_with("8"),
-      ends_with("9")
+      ends_with("9"),
+      -starts_with(quo_name(quo({{outcome}}))),
+      matches(paste(quo_name(quo({{outcome}})), t_max, sep = "_"))
     )
   
   attr(df_out, "n_tvars") <- length(t_conf)
@@ -56,5 +60,3 @@ make_predictor_matrix <- function(return_vals) {
   p_mat
   
 }
-
-make_predictor_matrix(return_vals)

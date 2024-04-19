@@ -75,6 +75,7 @@ wide_data <- late_pop |>
                   hiqual_dv_base,
                   age_dv_base,
                   gor_dv_base),
+    outcome = sf12mcs_dv,
     pre_mcs,
     pre_pcs,
     econ_dist,
@@ -93,13 +94,13 @@ imputed_sets <- mice::mice(wide_data, m = 20,
 
 imps <- gFormulaImpute(
   imputed_sets,
-  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtVars = c("econ_emp_bin_6", "econ_emp_bin_7", "econ_emp_bin_8"),
   trtRegimes = regimes,
   predictorMatrix = predict_matrix
 )
 
 fits <- imps %$%
-  lm(sf12mcs_dv_2 ~ 0 + factor(regime))
+  lm(sf12mcs_dv_8 ~ 0 + factor(regime))
 
 outvals <- syntheticPool(fits)
 
@@ -107,5 +108,90 @@ regimes_t <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |> 
   reduce(c)
 )
+
+mi_results <-
+  outvals |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(MI_result = Estimate,
+            ll = `95% CI L`,
+            ul = `95% CI U`,
+            intervention = regimes_t$intervention)
+```
+
+```{r}
+#| output: true
+  ggplot(mi_results, aes(MI_result, intervention, xmin = ll, xmax = ul)) +
+    geom_point(size = 2)  +
+    geom_errorbar(width = 0.3) +
+  scale_colour_sphsu()
+```
+
+
+# Method 2: static
+ 
+```{r}
+#| output: false
+regimes <- intervention_pattern
+
+wide_data <- late_pop |>
+  make_wide(
+    pidp,
+    t0,
+    base_cols = c(sex_dv_base,
+                  wnw_race_base,
+                  hiqual_dv_base,
+                  age_dv_base,
+                  gor_dv_base,
+                  sf12mcs_dv_base),
+    outcome = sf12mcs_dv,
+    pre_pcs,
+    econ_dist,
+    dnc,
+    econ_benefits,
+    home_owner,
+    econ_emp_bin,
+    log_income
+  )
+
+
+predictor_matrix <- make_predictor_matrix(wide_data)
+
+imputed_sets <- mice::mice(wide_data, m = 20,
+                           defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+
+imps <- gFormulaImpute(
+  imputed_sets,
+  trtVars = c("econ_emp_bin_6", "econ_emp_bin_7", "econ_emp_bin_8"),
+  trtRegimes = regimes,
+  predictorMatrix = predict_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_8 ~ 0 + factor(regime))
+
+outvals <- syntheticPool(fits)
+
+regimes_t <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+
+mi_results_2 <-
+  outvals |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(MI_result = Estimate,
+            ll = `95% CI L`,
+            ul = `95% CI U`,
+            intervention = regimes_t$intervention)
+```
+
+```{r}
+#| output: true
+  ggplot(mi_results_2, aes(MI_result, intervention, xmin = ll, xmax = ul)) +
+    geom_point(size = 2)  +
+    geom_errorbar(width = 0.3) +
+  scale_colour_sphsu()
 ```
 
