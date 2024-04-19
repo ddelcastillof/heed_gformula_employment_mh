@@ -51,7 +51,7 @@ make_predictor_matrix <- function(return_vals) {
   
   
   for (n in 1:(n_vars - n_base)) {
-    p_mat[n_base + n, max(0, n_base + n - 1 - n_tvars):(n_base + n - 1)] <-
+    p_mat[n_base + n, max(0, n_base + n - n_tvars):(n_base + n - 1)] <-
       1
   }
   
