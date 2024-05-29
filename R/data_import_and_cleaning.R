@@ -92,10 +92,11 @@ import_data <- function() {
       dnc,
       hiqual_dv
     ) |>
-    mutate(dnc = factor(dnc)) |> 
+    mutate(dnc = factor(dnc), response = 1) |> 
     full_join(tibble(wave = 1:10) |>
                 expand_grid(tibble(pidp = unique(tidied_data$pidp))),
               by = join_by(wave, pidp)) |>
+    replace_na(list(response = 0)) |> 
     arrange(pidp, wave) |>
     group_by(pidp) |>
     fill(hiqual_dv, .direction = "down") |>
@@ -107,6 +108,7 @@ import_data <- function() {
     select(
       pidp,
       wave,
+      response,
       age_dv,
       sex_dv,
       gor_dv,
@@ -129,6 +131,7 @@ import_data <- function() {
       # id and time vars
       pidp,
       wave,
+      response,
       t0,
       # time-varying vars
       sf12mcs_dv,
