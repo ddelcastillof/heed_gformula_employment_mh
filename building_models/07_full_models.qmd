@@ -64,6 +64,8 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
 
 nsamples <- 1000
 
+imputed_late <- mice::mice(late_pop[,-c(1:3)], defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 20)
+
 ```
 
 # Confounders
