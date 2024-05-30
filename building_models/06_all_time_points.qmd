@@ -18,6 +18,8 @@ library(gFormulaMI)
 library(SPHSUgraphs)
 library(tidyverse)
 library(data.table)
+library(furrr)
+library(mice)
 
 
 ggplot2::theme_set(theme_sphsu_light())
@@ -89,14 +91,45 @@ wide_data <- late_pop |>
 
 predictor_matrix <- make_predictor_matrix(wide_data)
 
-imputed_sets <- mice::mice(wide_data, m = 20,
-                           defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+plan(multisession, workers = 20)
 
+imputed_sets <- 21:40 |> 
+  future_map(
+    ~mice::mice(wide_data, m = 2,
+               # seed = .x,
+               defaultMethod = c("pmm", "logreg", "pmm", "pmm")),
+    .options = furrr_options(seed=TRUE)
+  ) |> 
+  reduce(ibind)
+
+# fits <- future_map(
+#   imputed_sets,
+#   \(imp) {
+#     gFormulaImpute(
+#       imp,
+#       trtVars = c("econ_emp_bin_5", "econ_emp_bin_6", "econ_emp_bin_7", "econ_emp_bin_8"),
+#       trtRegimes = regimes,
+#       predictorMatrix = predictor_matrix
+#     ) %$%
+#       lm(sf12mcs_dv_8 ~ 0 + factor(regime))
+#   },
+#   .options = furrr_options(seed = TRUE)
+# )
+
+# imputed_sets |> 
+#   reduce(ibind)
+# 
+# outvals <- fits |> 
+#   syntheticPool()
+
+# imputed_sets <- mice::mice(wide_data, m = 20,
+#                            defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+# 
 imps <- gFormulaImpute(
   imputed_sets,
-  trtVars = c("econ_emp_bin_6", "econ_emp_bin_7", "econ_emp_bin_8"),
+  trtVars = c("econ_emp_bin_5", "econ_emp_bin_6", "econ_emp_bin_7", "econ_emp_bin_8"),
   trtRegimes = regimes,
-  predictorMatrix = predict_matrix
+  predictorMatrix = predictor_matrix
 )
 
 fits <- imps %$%
@@ -104,8 +137,8 @@ fits <- imps %$%
 
 outvals <- syntheticPool(fits)
 
-regimes_t <- tibble(intervention = regimes |> 
-  map(paste, collapse = "-") |> 
+regimes_t <- tibble(intervention = regimes |>
+  map(paste, collapse = "-") |>
   reduce(c)
 )
 
@@ -121,10 +154,19 @@ mi_results <-
 
 ```{r}
 #| output: true
-  ggplot(mi_results, aes(MI_result, intervention, xmin = ll, xmax = ul)) +
-    geom_point(size = 2)  +
-    geom_errorbar(width = 0.3) +
-  scale_colour_sphsu()
+mi_results |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |>
+  ggplot(aes(
+    MI_result,
+    intervention,
+    xmin = ll,
+    xmax = ul,
+    colour = n_unemp
+  )) +
+  geom_point(size = 2)  +
+  geom_errorbar(width = 0.3) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
 
@@ -157,14 +199,43 @@ wide_data <- late_pop |>
 
 predictor_matrix <- make_predictor_matrix(wide_data)
 
-imputed_sets <- mice::mice(wide_data, m = 20,
-                           defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+imputed_sets <- 21:40 |> 
+  future_map(
+    ~mice::mice(wide_data, m = 2,
+               # seed = .x,
+               defaultMethod = c("pmm", "logreg", "pmm", "pmm")),
+    .options = furrr_options(seed=TRUE)
+  ) |> 
+  reduce(ibind)
 
+# fits <- future_map(
+#   imputed_sets,
+#   \(imp) {
+#     gFormulaImpute(
+#       imp,
+#       trtVars = c("econ_emp_bin_5", "econ_emp_bin_6", "econ_emp_bin_7", "econ_emp_bin_8"),
+#       trtRegimes = regimes,
+#       predictorMatrix = predictor_matrix
+#     ) %$%
+#       lm(sf12mcs_dv_8 ~ 0 + factor(regime))
+#   },
+#   .options = furrr_options(seed = TRUE)
+# )
+
+# imputed_sets |> 
+#   reduce(ibind)
+# 
+# outvals <- fits |> 
+#   syntheticPool()
+
+# imputed_sets <- mice::mice(wide_data, m = 20,
+#                            defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+# 
 imps <- gFormulaImpute(
   imputed_sets,
-  trtVars = c("econ_emp_bin_6", "econ_emp_bin_7", "econ_emp_bin_8"),
+  trtVars = c("econ_emp_bin_5", "econ_emp_bin_6", "econ_emp_bin_7", "econ_emp_bin_8"),
   trtRegimes = regimes,
-  predictorMatrix = predict_matrix
+  predictorMatrix = predictor_matrix
 )
 
 fits <- imps %$%
@@ -172,8 +243,8 @@ fits <- imps %$%
 
 outvals <- syntheticPool(fits)
 
-regimes_t <- tibble(intervention = regimes |> 
-  map(paste, collapse = "-") |> 
+regimes_t <- tibble(intervention = regimes |>
+  map(paste, collapse = "-") |>
   reduce(c)
 )
 
@@ -189,9 +260,19 @@ mi_results_2 <-
 
 ```{r}
 #| output: true
-  ggplot(mi_results_2, aes(MI_result, intervention, xmin = ll, xmax = ul)) +
-    geom_point(size = 2)  +
-    geom_errorbar(width = 0.3) +
-  scale_colour_sphsu()
+
+mi_results_2 |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |>
+  ggplot(aes(
+    MI_result,
+    intervention,
+    xmin = ll,
+    xmax = ul,
+    colour = n_unemp
+  )) +
+  geom_point(size = 2)  +
+  geom_errorbar(width = 0.3) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
