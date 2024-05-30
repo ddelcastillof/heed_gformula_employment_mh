@@ -41,7 +41,7 @@ late_pop <- pop_dt[, `:=`(
   t0 = t0 - 2,
   pre_mcs = shift(sf12mcs_dv, type = "lag"),
   pre_pcs = shift(sf12pcs_dv, type = "lag")
-)][wave %in% 3:6]
+)][wave %in% 3:6 & response == 1]
 
 no_mh_outcomes <- late_pop |> 
   group_by(pidp) |> 
