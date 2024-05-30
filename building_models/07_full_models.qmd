@@ -1,6 +1,8 @@
 ---
 title: "Full models"
 author: "Andy Baxter"
+execute: 
+  output: false
 ---
 
 ```{r setup}
@@ -60,6 +62,8 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
   as_tibble(.name_repair = "minimal") |>
   unclass()
 
+nsamples <- 1000
+
 ```
 
 # Confounders
@@ -92,7 +96,7 @@ Exposures:
 
 ### gformula
 
-```{r}
+```{r 4dynamic-gform}
 outcome_type <- "continuous_eof"
 outcome_name <- "sf12mcs_dv"
 intvars <- c("econ_emp_bin")
