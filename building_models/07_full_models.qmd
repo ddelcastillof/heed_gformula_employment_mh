@@ -509,7 +509,7 @@ regimes_t <- tibble(intervention = regimes |>
 )
 ```
 
-## Comparing results
+### Comparing results
 
 ```{r 4baseline-tab}
 #| output: true
