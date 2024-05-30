@@ -7,7 +7,7 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
   t_conf <- enquos(...)
   
   t_max <- max(df |> pull({{time_col}}))
-  
+  # browser()
   df_out <- df |> 
     select({{id_col}}, {{time_col}}, {{base_cols}}, {{outcome}}, !!!t_conf) |> 
     pivot_wider(
@@ -26,7 +26,8 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
       ends_with("7"),
       ends_with("8"),
       ends_with("9"),
-      -starts_with(quo_name(quo({{outcome}}))),
+      -matches(paste0("^", quo_name(quo({{outcome}})), "_\\d+")),
+      # -starts_with(quo_name(quo({{outcome}}))),
       matches(paste(quo_name(quo({{outcome}})), t_max, sep = "_"))
     )
   
