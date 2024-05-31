@@ -130,11 +130,11 @@ covnames <-
 covtypes <- c(
   "normal", # pre_mcs
   "normal", # pre_pcs
-  "binary", # econ_emp_bin
-  "binary", # econ_dist
+  "categorical", # econ_emp_bin
+  "categorical", # econ_dist
   "categorical", # dnc
-  "binary", # econ_benefits
-  "binary", # home_owner
+  "categorical", # econ_benefits
+  "categorical", # home_owner
   "normal" # log_income
 )
 
