@@ -58,6 +58,19 @@ make_predictor_matrix <- function(return_vals) {
   
   p_mat[n_vars, 1:(n_vars - 1)] <- 1
   
+  rownames(p_mat) <- colnames(p_mat) <- c(colnames(return_vals), "regime")
+  
   p_mat
+  
+}
+
+pool_gform_estimates <- function(g_form_long) {
+  
+  gform_long |> 
+    select(.imp, g_form_out) |> 
+    unnest(gform_out) |> 
+    janitor::clean_names() |> 
+    filter(imp != 0) |> 
+    summarise(g_form_mean = mean(g_form_mean), .by = "interv")
   
 }
