@@ -130,8 +130,14 @@ wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "p
 
 imputed_wide <- mice::complete(wide_mids, action = "long", include = TRUE)
 
-imputed_long <- imputed_wide |> 
-  pivot_longer(matches("*_\\d$"), names_to = c(".value", "t0"), names_pattern = "(.*)_(\\d)") |> 
+imputed_long <- imputed_wide |>
+  pivot_longer(
+    matches("*_\\d$"),
+    names_to = c(".value", "t0"),
+    names_pattern = "(.*)_(\\d)",
+    names_transform = list(t0 = as.integer)
+  ) |>
+  # (\(x) cbind(long_data[,1:3], x))()
   nest(data = -.imp)
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
@@ -215,7 +221,7 @@ covtypes <- c(
 
 basecovs <- c(
   "sex_dv_base",
-  "home_owner_base",
+  "gor_dv_base",
   "wnw_race_base",
   "hiqual_dv_base",
   "age_dv_base"
@@ -223,34 +229,34 @@ basecovs <- c(
   # "mastat_dv_base",
 )
 
-ymodel <- sf12mcs_dv ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +  # Baseline - sex
+ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +  # Baseline - sex
   pre_mcs + pre_pcs + econ_dist + dnc + econ_benefits + home_owner +     # Time-varying confounders
   econ_emp_bin + log_income    # Time-varying exposures
 
 
 covparams <- list(
   covmodels = c(
-    pre_mcs ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+    pre_mcs ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
       lag1_pre_mcs + lag1_pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + 
       lag1_econ_emp_bin + lag1_log_income,
-    pre_pcs ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+    pre_pcs ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
       lag1_pre_pcs + pre_mcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner +
       lag1_econ_emp_bin + lag1_log_income,
-    econ_emp_bin ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+    econ_emp_bin ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
       pre_mcs + pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + lag1_log_income + lag1_econ_emp_bin,
-    econ_dist ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+    econ_dist ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
       pre_mcs + pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
-    dnc ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+    dnc ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
       pre_mcs + pre_pcs + econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + econ_emp_bin + lag1_log_income,
-    econ_benefits ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+    econ_benefits ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
       pre_mcs + pre_pcs + lag1_econ_dist + dnc + lag1_econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
-    home_owner ~ sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+    home_owner ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
       pre_mcs + pre_pcs + econ_dist + dnc + econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
     log_income ~
-      sex_dv_base + home_owner_base + wnw_race_base + hiqual_dv_base + age_dv_base +
+      sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
       lag1_log_income + pre_pcs + pre_mcs + econ_dist + dnc + econ_benefits + home_owner + econ_emp_bin
   )
 )
@@ -287,8 +293,7 @@ intvars <- as.list(rep("econ_emp_bin", length(interventions)))
 int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
-gform_long <- long_dat |>
-  nest(data = -.imp) |>
+gform_long <- imputed_long |>
   mutate(gform_out = map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
@@ -296,7 +301,7 @@ gform_long <- long_dat |>
     gform_cont_eof <- gformula(
       obs_data = data,
       outcome_type = outcome_type,
-      id = "pidp",
+      id = ".id",
       time_name = "t0",
       time_points = time_points,
       covnames = covnames,
