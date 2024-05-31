@@ -287,35 +287,42 @@ intvars <- as.list(rep("econ_emp_bin", length(interventions)))
 int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
-
-gform_cont_eof <- gformula(obs_data = long_data,
-                           outcome_type = outcome_type,
-                           id = "pidp",
-                           time_name = "t0",
-                           time_points = time_points,
-                           covnames = covnames,
-                           outcome_name = outcome_name,
-                           covtypes = covtypes,
-                           covparams = covparams,
-                           # covpredict_custom = covpredict_custom,
-                           ymodel = ymodel,
-                           
-                           intvars = intvars,
-                           interventions = interventions,
-                           int_descript = int_description,
-                           
-                           # covfits_custom = c(NA, NA, NA, NA, incr_fit),
-                           # covpredict_custom = covpredict_custom,
-                           
-                           histories = histories,
-                           histvars = histvars,
-                           basecovs = basecovs,
-                           seed = 1234,
-                           # parallel = TRUE,
-                           # nsamples = nsamples, # Number of bootstrap samples
-                           # ncores = ncores,
-                           ref_int = 1
-)
+gform_long <- long_dat |>
+  nest(data = -.imp) |>
+  mutate(gform_out = map(data, function(data) {
+    
+    data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
+    
+    gform_cont_eof <- gformula(
+      obs_data = data,
+      outcome_type = outcome_type,
+      id = "pidp",
+      time_name = "t0",
+      time_points = time_points,
+      covnames = covnames,
+      outcome_name = outcome_name,
+      covtypes = covtypes,
+      covparams = covparams,
+      ymodel = ymodel,
+      
+      intvars = intvars,
+      interventions = interventions,
+      int_descript = int_description,
+      
+      
+      histories = histories,
+      histvars = histvars,
+      basecovs = basecovs,
+      seed = 1234,
+      parallel = TRUE,
+      nsamples = nsamples,
+      ncores = ncores,
+      ref_int = 1
+    )
+    
+    gform_cont_eof$result
+    
+  }))
 
 
 ```
