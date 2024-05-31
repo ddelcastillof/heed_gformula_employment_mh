@@ -551,5 +551,6 @@ ggplot(aes(result, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  xlim(47, 51)
 ```
