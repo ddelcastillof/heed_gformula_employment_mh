@@ -211,7 +211,7 @@ covnames <-
 covtypes <- c(
   "normal", # pre_mcs
   "normal", # pre_pcs
-  "categorical", # econ_emp_bin
+  "binary", # econ_emp_bin
   "categorical", # econ_dist
   "categorical", # dnc
   "categorical", # econ_benefits
@@ -430,10 +430,10 @@ covnames <-
 covtypes <- c(
   "normal", # pre_pcs
   "binary", # econ_emp_bin
-  "binary", # econ_dist
+  "categorical", # econ_dist
   "categorical", # dnc
-  "binary", # econ_benefits
-  "binary", # home_owner
+  "categorical", # econ_benefits
+  "categorical", # home_owner
   "normal" # log_income
 )
 
@@ -506,34 +506,42 @@ int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
 
-gform_cont_eof <- gformula(obs_data = long_data,
-                           outcome_type = outcome_type,
-                           id = "pidp",
-                           time_name = "t0",
-                           time_points = time_points,
-                           covnames = covnames,
-                           outcome_name = outcome_name,
-                           covtypes = covtypes,
-                           covparams = covparams,
-                           # covpredict_custom = covpredict_custom,
-                           ymodel = ymodel,
-                           
-                           intvars = intvars,
-                           interventions = interventions,
-                           int_descript = int_description,
-                           
-                           # covfits_custom = c(NA, NA, NA, NA, incr_fit),
-                           # covpredict_custom = covpredict_custom,
-                           
-                           histories = histories,
-                           histvars = histvars,
-                           basecovs = basecovs,
-                           seed = 1234,
-                           parallel = TRUE,
-                           nsamples = nsamples, # Number of bootstrap samples
-                           ncores = ncores,
-                           ref_int = 1
-)
+gform_long <- long_dat |>
+  nest(data = -.imp) |>
+  mutate(gform_out = map(data, function(data) {
+    
+    data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
+    
+    gform_cont_eof <- gformula(
+      obs_data = data,
+      outcome_type = outcome_type,
+      id = "pidp",
+      time_name = "t0",
+      time_points = time_points,
+      covnames = covnames,
+      outcome_name = outcome_name,
+      covtypes = covtypes,
+      covparams = covparams,
+      ymodel = ymodel,
+      
+      intvars = intvars,
+      interventions = interventions,
+      int_descript = int_description,
+      
+      
+      histories = histories,
+      histvars = histvars,
+      basecovs = basecovs,
+      seed = 1234,
+      parallel = TRUE,
+      nsamples = nsamples,
+      ncores = ncores,
+      ref_int = 1
+    )
+    
+    gform_cont_eof$result
+    
+  }))
 ```
  
 ### gFormulaMI
@@ -541,34 +549,13 @@ gform_cont_eof <- gformula(obs_data = long_data,
 ```{r 4baseline-mi}
 regimes <- intervention_pattern_4
 
-wide_data <- long_data |>
-  make_wide(
-    pidp,
-    t0,
-    base_cols = c(sex_dv_base,
-                  wnw_race_base,
-                  hiqual_dv_base,
-                  age_dv_base,
-                  gor_dv_base,
-                  sf12mcs_dv_base),
-    outcome = sf12mcs_dv,
-    pre_pcs,
-    econ_dist,
-    dnc,
-    econ_benefits,
-    home_owner,
-    econ_emp_bin,
-    log_income
-  )
+predictor_matrix <- base_predictor_matrix
 
-
-predictor_matrix <- make_predictor_matrix(wide_data)
-
-imputed_sets <- mice::mice(wide_data, m = 20,
-                           defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+predictor_matrix["pre_mcs_0",] <- 0
+predictor_matrix[,"pre_mcs_0"] <- 0
 
 imps <- gFormulaImpute(
-  imputed_sets,
+  wide_mids,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
   trtRegimes = regimes,
   predictorMatrix = predictor_matrix
