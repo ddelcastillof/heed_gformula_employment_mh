@@ -37,20 +37,20 @@ pop_dt <- pop_data |>
   mutate(dnc = factor(dnc) |> fct_collapse(zero = "0", one = "1", other_level = "2+")) |> 
   data.table::as.data.table()
 
-late_pop <- pop_dt[, `:=`(
+long_data <- pop_dt[, `:=`(
   t0 = t0 - 2,
   pre_mcs = shift(sf12mcs_dv, type = "lag"),
   pre_pcs = shift(sf12pcs_dv, type = "lag")
 )][wave %in% 3:6]
 
-no_mh_outcomes <- late_pop |> 
+no_mh_outcomes <- long_data |> 
   group_by(pidp) |> 
   summarise(n_missing = sum(is.na(sf12mcs_dv)), base_missing = all(is.na(sf12mcs_dv_base))) |> 
   filter(n_missing == 4, base_missing) |> 
   select(pidp) |> 
   as.data.table()
 
-late_pop <- late_pop[!no_mh_outcomes, on = .(pidp)] 
+long_data <- long_data[!no_mh_outcomes, on = .(pidp)] 
 
 intervention_pattern_3 <- expand_grid(0:1, 0:1, 0:1) |>
   t() |>
@@ -63,10 +63,18 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
   unclass()
 
 nsamples <- 1000
+```
 
-imputed_late <- mice::mice(late_pop[,-c(1:3)], defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 20)
+```{r}
+
+imputed_late <- long_data[,-c(1:3)] |> 
+  mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
+  mice::mice(, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 20)
+
+full_impute <- mice::complete(imputed_late, action = "long", include = TRUE)
 
 ```
+
 
 # Confounders
 
@@ -205,7 +213,7 @@ int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
 
-gform_cont_eof <- gformula(obs_data = late_pop,
+gform_cont_eof <- gformula(obs_data = long_data,
                            outcome_type = outcome_type,
                            id = "pidp",
                            time_name = "t0",
@@ -242,7 +250,7 @@ gform_cont_eof <- gformula(obs_data = late_pop,
 ```{r 4dynamic-mi}
 regimes <- intervention_pattern_4
 
-wide_data <- late_pop |>
+wide_data <- long_data |>
   make_wide(
     pidp,
     t0,
@@ -432,7 +440,7 @@ int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
 
-gform_cont_eof <- gformula(obs_data = late_pop,
+gform_cont_eof <- gformula(obs_data = long_data,
                            outcome_type = outcome_type,
                            id = "pidp",
                            time_name = "t0",
@@ -467,7 +475,7 @@ gform_cont_eof <- gformula(obs_data = late_pop,
 ```{r 4baseline-mi}
 regimes <- intervention_pattern_4
 
-wide_data <- late_pop |>
+wide_data <- long_data |>
   make_wide(
     pidp,
     t0,

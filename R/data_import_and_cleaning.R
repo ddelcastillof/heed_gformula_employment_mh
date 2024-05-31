@@ -18,12 +18,12 @@ import_data <- function() {
     #  keep if age_sample==1    /*Deleting all people younger than 25 (24 and younger) and older than 65 (65 included) */
     filter(age_dv >= 25, age_dv <= 65) |>
     mutate(
-      across(c(gor_dv, hiqual_dv, econ_incquint), as_factor),
+      across(c(gor_dv, hiqual_dv, econ_incquint, econ_dist, econ_benefits, mastat_dv, home_owner, dnc), as_factor),
       across(c(pidp, ppid, hidp, wave, pns1pid, pns2pid),
              as.integer),
       across(where(haven::is.labelled),
              haven::zap_labels),
-      econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1)
+      econ_emp_bin = case_when(econ_emp == 1 ~ 0, econ_emp == 3 ~ 1) |> factor()
     )
   
   # interim_new_vars <- fst::read_fst("T:/projects/HEED/Data/USoc prepared data/test_data.fst")
@@ -92,7 +92,9 @@ import_data <- function() {
       dnc,
       hiqual_dv
     ) |>
-    mutate(dnc = factor(dnc), response = 1) |> 
+    mutate(
+      across(c(econ_dist, econ_benefits, mastat_dv, home_owner, wnw_race, dnc), factor),
+      response = 1) |> 
     full_join(tibble(wave = 1:10) |>
                 expand_grid(tibble(pidp = unique(tidied_data$pidp))),
               by = join_by(wave, pidp)) |>
