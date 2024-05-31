@@ -126,7 +126,7 @@ wide_data <- long_data |>
     log_income
   )
 
-wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 5)
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 20, maxit = 10)
 
 imputed_wide <- mice::complete(wide_mids, action = "long", include = TRUE)
 
