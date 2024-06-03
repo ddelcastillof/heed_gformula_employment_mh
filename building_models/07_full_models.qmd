@@ -169,6 +169,7 @@ Baseline static confounders:
 
 Time-varying confounders:
 
+ - Mental health (in updating models; `sf12mcs_dv`)
  - Physical health (`sf12pcs_dv`)
  - Financial distress (`econ_dist`)
  - Relationship status (`mastat_dv`)
