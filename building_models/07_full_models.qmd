@@ -330,7 +330,7 @@ gform_long <- imputed_long |>
   }))
 
 
-gform_4dynamic <- pool_gform_estimates(gform_out)
+gform_4dynamic <- pool_gform_estimates(gform_long)
 ```
  
 ### gFormulaMI
@@ -538,7 +538,7 @@ gform_long <- imputed_long |>
     
   }))
 
-gform_4baseline <- pool_gform_estimates(gform_out)
+gform_4baseline <- pool_gform_estimates(gform_long)
 ```
  
 ### gFormulaMI
@@ -756,7 +756,7 @@ gform_long <- imputed_long |>
   }))
 
 
-gform_3dynamic <- pool_gform_estimates(gform_out)
+gform_3dynamic <- pool_gform_estimates(gform_long)
 ```
  
 ### gFormulaMI
@@ -964,7 +964,7 @@ gform_long <- imputed_long |>
     
   }))
 
-gform_3baseline <- pool_gform_estimates(gform_out)
+gform_3baseline <- pool_gform_estimates(gform_long)
 ```
  
 ### gFormulaMI
