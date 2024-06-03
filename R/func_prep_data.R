@@ -64,16 +64,16 @@ make_predictor_matrix <- function(return_vals) {
   
 }
 
-pool_gform_estimates <- function(g_form_long) {
+pool_gform_estimates <- function(long_out) {
   
-  gform_long |> 
+  long_out |> 
     select(.imp, gform_out) |> 
     unnest(gform_out) |> 
     janitor::clean_names() |> 
     filter(imp != 0) |> 
     summarise(
       gform_effect = mean(g_form_mean),
-      var_w = mean(mean_se^2),
+      var_w = safely(~mean(.x^2), na_dbl)(mean_se)$result,
       var_b = var(g_form_mean),
       .by = "interv") |> 
     mutate(
