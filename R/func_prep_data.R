@@ -67,10 +67,23 @@ make_predictor_matrix <- function(return_vals) {
 pool_gform_estimates <- function(g_form_long) {
   
   gform_long |> 
-    select(.imp, g_form_out) |> 
+    select(.imp, gform_out) |> 
     unnest(gform_out) |> 
     janitor::clean_names() |> 
     filter(imp != 0) |> 
-    summarise(g_form_mean = mean(g_form_mean), .by = "interv")
+    summarise(
+      gform_effect = mean(g_form_mean),
+      var_w = mean(mean_se^2),
+      var_b = var(g_form_mean),
+      .by = "interv") |> 
+    mutate(
+      var_t = var_w + var_b + var_b/20,
+      gform_se = sqrt(var_t)
+    ) |> 
+    select(interv, gform_effect, gform_se) |> 
+    mutate(
+      gform_ll = gform_effect + gform_se * qnorm(0.025),
+      gform_ul = gform_effect + gform_se * qnorm(0.975),
+    )
   
 }
