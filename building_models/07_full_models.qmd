@@ -63,7 +63,7 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
   as_tibble(.name_repair = "minimal") |>
   unclass()
 
-nsamples <- 1000
+nsamples <- 200
 ```
 
 # New plan
@@ -330,6 +330,7 @@ gform_long <- imputed_long |>
   }))
 
 
+gform_4dynamic <- pool_gform_estimates(gform_out)
 ```
  
 ### gFormulaMI
@@ -352,7 +353,7 @@ imps <- gFormulaImpute(
 fits <- imps %$%
   lm(sf12mcs_dv_3 ~ 0 + factor(regime))
 
-outvals <- syntheticPool(fits)
+mi_4dynamic <- syntheticPool(fits)
 
 regimes_t <- tibble(intervention = regimes |> 
   map(paste, collapse = "-") |> 
@@ -364,20 +365,15 @@ regimes_t <- tibble(intervention = regimes |>
 
 ```{r 4dynamic-tab}
 #| output: true
-mod_4dynamic <- outvals |>
+mod_4dynamic <- mi_4dynamic |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
-  transmute(MI_result = Estimate,
-            MI_ll = `95% CI L`,
-            MI_ul = `95% CI U`) |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
   bind_cols(
-    gform_cont_eof$result |>
-      filter(`Interv.` != 0) |>
-      select(
-        gform_result = `g-form mean`,
-        gform_ll = `Mean lower 95% CI`,
-        gform_ul = `Mean upper 95% CI`
-      )
+    gform_4dynamic |> filter(interv != 0) |> select()
   ) |>
   bind_cols(regimes_t)
 
@@ -396,7 +392,7 @@ mod_4dynamic |>
   ) |>
   mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
            factor()) |> 
-ggplot(aes(result, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
@@ -541,6 +537,8 @@ gform_long <- imputed_long |>
     gform_cont_eof$result
     
   }))
+
+gform_4baseline <- pool_gform_estimates(gform_out)
 ```
  
 ### gFormulaMI
@@ -563,7 +561,7 @@ imps <- gFormulaImpute(
 fits <- imps %$%
   lm(sf12mcs_dv_3 ~ 0 + factor(regime))
 
-outvals <- syntheticPool(fits)
+mi_4baseline <- syntheticPool(fits)
 
 regimes_t <- tibble(intervention = regimes |> 
   map(paste, collapse = "-") |> 
@@ -575,20 +573,15 @@ regimes_t <- tibble(intervention = regimes |>
 
 ```{r 4baseline-tab}
 #| output: true
-mod_4baseline <- outvals |>
+mod_4baseline <- mi_4baseline |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
-  transmute(MI_result = Estimate,
-            MI_ll = `95% CI L`,
-            MI_ul = `95% CI U`) |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
   bind_cols(
-    gform_cont_eof$result |>
-      filter(`Interv.` != 0) |>
-      select(
-        gform_result = `g-form mean`,
-        gform_ll = `Mean lower 95% CI`,
-        gform_ul = `Mean upper 95% CI`
-      )
+    gform_4baseline |> filter(interv != 0) |> select()
   ) |>
   bind_cols(regimes_t)
 
@@ -607,10 +600,9 @@ mod_4baseline |>
   ) |>
   mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
            factor()) |> 
-ggplot(aes(result, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
-  xlim(47, 51)
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
