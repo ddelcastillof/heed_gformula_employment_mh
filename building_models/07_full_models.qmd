@@ -548,8 +548,8 @@ regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
 
-predictor_matrix["pre_mcs_0",] <- 0
-predictor_matrix[,"pre_mcs_0"] <- 0
+predictor_matrix[which(grepl("pre_mcs_\\d", rownames(predictor_matrix))),] <- 0
+predictor_matrix[,which(grepl("pre_mcs_\\d", colnames(predictor_matrix)))] <- 0
 
 imps <- gFormulaImpute(
   wide_mids,
@@ -771,7 +771,7 @@ predictor_matrix[,"sf12mcs_dv_base"] <- 0
 
 imps <- gFormulaImpute(
   wide_mids,
-  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
   trtRegimes = regimes,
   predictorMatrix = predictor_matrix
 )
@@ -974,12 +974,12 @@ regimes <- intervention_pattern_3
 
 predictor_matrix <- base_predictor_matrix
 
-predictor_matrix["pre_mcs_0",] <- 0
-predictor_matrix[,"pre_mcs_0"] <- 0
+predictor_matrix[which(grepl("pre_mcs_\\d", rownames(predictor_matrix))),] <- 0
+predictor_matrix[,which(grepl("pre_mcs_\\d", colnames(predictor_matrix)))] <- 0
 
 imps <- gFormulaImpute(
   wide_mids,
-  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
   trtRegimes = regimes,
   predictorMatrix = predictor_matrix
 )
