@@ -10,3 +10,5 @@ data/*
 !building_models/reference.docx
 
 /.quarto/
+graphs/
+reports/
