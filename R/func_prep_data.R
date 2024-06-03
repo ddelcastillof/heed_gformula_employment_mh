@@ -1,5 +1,3 @@
-
-
 make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
   
   require(rlang)
@@ -7,7 +5,7 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
   t_conf <- enquos(...)
   
   t_max <- max(df |> pull({{time_col}}))
-  # browser()
+  
   df_out <- df |> 
     select({{id_col}}, {{time_col}}, {{base_cols}}, {{outcome}}, !!!t_conf) |> 
     pivot_wider(
@@ -85,5 +83,15 @@ pool_gform_estimates <- function(long_out) {
       gform_ll = gform_effect + gform_se * qnorm(0.025),
       gform_ul = gform_effect + gform_se * qnorm(0.975),
     )
+  
+}
+
+set_n_periods <- function (newdf, pool, intvar, intvals, time_name, t) {
+  
+  if(!is.na(intvals[[t + 1]])){
+    
+    set(newdf, j = intvar, value = intvals[[t + 1]])
+    
+  }
   
 }
