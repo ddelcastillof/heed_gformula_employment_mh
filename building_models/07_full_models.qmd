@@ -713,12 +713,17 @@ ncores <- min(32, parallel::detectCores() - 1)
 
 
 interventions <- intervention_pattern_3 |>
-  map( ~ list(c(static, c(NA_integer_, .x))))
+  map(~ list(c(set_n_periods, NA_integer_, .x)))
 
 intvars <- as.list(rep("econ_emp_bin", length(interventions)))
 
 int_description <-
-  map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
+  map(
+    interventions,
+    ~ paste(.x[[1]][-1], collapse = "-") |>
+      str_remove_all("NA-") |>
+      paste0("econ_emp_bin:", x = _)
+  )
 
 gform_long <- imputed_long |>
   mutate(gform_out = map(data, function(data) {
@@ -921,12 +926,17 @@ histvars <- list(lagged_variables)
 
 
 interventions <- intervention_pattern_3 |>
-  map( ~ list(c(static, c(.x))))
+  map(~ list(c(set_n_periods, NA_integer_, .x)))
 
 intvars <- as.list(rep("econ_emp_bin", length(interventions)))
 
 int_description <-
-  map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
+  map(
+    interventions,
+    ~ paste(.x[[1]][-1], collapse = "-") |>
+      str_remove_all("NA-") |>
+      paste0("econ_emp_bin:", x = _)
+  )
 
 
 gform_long <- imputed_long |>
