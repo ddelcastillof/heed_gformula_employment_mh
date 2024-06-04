@@ -64,7 +64,7 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
   as_tibble(.name_repair = "minimal") |>
   unclass()
 
-nsamples <- 500
+nsamples <- 100
 ```
 
 # New plan
@@ -115,6 +115,7 @@ wide_data <- long_data |>
                   hiqual_dv_base,
                   age_dv_base,
                   gor_dv_base,
+                  mastat_dv_base,
                   sf12mcs_dv_base),
     outcome = sf12mcs_dv,
     pre_mcs,
@@ -168,13 +169,13 @@ Baseline static confounders:
  - Ethnicity
  - Education
  - Location (`gor_dv`)
-
+ - Relationship status (`mastat_dv`)
+ 
 Time-varying confounders:
 
  - Mental health (in updating models; `sf12mcs_dv`)
  - Physical health (`sf12pcs_dv`)
  - Financial distress (`econ_dist`)
- - Relationship status (`mastat_dv`)
  - Number of dependants (`dnc`)
  - Any income from benefits (`econ_benefits`)
  - Home ownership (`home_owner`)
@@ -196,7 +197,6 @@ outcome_name <- "sf12mcs_dv"
 intvars <- c("econ_emp_bin")
 
 time_points <- 4
-
 
 covnames <-
   c(
@@ -227,12 +227,14 @@ basecovs <- c(
   "gor_dv_base",
   "wnw_race_base",
   "hiqual_dv_base",
-  "age_dv_base"
+  "age_dv_base",
+  "mastat_dv_base"
   # "dnc_base",
   # "mastat_dv_base",
 )
 
-ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +  # Baseline - sex
+ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+  mastat_dv_base +  # Baseline - sex
   pre_mcs + pre_pcs + econ_dist + dnc + econ_benefits + home_owner +     # Time-varying confounders
   econ_emp_bin + log_income    # Time-varying exposures
 
@@ -442,36 +444,45 @@ basecovs <- c(
   "gor_dv_base",
   "wnw_race_base",
   "hiqual_dv_base",
-  "age_dv_base"
+  "age_dv_base",
+  "mastat_dv_base"
   # "dnc_base",
   # "mastat_dv_base",
 )
 
-ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +  
+ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+  mastat_dv_base + sf12mcs_dv_base +  
   pre_pcs + econ_dist + dnc + econ_benefits + home_owner +     # Time-varying confounders
   econ_emp_bin + log_income    # Time-varying exposures
 
 
 covparams <- list(
   covmodels = c(
-    pre_pcs ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    pre_pcs ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       lag1_pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner +
       lag1_econ_emp_bin + lag1_log_income,
-    econ_emp_bin ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    econ_emp_bin ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + lag1_log_income + lag1_econ_emp_bin,
-    econ_dist ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    econ_dist ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
-    dnc ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    dnc ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + econ_emp_bin + lag1_log_income,
-    econ_benefits ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    econ_benefits ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + lag1_econ_dist + dnc + lag1_econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
-    home_owner ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    home_owner ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + econ_dist + dnc + econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
     log_income ~
-      sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+      sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       lag1_log_income + pre_pcs + econ_dist + dnc + econ_benefits + home_owner + econ_emp_bin
   )
 )
@@ -653,12 +664,14 @@ basecovs <- c(
   "gor_dv_base",
   "wnw_race_base",
   "hiqual_dv_base",
-  "age_dv_base"
+  "age_dv_base",
+  "mastat_dv_base"
   # "dnc_base",
   # "mastat_dv_base",
 )
 
-ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +  # Baseline - sex
+ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+  mastat_dv_base +  # Baseline - sex
   pre_mcs + pre_pcs + econ_dist + dnc + econ_benefits + home_owner +     # Time-varying confounders
   econ_emp_bin + log_income    # Time-varying exposures
 
@@ -873,36 +886,45 @@ basecovs <- c(
   "gor_dv_base",
   "wnw_race_base",
   "hiqual_dv_base",
-  "age_dv_base"
+  "age_dv_base",
+  "mastat_dv_base"
   # "dnc_base",
   # "mastat_dv_base",
 )
 
-ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +  
+ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+  mastat_dv_base + sf12mcs_dv_base +  
   pre_pcs + econ_dist + dnc + econ_benefits + home_owner +     # Time-varying confounders
   econ_emp_bin + log_income    # Time-varying exposures
 
 
 covparams <- list(
   covmodels = c(
-    pre_pcs ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    pre_pcs ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       lag1_pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner +
       lag1_econ_emp_bin + lag1_log_income,
-    econ_emp_bin ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    econ_emp_bin ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + lag1_log_income + lag1_econ_emp_bin,
-    econ_dist ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    econ_dist ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
-    dnc ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    dnc ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + econ_emp_bin + lag1_log_income,
-    econ_benefits ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    econ_benefits ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + lag1_econ_dist + dnc + lag1_econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
-    home_owner ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+    home_owner ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       pre_pcs + econ_dist + dnc + econ_benefits + lag1_home_owner +
       econ_emp_bin + lag1_log_income,
     log_income ~
-      sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + sf12mcs_dv_base +
+      sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + 
+      mastat_dv_base + sf12mcs_dv_base +
       lag1_log_income + pre_pcs + econ_dist + dnc + econ_benefits + home_owner + econ_emp_bin
   )
 )
