@@ -23,6 +23,7 @@ library(SPHSUgraphs)
 library(tidyverse)
 library(data.table)
 library(mice)
+library(furrr)
 
 pop_data <- import_data() |> 
   select(-econ_incquint) 
