@@ -356,7 +356,7 @@ fits <- imps %$%
 
 mi_4dynamic <- syntheticPool(fits)
 
-regimes_t <- tibble(intervention = regimes |> 
+regimes_4 <- tibble(intervention = regimes |> 
   map(paste, collapse = "-") |> 
   reduce(c)
 )
@@ -374,9 +374,9 @@ mod_4dynamic <- mi_4dynamic |>
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
   bind_cols(
-    gform_4dynamic |> filter(interv != 0) |> select()
+    gform_4dynamic |> filter(interv != 0) |> select(-interv)
   ) |>
-  bind_cols(regimes_t)
+  bind_cols(regimes_4)
 
 mod_4dynamic |> 
   knitr::kable(digits = 3)
@@ -564,7 +564,7 @@ fits <- imps %$%
 
 mi_4baseline <- syntheticPool(fits)
 
-regimes_t <- tibble(intervention = regimes |> 
+regimes_4 <- tibble(intervention = regimes |> 
   map(paste, collapse = "-") |> 
   reduce(c)
 )
@@ -582,9 +582,9 @@ mod_4baseline <- mi_4baseline |>
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
   bind_cols(
-    gform_4baseline |> filter(interv != 0) |> select()
+    gform_4baseline |> filter(interv != 0) |> select(-interv)
   ) |>
-  bind_cols(regimes_t)
+  bind_cols(regimes_4)
 
 mod_4baseline |> 
   knitr::kable(digits = 3)
@@ -619,7 +619,7 @@ outcome_type <- "continuous_eof"
 outcome_name <- "sf12mcs_dv"
 intvars <- c("econ_emp_bin")
 
-time_points <- 3
+time_points <- 4
 
 
 covnames <-
@@ -787,7 +787,7 @@ fits <- imps %$%
 
 mi_3dynamic <- syntheticPool(fits)
 
-regimes_t <- tibble(intervention = regimes |> 
+regimes_3 <- tibble(intervention = regimes |> 
   map(paste, collapse = "-") |> 
   reduce(c)
 )
@@ -805,9 +805,9 @@ mod_3dynamic <- mi_3dynamic |>
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
   bind_cols(
-    gform_3dynamic |> filter(interv != 0) |> select()
+    gform_3dynamic |> filter(interv != 0) |> select(-interv)
   ) |>
-  bind_cols(regimes_t)
+  bind_cols(regimes_3)
 
 mod_3dynamic |> 
   knitr::kable(digits = 3)
@@ -1000,7 +1000,7 @@ fits <- imps %$%
 
 mi_3baseline <- syntheticPool(fits)
 
-regimes_t <- tibble(intervention = regimes |> 
+regimes_3 <- tibble(intervention = regimes |> 
   map(paste, collapse = "-") |> 
   reduce(c)
 )
@@ -1018,9 +1018,9 @@ mod_3baseline <- mi_3baseline |>
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
   bind_cols(
-    gform_3baseline |> filter(interv != 0) |> select()
+    gform_3baseline |> filter(interv != 0) |> select(-interv)
   ) |>
-  bind_cols(regimes_t)
+  bind_cols(regimes_3)
 
 mod_3baseline |> 
   knitr::kable(digits = 3)
