@@ -64,6 +64,12 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
   as_tibble(.name_repair = "minimal") |>
   unclass()
 
+ncores <- 4
+
+library(future)
+
+plan(multisession, workers = 15)
+
 nsamples <- 100
 ```
 
@@ -286,8 +292,6 @@ lagged_variables <- c(
 histories <- c(lagged)
 histvars <- list(lagged_variables)
 
-ncores <- min(32, parallel::detectCores() - 1)
-
 
 
 interventions <- intervention_pattern_4 |>
@@ -299,7 +303,7 @@ int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
 gform_long <- imputed_long |>
-  mutate(gform_out = map(data, function(data) {
+  mutate(gform_out = future_map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
     
@@ -517,7 +521,7 @@ int_description <-
 
 
 gform_long <- imputed_long |>
-  mutate(gform_out = map(data, function(data) {
+  mutate(gform_out = future_map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
     
@@ -723,8 +727,6 @@ lagged_variables <- c(
 histories <- c(lagged)
 histvars <- list(lagged_variables)
 
-ncores <- min(32, parallel::detectCores() - 1)
-
 
 
 interventions <- intervention_pattern_3 |>
@@ -741,7 +743,7 @@ int_description <-
   )
 
 gform_long <- imputed_long |>
-  mutate(gform_out = map(data, function(data) {
+  mutate(gform_out = future_map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
     
@@ -964,7 +966,7 @@ int_description <-
 
 
 gform_long <- imputed_long |>
-  mutate(gform_out = map(data, function(data) {
+  mutate(gform_out = future_map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
     
