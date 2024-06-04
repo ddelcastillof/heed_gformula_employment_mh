@@ -1,6 +1,11 @@
 ---
 title: "Full models"
 author: "Andy Baxter"
+format: 
+  html:
+    fig-width: 8
+    fig-height: 12
+    dev: svg
 execute: 
   output: false
 ---
@@ -126,7 +131,7 @@ wide_data <- long_data |>
     log_income
   )
 
-wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 20, maxit = 10)
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 30, maxit = 5)
 
 imputed_wide <- mice::complete(wide_mids, action = "long", include = TRUE)
 
@@ -397,7 +402,8 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
 ```
 
 ## MCS baseline as static confounder
@@ -605,7 +611,8 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
 ```
 
 # Three periods of intervention
@@ -828,7 +835,8 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
 ```
 
 ## MCS baseline as static confounder
@@ -1041,5 +1049,6 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
 ```
