@@ -5,7 +5,7 @@ format:
   html:
     fig-width: 8
     fig-height: 12
-    dev: svg
+    fig-format: svg
 execute: 
   output: false
 ---
@@ -23,7 +23,7 @@ library(SPHSUgraphs)
 library(tidyverse)
 library(data.table)
 library(mice)
-library(furrr)
+# library(furrr)
 
 pop_data <- import_data() |> 
   select(-econ_incquint) 
@@ -69,10 +69,7 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
   as_tibble(.name_repair = "minimal") |>
   unclass()
 
-ncores <- 4
-
-library(future)
-
+ncores <- 2
 
 nsamples <- 100
 ```
@@ -138,7 +135,8 @@ wide_data <- long_data |>
     log_income
   )
 
-wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 30, maxit = 10)
+# wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+wide_mids <- readRDS(here::here("data", "wide_mids.rds"))
 
 imputed_wide <- mice::complete(wide_mids, action = "long", include = TRUE)
 
@@ -155,6 +153,7 @@ imputed_long <- imputed_wide |>
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 
+library(furrr)
 plan(multisession, workers = 30)
 ```
 
