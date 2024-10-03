@@ -1,0 +1,7 @@
+project:
+  title: "G-formula testing"
+  output-dir: reports
+format: 
+  docx:
+    number-sections: true
+    reference-doc: building_models/reference.docx
