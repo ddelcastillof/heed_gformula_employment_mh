@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+model_outputs/
+do/
+*.pdf
+*.docx
+data/*
+!building_models/reference.docx
+
+/.quarto/
+graphs/
+reports/
