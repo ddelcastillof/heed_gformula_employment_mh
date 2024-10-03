@@ -3,6 +3,7 @@ title: "Full models"
 author: "Andy Baxter"
 format: 
   html:
+    toc: true
     fig-format: svg
 execute: 
   output: false
