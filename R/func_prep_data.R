@@ -64,6 +64,8 @@ make_predictor_matrix <- function(return_vals) {
 
 pool_gform_estimates <- function(long_out) {
   
+  n_runs <- max(long_out$`.imp`)
+  
   long_out |> 
     select(.imp, gform_out) |> 
     unnest(gform_out) |> 
@@ -75,7 +77,7 @@ pool_gform_estimates <- function(long_out) {
       var_b = var(g_form_mean),
       .by = "interv") |> 
     mutate(
-      var_t = var_w + var_b + var_b/20,
+      var_t = var_w + var_b + var_b/n_runs,
       gform_se = sqrt(var_t)
     ) |> 
     select(interv, gform_effect, gform_se) |> 

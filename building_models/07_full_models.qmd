@@ -1,7 +1,11 @@
 ---
 title: "Full models"
 author: "Andy Baxter"
-format: html
+format: 
+  html:
+    fig-width: 8
+    fig-height: 12
+    fig-format: svg
 execute: 
   output: false
 ---
@@ -19,6 +23,7 @@ library(SPHSUgraphs)
 library(tidyverse)
 library(data.table)
 library(mice)
+# library(furrr)
 
 pop_data <- import_data() |> 
   select(-econ_incquint) 
@@ -63,6 +68,8 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
   t() |>
   as_tibble(.name_repair = "minimal") |>
   unclass()
+
+ncores <- 2
 
 nsamples <- 100
 ```
@@ -128,7 +135,8 @@ wide_data <- long_data |>
     log_income
   )
 
-wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 30, maxit = 10)
+# wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+wide_mids <- readRDS(here::here("data", "wide_mids.rds"))
 
 imputed_wide <- mice::complete(wide_mids, action = "long", include = TRUE)
 
@@ -145,6 +153,8 @@ imputed_long <- imputed_wide |>
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 
+library(furrr)
+plan(multisession, workers = 30)
 ```
 
 
@@ -286,8 +296,6 @@ lagged_variables <- c(
 histories <- c(lagged)
 histvars <- list(lagged_variables)
 
-ncores <- min(32, parallel::detectCores() - 1)
-
 
 
 interventions <- intervention_pattern_4 |>
@@ -299,7 +307,7 @@ int_description <-
   map(interventions, ~paste(.x[[1]][-1], collapse = "-") |> paste0("econ_emp_bin:", x = _))
 
 gform_long <- imputed_long |>
-  mutate(gform_out = map(data, function(data) {
+  mutate(gform_out = future_map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
     
@@ -401,7 +409,8 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
 ```
 
 ## MCS baseline as static confounder
@@ -517,7 +526,7 @@ int_description <-
 
 
 gform_long <- imputed_long |>
-  mutate(gform_out = map(data, function(data) {
+  mutate(gform_out = future_map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
     
@@ -618,7 +627,8 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
 ```
 
 # Three periods of intervention
@@ -723,8 +733,6 @@ lagged_variables <- c(
 histories <- c(lagged)
 histvars <- list(lagged_variables)
 
-ncores <- min(32, parallel::detectCores() - 1)
-
 
 
 interventions <- intervention_pattern_3 |>
@@ -741,7 +749,7 @@ int_description <-
   )
 
 gform_long <- imputed_long |>
-  mutate(gform_out = map(data, function(data) {
+  mutate(gform_out = future_map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
     
@@ -843,7 +851,8 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
 ```
 
 ## MCS baseline as static confounder
@@ -964,7 +973,7 @@ int_description <-
 
 
 gform_long <- imputed_long |>
-  mutate(gform_out = map(data, function(data) {
+  mutate(gform_out = future_map(data, function(data) {
     
     data$econ_emp_bin <- as.integer(as.character(data$econ_emp_bin))
     
@@ -1065,5 +1074,6 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
 ```
