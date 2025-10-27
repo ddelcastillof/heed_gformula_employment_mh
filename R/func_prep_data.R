@@ -7,7 +7,7 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
   t_max <- max(df |> pull({{time_col}}))
   
   df_out <- df |> 
-    select({{id_col}}, {{time_col}}, {{base_cols}}, {{outcome}}, !!!t_conf) |> 
+    select({{id_col}}, {{time_col}}, {{base_cols}}, !!!t_conf, {{outcome}}) |> 
     pivot_wider(
       id_cols = c({{id_col}}, {{base_cols}}), 
       names_from = {{time_col}}, 
@@ -23,10 +23,10 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
       ends_with("6"),
       ends_with("7"),
       ends_with("8"),
-      ends_with("9"),
-      -matches(paste0("^", quo_name(quo({{outcome}})), "_\\d+")),
+      ends_with("9")
+      # -matches(paste0("^", quo_name(quo({{outcome}})), "_\\d+")),
       # -starts_with(quo_name(quo({{outcome}}))),
-      matches(paste(quo_name(quo({{outcome}})), t_max, sep = "_"))
+      # matches(paste(quo_name(quo({{outcome}})), t_max, sep = "_"))
     )
   
   attr(df_out, "n_tvars") <- length(t_conf)

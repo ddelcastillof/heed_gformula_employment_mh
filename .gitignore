@@ -12,3 +12,5 @@ data/*
 /.quarto/
 graphs/
 reports/
+
+**/*.quarto_ipynb

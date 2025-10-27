@@ -7,6 +7,7 @@ import_data <- function() {
     pop_data <- readRDS(data_file)
     message(data_file, " already exists, reading in...")
   } else {
+    if (!dir.exists(here::here("data"))) dir.create(here::here("data"))
     message("Creating ", data_file)
     
   data_in <-
