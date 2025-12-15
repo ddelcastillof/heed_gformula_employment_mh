@@ -1,5 +1,5 @@
 ---
-title: "Estimating three-period with baseline variables"
+title: "Estimating three-period with baseline and accumulating variables"
 author: "Andy Baxter"
 format: 
   html:
@@ -23,6 +23,7 @@ library(magrittr)
 library(SPHSUgraphs)
 library(tidyverse)
 library(data.table)
+library(DiagrammeR)
 
 pop_data <- import_data() |> 
   select(-econ_incquint) 
@@ -94,12 +95,12 @@ wide_data <- long_data |>
                   sf12mcs_dv_base),
     outcome = sf12mcs_dv,
     sf12pcs_dv,
-    econ_dist,
-    dnc,
-    econ_benefits,
-    home_owner,
     econ_emp_bin,
     log_income,
+    dnc,
+    home_owner,
+    econ_benefits,
+    econ_dist,
     sf12mcs_dv
   )
 
@@ -138,11 +139,51 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 
 
 
-# Three periods of intervention
+# Three periods of intervention - static baseline
+
+
+```{r model-baseline3-dag}
+#| echo: false
+#| output: true
+grViz("digraph {
+  graph []
+  node [fontname=Arial]
+  P0 [label=<PCS<SUB>1</SUB>>]
+  P1 [label=<PCS<SUB>2</SUB>>]
+  P2 [label=<PCS<SUB>3</SUB>>]
+  E0 [label=<Empl<SUB>1</SUB>>]
+  E1 [label=<Empl<SUB>2</SUB>>]
+  E2 [label=<Empl<SUB>3</SUB>>]
+  I0 [label=<Inc<SUB>1</SUB>>]
+  I1 [label=<Inc<SUB>2</SUB>>]
+  I2 [label=<Inc<SUB>3</SUB>>]
+  C0 [label=<Conf<SUP>Int</SUP><SUB>1</SUB>>]
+  C1 [label=<Conf<SUP>Int</SUP><SUB>2</SUB>>]
+  C2 [label=<Conf<SUP>Int</SUP><SUB>3</SUB>>]
+  Y [label=<<I>MCS<SUB>3</SUB></I>>]
+  edge []
+  P0 -> E0, I0, C0, P1
+  P1 -> E1, I1, C1, P2
+  P2 -> E2, I2, C2, Y
+  E0 -> I0, C0, P1, E1
+  E1 -> I1, C1, P2, E2
+  E2 -> I2, C2, Y
+  I0 -> C0, P1, E1, I1
+  I1 -> C1, P2, E2, I2
+  I2 -> C2, Y
+  C0 -> P1, E1, I1, C1
+  C1 -> P2, E2, I2, C2
+  C2 -> Y
+  {rank=min; P0, P1, P2}
+  {rank=same; E0, E1, E2}
+  {rank=same; I0, I1, I2}
+  {rank=max; C0, C1, C2, Y}
+}")
+```
 
 ## gformula
 
-```{r 3dynamic-gform}
+```{r 3baseline-gform}
 outcome_type <- "continuous_eof"
 outcome_name <- "sf12mcs_dv"
 intvars <- c("econ_emp_bin")
@@ -151,24 +192,24 @@ intvars <- c("econ_emp_bin")
 
 covnames <-
   c(
-    "sf12pcs_dv",
-    "econ_emp_bin",
-    "econ_dist",
-    "dnc",
-    "econ_benefits",
-    "home_owner",
-    "log_income"
+    "sf12pcs_dv",     # Physical health
+    "econ_emp_bin",   # Employment
+    "log_income",      # Income
+    "dnc",            # Number of children
+    "home_owner",     # Home owner
+    "econ_benefits",  # Receives any benefits
+    "econ_dist"      # Economic distress
   )
 
 
 covtypes <- c(
   "normal", # pre_pcs
   "binary", # econ_emp_bin
-  "categorical", # econ_dist
+  "normal", # log_income
   "categorical", # dnc
-  "categorical", # econ_benefits
   "categorical", # home_owner
-  "normal" # log_income
+  "categorical", # econ_benefits
+  "categorical" # econ_dist
 )
 
 basecovs <- c(
@@ -183,33 +224,33 @@ basecovs <- c(
   # "mastat_dv_base",
 )
 
-ymodel <- sf12mcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-  mastat_dv_base +  # Baseline - sex
-  sf12mcs_dv_base + sf12pcs_dv + econ_dist + dnc + econ_benefits + home_owner +     # Time-varying confounders
-  econ_emp_bin + log_income    # Time-varying exposures
+ymodel <- sf12mcs_dv ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+sf12pcs_dv + econ_emp_bin + log_income + dnc + home_owner + econ_benefits + econ_dist
+
 
 
 covparams <- list(
   covmodels = c(
-    sf12pcs_dv ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_sf12pcs_dv + sf12mcs_dv_base + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner +
-      lag1_econ_emp_bin + lag1_log_income,
-    econ_emp_bin ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      sf12mcs_dv_base + sf12pcs_dv + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + lag1_log_income + lag1_econ_emp_bin,
-    econ_dist ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      sf12mcs_dv_base + sf12pcs_dv + lag1_econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner +
-      econ_emp_bin + lag1_log_income,
-    dnc ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      sf12mcs_dv_base + sf12pcs_dv + econ_dist + lag1_dnc + lag1_econ_benefits + lag1_home_owner + econ_emp_bin + lag1_log_income,
-    econ_benefits ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      sf12mcs_dv_base + sf12pcs_dv + lag1_econ_dist + dnc + lag1_econ_benefits + lag1_home_owner +
-      econ_emp_bin + lag1_log_income,
-    home_owner ~ sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      sf12mcs_dv_base + sf12pcs_dv + econ_dist + dnc + econ_benefits + lag1_home_owner +
-      econ_emp_bin + lag1_log_income,
-    log_income ~
-      sex_dv_base + gor_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base +
-      lag1_log_income + sf12pcs_dv + sf12mcs_dv_base + econ_dist + dnc + econ_benefits + home_owner + econ_emp_bin
+    sf12pcs_dv ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+lag1_sf12pcs_dv + lag1_econ_emp_bin + lag1_log_income + lag1_dnc + lag1_home_owner + lag1_econ_benefits + lag1_econ_dist,
+
+econ_emp_bin ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+lag1_econ_emp_bin + lag1_log_income + lag1_dnc + lag1_home_owner + lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv,
+
+log_income ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+lag1_log_income + lag1_dnc + lag1_home_owner + lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv + econ_emp_bin,
+
+dnc ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+lag1_dnc + lag1_home_owner + lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv + econ_emp_bin + log_income,
+
+home_owner ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+lag1_home_owner + lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv + econ_emp_bin + log_income + dnc,
+
+econ_benefits ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv + econ_emp_bin + log_income + dnc + home_owner,
+
+econ_dist ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+lag1_econ_dist + sf12pcs_dv + econ_emp_bin + log_income + dnc + home_owner + econ_benefits
   )
 )
 
@@ -217,15 +258,14 @@ covparams <- list(
 
 
 
-
 lagged_variables <- c(
   "sf12pcs_dv",
-  "econ_dist",
+  "econ_emp_bin",
+  "log_income",
   "dnc",
   "home_owner",
   "econ_benefits",
-  "econ_emp_bin",
-  "log_income"
+  "econ_dist"
 )
 
 
@@ -277,21 +317,22 @@ gform_cont_eof <- gformula(
     
 
 gform_cont_eof$result |> 
-  select(estimate = `g-form mean`) |> 
+  select(estimate = `g-form mean`, ll = `Mean lower 95% CI`, ul = `Mean upper 95% CI`) |> 
   mutate(intervention = c("Baseline", intervention_pattern_3 |> map_chr(~paste(.x, collapse = "-")))) |> 
-    ggplot(aes(estimate, intervention)) +
-    geom_point(size = 3)  +
+    ggplot(aes(estimate, intervention, xmin = ll, xmax = ul)) +
+    geom_pointrange()  +
   scale_colour_sphsu()
 # gform_2dynamic <- pool_gform_estimates(gform_long)
 ```
  
 ## gFormulaMI
 
-```{r 3dynamic-mi}
+```{r 3baseline-mi}
 regimes <- intervention_pattern_3
 
 predictor_matrix <- base_predictor_matrix
 
+## SF12 MCS does not predict any further outcomes; is not predicted by prior outcomes
 predictor_matrix["sf12mcs_dv_0",] <- 0
 predictor_matrix["sf12mcs_dv_1",] <- 0
 predictor_matrix["sf12mcs_dv_2",] <- 0
@@ -309,7 +350,7 @@ imps <- gFormulaImpute(
 fits <- imps %$%
   lm(sf12mcs_dv_3 ~ 0 + factor(regime))
 
-mi_3dynamic <- syntheticPool(fits)
+mi_3baseline <- syntheticPool(fits)
 
 regimes_3 <- tibble(intervention = regimes |> 
   map(paste, collapse = "-") |> 
@@ -319,7 +360,7 @@ regimes_3 <- tibble(intervention = regimes |>
 
 ## Comparing results
 
-```{r 3dynamic-tab}
+```{r 3baseline-tab}
 #| output: true
 
 
@@ -333,7 +374,7 @@ gform_results <- gform_cont_eof$result |>
     gform_ul = `Mean upper 95% CI`
   )
 
-mod_3dynamic <- mi_3dynamic |>
+mod_3baseline <- mi_3baseline |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
   transmute(mi_effect = Estimate,
@@ -345,14 +386,14 @@ mod_3dynamic <- mi_3dynamic |>
   ) |>
   bind_cols(regimes_3)
 
-mod_3dynamic |> 
+mod_3baseline |> 
   knitr::kable(digits = 3)
   
 ```
 
-```{r 3dynamic-graph}
+```{r 3baseline-graph}
 #| output: true
-mod_3dynamic |>
+mod_3baseline |>
   pivot_longer(
     -intervention,
     names_to = c("Calculation method", ".value"),
@@ -367,3 +408,302 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
   facet_wrap(~`Calculation method`, ncol = 1)
 ```
+
+
+
+# Three periods of intervention - static baseline
+
+
+```{r model-cummulative3-dag}
+#| echo: false
+#| output: true
+grViz("digraph {
+  graph []
+  node [fontname=Arial]
+  P0 [label=<PCS<SUB>1</SUB>>]
+  P1 [label=<PCS<SUB>2</SUB>>]
+  P2 [label=<PCS<SUB>3</SUB>>]
+  E0 [label=<Empl<SUB>1</SUB>>]
+  E1 [label=<Empl<SUB>2</SUB>>]
+  E2 [label=<Empl<SUB>3</SUB>>]
+  I0 [label=<Inc<SUB>1</SUB>>]
+  I1 [label=<Inc<SUB>2</SUB>>]
+  I2 [label=<Inc<SUB>3</SUB>>]
+  C0 [label=<Conf<SUP>Int</SUP><SUB>1</SUB>>]
+  C1 [label=<Conf<SUP>Int</SUP><SUB>2</SUB>>]
+  C2 [label=<Conf<SUP>Int</SUP><SUB>3</SUB>>]
+  Y0 [label=<<I>MCS<SUB>1</SUB></I>>]
+  Y1 [label=<<I>MCS<SUB>2</SUB></I>>]
+  Y2 [label=<<I>MCS<SUB>3</SUB></I>>]
+  edge []
+  P0 -> E0, I0, C0, Y0, P1
+  P1 -> E1, I1, C1, Y1, P2
+  P2 -> E2, I2, C2, Y2
+  E0 -> I0, C0, Y0, P1, E1
+  E1 -> I1, C1, Y1, P2, E2
+  E2 -> I2, C2, Y2
+  I0 -> C0, Y0, P1, E1, I1
+  I1 -> C1, Y1, P2, E2, I2
+  I2 -> C2, Y2
+  C0 -> Y0, P1, E1, I1, C1
+  C1 -> Y1, P2, E2, I2, C2
+  C2 -> Y2
+  Y0 -> Y1 -> Y2
+  {rank=min; P0, P1, P2}
+  {rank=same; E0, E1, E2}
+  {rank=same; I0, I1, I2}
+  {rank=same; C0, C1, C2}
+  {rank=max; Y0, Y1, Y2}
+}")
+```
+
+## gformula
+
+```{r 3cummulative-gform}
+outcome_type <- "continuous_eof"
+outcome_name <- "sf12mcs_dv"
+intvars <- c("econ_emp_bin")
+
+
+
+covnames <-
+  c(
+    "sf12pcs_dv",     # Physical health
+    "econ_emp_bin",   # Employment
+    "log_income",      # Income
+    "dnc",            # Number of children
+    "home_owner",     # Home owner
+    "econ_benefits",  # Receives any benefits
+    "econ_dist",      # Economic distress
+    "sf12mcs_dv"
+  )
+
+
+covtypes <- c(
+  "normal", # pre_pcs
+  "binary", # econ_emp_bin
+  "normal", # log_income
+  "categorical", # dnc
+  "categorical", # home_owner
+  "categorical", # econ_benefits
+  "categorical", # econ_dist
+  "normal" # pre_mc
+)
+
+basecovs <- c(
+  "sex_dv_base",
+  "gor_dv_base",
+  "wnw_race_base",
+  "hiqual_dv_base",
+  "age_dv_base",
+  "mastat_dv_base",
+  "sf12mcs_dv_base"
+  # "dnc_base",
+  # "mastat_dv_base",
+)
+
+ymodel <- sf12mcs_dv ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base +
+  lag1_sf12mcs_dv + sf12pcs_dv + econ_emp_bin + log_income + dnc + home_owner + econ_benefits + econ_dist
+
+
+
+covparams <- list(
+  covmodels = c(
+    sf12pcs_dv ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+      lag1_sf12pcs_dv + lag1_econ_emp_bin + lag1_log_income + lag1_dnc + lag1_home_owner + lag1_econ_benefits + lag1_econ_dist,
+    
+    econ_emp_bin ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+      lag1_econ_emp_bin + lag1_log_income + lag1_dnc + lag1_home_owner + lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv,
+    
+    log_income ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+      lag1_log_income + lag1_dnc + lag1_home_owner + lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv + econ_emp_bin,
+    
+    dnc ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+      lag1_dnc + lag1_home_owner + lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv + econ_emp_bin + log_income,
+    
+    home_owner ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+      lag1_home_owner + lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv + econ_emp_bin + log_income + dnc,
+    
+    econ_benefits ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+      lag1_econ_benefits + lag1_econ_dist + sf12pcs_dv + econ_emp_bin + log_income + dnc + home_owner,
+    
+    econ_dist ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base + sf12mcs_dv_base +
+      lag1_econ_dist + sf12pcs_dv + econ_emp_bin + log_income + dnc + home_owner + econ_benefits,
+    
+    sf12mcs_dv ~ sex_dv_base + wnw_race_base + hiqual_dv_base + age_dv_base + gor_dv_base + mastat_dv_base +
+      lag1_sf12mcs_dv + sf12pcs_dv + econ_emp_bin + log_income + dnc + home_owner + econ_benefits + econ_dist
+  )
+)
+
+
+
+
+
+
+lagged_variables <- c(
+  "sf12pcs_dv",
+  "econ_emp_bin",
+  "log_income",
+  "dnc",
+  "home_owner",
+  "econ_benefits",
+  "econ_dist",
+  "sf12mcs_dv"
+)
+
+
+histories <- c(lagged)
+histvars <- list(lagged_variables)
+
+
+
+interventions <- intervention_pattern_3 |>
+  map(~ list(c(set_n_periods, NA_integer_, .x)))
+
+intvars <- as.list(rep("econ_emp_bin", length(interventions)))
+
+int_description <-
+  map(
+    interventions,
+    ~ paste(.x[[1]][-1], collapse = "-") |>
+      str_remove_all("NA-") |>
+      paste0("econ_emp_bin:", x = _)
+  )
+
+
+
+gform_cont_eof <- gformula(
+  obs_data = full_pop,
+  outcome_type = outcome_type,
+  id = "pidp",
+  time_name = "t0",
+  # time_points = time_points,
+  covnames = covnames,
+  outcome_name = outcome_name,
+  covtypes = covtypes,
+  covparams = covparams,
+  ymodel = ymodel,
+  
+  intvars = intvars,
+  interventions = interventions,
+  int_descript = int_description,
+  
+  
+  histories = histories,
+  histvars = histvars,
+  basecovs = basecovs,
+  seed = 4321,
+  parallel = TRUE,
+  nsamples = nsamples,
+  ncores = ncores,
+  ref_int = 1
+)
+    
+
+gform_cont_eof$result |> 
+  select(estimate = `g-form mean`, ll = `Mean lower 95% CI`, ul = `Mean upper 95% CI`) |> 
+  mutate(intervention = c("Baseline", intervention_pattern_3 |> map_chr(~paste(.x, collapse = "-")))) |> 
+    ggplot(aes(estimate, intervention, xmin = ll, xmax = ul)) +
+    geom_pointrange()  +
+  scale_colour_sphsu()
+# gform_2dynamic <- pool_gform_estimates(gform_long)
+```
+ 
+## gFormulaMI
+
+```{r 3cummulative-mi}
+regimes <- intervention_pattern_3
+
+predictor_matrix <- base_predictor_matrix
+
+# predictor_matrix["sf12mcs_dv_0",] <- 0
+# predictor_matrix["sf12mcs_dv_1",] <- 0
+# predictor_matrix["sf12mcs_dv_2",] <- 0
+
+# MCS does not predict intermediate outcomes
+predictor_matrix[,"sf12mcs_dv_0"] <- 0
+predictor_matrix[,"sf12mcs_dv_1"] <- 0
+predictor_matrix[,"sf12mcs_dv_2"] <- 0
+
+# MCS is dependent on previous MCS values
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
+
+# MCS is not predicted by baseline MCS
+predictor_matrix["sf12mcs_dv_0","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
+
+
+
+imps <- gFormulaImpute(
+  wide_mids,
+  trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes = regimes,
+  predictorMatrix = predictor_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
+
+mi_3cummulative <- syntheticPool(fits)
+
+regimes_3 <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+```
+
+## Comparing results
+
+```{r 3cummulative-tab}
+#| output: true
+
+
+
+gform_results <- gform_cont_eof$result |>
+  filter(`Interv.` != 0) |>
+  select(
+    gform_effect = `g-form mean`,
+    gform_se = `Mean SE`,
+    gform_ll = `Mean lower 95% CI`,
+    gform_ul = `Mean upper 95% CI`
+  )
+
+mod_3cummulative <- mi_3cummulative |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(
+    gform_results
+  ) |>
+  bind_cols(regimes_3)
+
+mod_3cummulative |> 
+  knitr::kable(digits = 3)
+  
+```
+
+```{r 3cummulative-graph}
+#| output: true
+mod_3cummulative |>
+  pivot_longer(
+    -intervention,
+    names_to = c("Calculation method", ".value"),
+    names_pattern = "(.*)_(.*)"
+  ) |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |> 
+ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+    colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
+```
+
