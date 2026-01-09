@@ -4,7 +4,7 @@ author: "Andy Baxter"
 format: 
   docx:
     number-sections: true
-editor: visual
+editor: source
 ---
 
 # Reading in data
