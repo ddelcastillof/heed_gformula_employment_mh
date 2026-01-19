@@ -130,10 +130,26 @@ wide_data <- long_data |>
     home_owner,
     econ_emp_bin,
     log_income
-  )
+)
 
-# wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
-wide_mids <- readRDS(here::here("data", "wide_mids.rds"))
+t0 <- Sys.time()
+message("Imputing wide data, starting at ", t0)
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+# wide_mids <- readRDS(here::here("data", "wide_mids.rds"))
+
+# Imputation method with parallelisation
+# wide_mids <- futuremice(
+#  wide_data,
+#  defaultMethod = c("norm", "logreg", "pmm", "pmm"),
+#  m = 35, maxit = 10,
+#  n.core = ncores,            
+#  parallelseed = 20260115,
+#  future.plan = "multisession"
+# )
+
+message("Finished imputation at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+rm(t0)
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 
@@ -172,12 +188,31 @@ Exposures:
 ### gFormulaMI
 
 ```{r 4dynamic-mi}
+t0 <- Sys.time()
+message("Running g-formula via MI, starting at ", t0)
+
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
 
-predictor_matrix["sf12mcs_dv_base",] <- 0
-predictor_matrix[,"sf12mcs_dv_base"] <- 0
+## predictor_matrix["sf12mcs_dv_base",] <- 0
+## predictor_matrix[,"sf12mcs_dv_base"] <- 0
+
+# MCS does not predict intermediate outcomes
+predictor_matrix[,"sf12mcs_dv_0"] <- 0
+predictor_matrix[,"sf12mcs_dv_1"] <- 0
+predictor_matrix[,"sf12mcs_dv_2"] <- 0
+
+# MCS is dependent on previous MCS values
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
+
+# MCS is not predicted by baseline MCS
+predictor_matrix["sf12mcs_dv_0","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
 
 imps <- gFormulaImpute(
   wide_mids,
@@ -195,6 +230,10 @@ regimes_4 <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |> 
   reduce(c)
 )
+
+message("Finished g-computation via MI at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+rm(t0)
 ```
 
 ### Comparing results
@@ -237,6 +276,11 @@ ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
 ### gFormulaMI
 
 ```{r 4baseline-mi}
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -265,7 +309,11 @@ regimes_4 <- tibble(intervention = regimes |>
 ### Comparing results
 
 ```{r 4baseline-tab}
-#| output: true
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 mod_4baseline <- mi_4baseline |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
@@ -281,7 +329,11 @@ mod_4baseline |>
 ```
 
 ```{r 4baseline-graph}
-#| output: true
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 mod_4baseline |>
   pivot_longer(
     -intervention,
@@ -304,6 +356,11 @@ ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
 ### gFormulaMI
 
 ```{r 3dynamic-mi}
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 regimes <- intervention_pattern_3
 
 predictor_matrix <- base_predictor_matrix
@@ -332,7 +389,11 @@ regimes_3 <- tibble(intervention = regimes |>
 ### Comparing results
 
 ```{r 3dynamic-tab}
-#| output: true
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 mod_3dynamic <- mi_3dynamic |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
@@ -348,7 +409,11 @@ mod_3dynamic |>
 ```
 
 ```{r 3dynamic-graph}
-#| output: true
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 mod_3dynamic |>
   pivot_longer(
     -intervention,
@@ -369,6 +434,11 @@ ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
 ### gFormulaMI
 
 ```{r 3baseline-mi}
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 regimes <- intervention_pattern_3
 
 predictor_matrix <- base_predictor_matrix
@@ -397,7 +467,11 @@ regimes_3 <- tibble(intervention = regimes |>
 ### Comparing results
 
 ```{r 3baseline-tab}
-#| output: true
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 mod_3baseline <- mi_3baseline |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
@@ -413,7 +487,11 @@ mod_3baseline |>
 ```
 
 ```{r 3baseline-graph}
-#| output: true
+#| evaluate: false
+#| output: false
+#| include: false
+#| echo: false
+
 mod_3baseline |>
   pivot_longer(
     -intervention,
