@@ -15,3 +15,8 @@ reports/
 
 **/*.quarto_ipynb
 CLAUDE.md
+
+*.sbatch
+*.err
+*.out
+*.log
