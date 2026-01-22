@@ -135,8 +135,18 @@ wide_data <- long_data |>
     log_income
   )
 
+t0 <- Sys.time()
+message("Imputing wide data, starting at ", t0)
+
 # wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
 wide_mids <- readRDS(here::here("data", "wide_mids.rds"))
+
+message("Finished imputation at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+
+rm(t0)
+
+# saveRDS(wide_mids, here::here("data", "wide_mids.rds"))
 
 imputed_wide <- mice::complete(wide_mids, action = "long", include = TRUE)
 
@@ -153,8 +163,8 @@ imputed_long <- imputed_wide |>
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 
-library(furrr)
-plan(multisession, workers = 30)
+# library(furrr)
+# plan(multisession, workers = 4)
 ```
 
 
@@ -349,6 +359,9 @@ gform_4dynamic <- pool_gform_estimates(gform_long)
 ### gFormulaMI
 
 ```{r 4dynamic-mi}
+t0 <- Sys.time()
+message("Running g-formula via MI, starting at ", t0)
+
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -372,6 +385,9 @@ regimes_4 <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |> 
   reduce(c)
 )
+
+message("Finished imputation at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
 ```
 
 ### Comparing results
