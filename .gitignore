@@ -22,3 +22,4 @@ CLAUDE.md
 *.log
 
 figs/
+R/dump_code.R
