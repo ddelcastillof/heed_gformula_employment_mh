@@ -1,0 +1,525 @@
+---
+title: "Full models - 5 waves, new imputation"
+author: "Darwin Del Castillo"
+format: 
+  html:
+    toc: true
+    fig-format: svg
+execute: 
+  output: false
+---
+# New plan
+
+- Check if with more datasets (m) we get more stable estimates
+  - Previusuly used m = 10
+  - Now use m = 50  
+- Check if the iterations improve something
+  - Previously used maxit = 10
+  - Now use maxit = 20 -> Now we are here
+- Try introducing more waves
+  - First try with 4 waves is in file 08
+  - File 11 will introduce five waves
+  - Try to capture years between 2015-2019 (check documentation)
+- Verify predictor matrix in MI method and g-formula
+- Additional: improve make_wide function. 
+  - Currently, seems fragile in some extreme situations
+  - Works well, but try to make it more robust
+
+Combine via Rubin's rules: (review if this is correct, compare with Bartlett et al. 2025)
+
+Combined mean:
+
+$$
+\bar{\theta} = \frac{1}{m}\left (\sum_{i=1}^m{\theta_i}\right )
+$$
+
+Within-imputation pooled variance:
+
+$$
+V_W = \frac{1}{m} \sum_{i=1}^m{SE_i^2}
+$$
+
+Between-imputation variance:
+
+$$
+V_B = \frac{\sum_{i=1}^m (\theta_i - \overline{\theta})^2}{m-1}
+$$
+
+Combined variance:
+
+$$
+V_{Total} = V_W + V_B + \frac{V_B}{m}
+$$
+
+# Part 1: four periods of intervention, mice with m = 35 vs m = 50
+
+> Note: all these models assumes `mcs` as time-varying confounder (dynamic models)
+
+## Theory (add DAGs later) 
+
+### Confounders
+
+Baseline static confounders:
+
+ - Sex
+ - Age at baseline (and age squared)
+ - Ethnicity
+ - Education
+ - Location (`gor_dv`)
+ - Relationship status (`mastat_dv`)
+ 
+Time-varying confounders:
+
+ - Mental health (in updating models; `sf12mcs_dv`)
+ - Physical health (`sf12pcs_dv`)
+ - Financial distress (`econ_dist`)
+ - Number of dependants (`dnc`)
+ - Any income from benefits (`econ_benefits`)
+ - Home ownership (`home_owner`)
+ - Income (`log_income`)
+ 
+Exposures:
+
+ - Employment at waves 3, 4, 5, 6 (`econ_emp_bin`)
+
+
+## Setup
+```{r setup}
+#| output: false
+here::i_am("building_models/11_new_full_models.qmd")
+source(here::here("R", "data_import_and_cleaning.R"))
+source(here::here("R", "func_prep_data.R"))
+
+library(gFormulaMI)
+library(magrittr)
+library(SPHSUgraphs)
+library(tidyverse)
+library(data.table)
+library(mice)
+
+pop_data <- import_data() |> 
+  select(-econ_incquint) 
+
+
+ggplot2::theme_set(theme_sphsu_light())
+
+# Filter for only those observed at wave 2 (baseline), and wave 6
+
+pop_dt <- pop_data |> 
+  filter(wave == 2, response == 1) |> 
+  select(pidp) |> 
+  left_join(pop_data, by = "pidp") |> 
+  filter(wave == 6, response == 1) |> 
+  select(pidp) |> 
+  left_join(pop_data, by = "pidp") |> 
+  filter(!is.na(mastat_dv_base)) |> 
+  mutate(dnc = factor(dnc) |> fct_collapse(zero = "0", one = "1", other_level = "2+")) |> 
+  data.table::as.data.table()
+
+long_data <- pop_dt[, `:=`(
+  t0 = t0 - 2,
+  pre_mcs = shift(sf12mcs_dv, type = "lag"),
+  pre_pcs = shift(sf12pcs_dv, type = "lag")
+)][wave %in% 3:6]
+
+no_mh_outcomes <- long_data |> 
+  group_by(pidp) |> 
+  summarise(n_missing = sum(is.na(sf12mcs_dv)), base_missing = all(is.na(sf12mcs_dv_base))) |> 
+  filter(n_missing == 4, base_missing) |> 
+  select(pidp) |> 
+  as.data.table()
+
+long_data <- long_data[!no_mh_outcomes, on = .(pidp)] 
+
+intervention_pattern_3 <- expand_grid(0:1, 0:1, 0:1) |>
+  t() |>
+  as_tibble(.name_repair = "minimal") |>
+  unclass()
+
+intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
+  t() |>
+  as_tibble(.name_repair = "minimal") |>
+  unclass()
+
+ncores <- 2
+
+nsamples <- 100
+```
+
+
+## Imputation with m = 35
+```{r impute-two-datasets}
+wide_data <- long_data |>
+  mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
+  make_wide(
+    pidp,
+    t0,
+    base_cols = c(sex_dv_base,
+                  wnw_race_base,
+                  hiqual_dv_base,
+                  age_dv_base,
+                  gor_dv_base,
+                  mastat_dv_base,
+                  sf12mcs_dv_base),
+    outcome = sf12mcs_dv,
+    pre_mcs,
+    pre_pcs,
+    econ_dist,
+    dnc,
+    econ_benefits,
+    home_owner,
+    econ_emp_bin,
+    log_income
+)
+
+t0 <- Sys.time()
+message("Imputing wide data, starting at ", t0)
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+
+message("Finished imputation at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+rm(t0)
+
+base_predictor_matrix <- make_predictor_matrix(wide_data)
+
+```
+
+### Diagnostics: convergence
+
+```{r 4dynamic-diag} 
+#| output: true
+plot(wide_mids, c("econ_emp_bin_1", "sf12mcs_dv_1", "pre_mcs_1", "pre_pcs_1",
+                     "econ_emp_bin_2", "sf12mcs_dv_2", "pre_mcs_2", "pre_pcs_2",
+                     "econ_emp_bin_3", "sf12mcs_dv_3", "pre_mcs_3", "pre_pcs_3"))
+```
+
+### Diagnostics: distributions
+```{r 4dynamic-diag-2}
+#| output: true
+densityplot(wide_mids, ~ sf12mcs_dv_1 + sf12mcs_dv_2 + sf12mcs_dv_3)
+
+densityplot(wide_mids, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3)
+
+densityplot(wide_mids, ~ pre_pcs_1 + pre_pcs_2 + pre_pcs_3)
+
+densityplot(wide_mids, ~ econ_emp_bin_1 + econ_emp_bin_2 + econ_emp_bin_3)
+```
+
+## gFormulaMI
+
+```{r 4dynamic-mi}
+t0 <- Sys.time()
+message("Running g-formula via MI, starting at ", t0)
+
+regimes <- intervention_pattern_4
+
+predictor_matrix <- base_predictor_matrix
+
+## predictor_matrix["sf12mcs_dv_base",] <- 0
+## predictor_matrix[,"sf12mcs_dv_base"] <- 0
+
+# MCS does not predict intermediate outcomes
+predictor_matrix[,"sf12mcs_dv_0"] <- 0
+predictor_matrix[,"sf12mcs_dv_1"] <- 0
+predictor_matrix[,"sf12mcs_dv_2"] <- 0
+
+# MCS is dependent on previous MCS values
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
+
+# MCS is not predicted by baseline MCS
+predictor_matrix["sf12mcs_dv_0","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
+
+imps <- gFormulaImpute(
+  wide_mids,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes = regimes,
+  predictorMatrix = predictor_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
+
+mi_4dynamic <- syntheticPool(fits)
+
+regimes_4 <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+
+message("Finished g-computation via MI at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+rm(t0)
+```
+
+### Comparing results
+
+```{r 4dynamic-tab}
+#| output: true
+mod_4dynamic <- mi_4dynamic |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_4)
+
+mod_4dynamic |> 
+  knitr::kable(digits = 3)
+```
+
+```{r 4dynamic-graph}
+#| output: true
+mod_4dynamic |>
+  pivot_longer(
+    -intervention,
+    names_to = c("Calculation method", ".value"),
+    names_pattern = "(.*)_(.*)"
+  ) |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |> 
+ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
+    colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+```
+
+## Imputation with m = 50
+```{r impute-two-datasets-50}
+t0 <- Sys.time()
+message("Imputing wide data, starting at ", t0)
+wide_mids_50 <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 50, maxit = 10)
+
+message("Finished imputation at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+rm(t0)
+```
+
+### Diagnostics: convergence
+
+```{r 4dynamic-diag-50} 
+#| output: true
+plot(wide_mids_50, c("econ_emp_bin_1", "sf12mcs_dv_1", "pre_mcs_1", "pre_pcs_1",
+                     "econ_emp_bin_2", "sf12mcs_dv_2", "pre_mcs_2", "pre_pcs_2",
+                     "econ_emp_bin_3", "sf12mcs_dv_3", "pre_mcs_3", "pre_pcs_3"))
+```
+
+### Diagnostics: distributions
+```{r 4dynamic-diag-2-50}
+#| output: true
+densityplot(wide_mids_50, ~ sf12mcs_dv_1 + sf12mcs_dv_2 + sf12mcs_dv_3)
+
+densityplot(wide_mids_50, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3)
+
+densityplot(wide_mids_50, ~ pre_pcs_1 + pre_pcs_2 + pre_pcs_3)
+
+densityplot(wide_mids_50, ~ econ_emp_bin_1 + econ_emp_bin_2 + econ_emp_bin_3)
+```
+
+## gFormulaMI
+
+```{r 4dynamic-mi-50}
+t0 <- Sys.time()
+message("Running g-formula via MI, starting at ", t0)
+
+regimes <- intervention_pattern_4
+
+predictor_matrix <- base_predictor_matrix
+
+## predictor_matrix["sf12mcs_dv_base",] <- 0
+## predictor_matrix[,"sf12mcs_dv_base"] <- 0
+
+# MCS does not predict intermediate outcomes
+predictor_matrix[,"sf12mcs_dv_0"] <- 0
+predictor_matrix[,"sf12mcs_dv_1"] <- 0
+predictor_matrix[,"sf12mcs_dv_2"] <- 0
+
+# MCS is dependent on previous MCS values
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
+
+# MCS is not predicted by baseline MCS
+predictor_matrix["sf12mcs_dv_0","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
+
+imps <- gFormulaImpute(
+  wide_mids_50,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes = regimes,
+  predictorMatrix = predictor_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
+
+mi_4dynamic <- syntheticPool(fits)
+
+regimes_4 <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+
+message("Finished g-computation via MI at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+rm(t0)
+```
+
+### Comparing results
+
+```{r 4dynamic-tab-50}
+#| output: true
+mod_4dynamic <- mi_4dynamic |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_4)
+
+mod_4dynamic |> 
+  knitr::kable(digits = 3)
+```
+
+```{r 4dynamic-graph-50}
+#| output: true
+mod_4dynamic |>
+  pivot_longer(
+    -intervention,
+    names_to = c("Calculation method", ".value"),
+    names_pattern = "(.*)_(.*)"
+  ) |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |> 
+ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
+    colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+```
+
+## Imputation with m = 35 maxit = 20
+```{r impute-two-datasets-35-20}
+t0 <- Sys.time()
+message("Imputing wide data, starting at ", t0)
+wide_mids_35 <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 20)
+
+message("Finished imputation at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+rm(t0)
+```
+
+### Diagnostics: convergence
+
+```{r 4dynamic-diag-35-20} 
+#| output: true
+plot(wide_mids_35, c("econ_emp_bin_1", "sf12mcs_dv_1", "pre_mcs_1", "pre_pcs_1",
+                     "econ_emp_bin_2", "sf12mcs_dv_2", "pre_mcs_2", "pre_pcs_2",
+                     "econ_emp_bin_3", "sf12mcs_dv_3", "pre_mcs_3", "pre_pcs_3"))
+```
+
+### Diagnostics: distributions
+```{r 4dynamic-diag-2-35-20}
+#| output: true
+densityplot(wide_mids_35, ~ sf12mcs_dv_1 + sf12mcs_dv_2 + sf12mcs_dv_3)
+
+densityplot(wide_mids_35, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3)
+
+densityplot(wide_mids_35, ~ pre_pcs_1 + pre_pcs_2 + pre_pcs_3)
+
+densityplot(wide_mids_35, ~ econ_emp_bin_1 + econ_emp_bin_2 + econ_emp_bin_3)
+```
+
+## gFormulaMI
+
+```{r 4dynamic-mi-35-20}
+t0 <- Sys.time()
+message("Running g-formula via MI, starting at ", t0)
+
+regimes <- intervention_pattern_4
+
+predictor_matrix <- base_predictor_matrix
+
+## predictor_matrix["sf12mcs_dv_base",] <- 0
+## predictor_matrix[,"sf12mcs_dv_base"] <- 0
+
+# MCS does not predict intermediate outcomes
+predictor_matrix[,"sf12mcs_dv_0"] <- 0
+predictor_matrix[,"sf12mcs_dv_1"] <- 0
+predictor_matrix[,"sf12mcs_dv_2"] <- 0
+
+# MCS is dependent on previous MCS values
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
+
+# MCS is not predicted by baseline MCS
+predictor_matrix["sf12mcs_dv_0","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
+
+imps <- gFormulaImpute(
+  wide_mids_35,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes = regimes,
+  predictorMatrix = predictor_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
+
+mi_4dynamic <- syntheticPool(fits)
+
+regimes_4 <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+
+message("Finished g-computation via MI at: ", format(Sys.time()),
+        " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
+rm(t0)
+```
+
+### Comparing results
+
+```{r 4dynamic-tab-35-20}
+#| output: true
+mod_4dynamic <- mi_4dynamic |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_4)
+
+mod_4dynamic |> 
+  knitr::kable(digits = 3)
+```
+
+```{r 4dynamic-graph-35-20}
+#| output: true
+mod_4dynamic |>
+  pivot_longer(
+    -intervention,
+    names_to = c("Calculation method", ".value"),
+    names_pattern = "(.*)_(.*)"
+  ) |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |> 
+ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
+    colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+```
