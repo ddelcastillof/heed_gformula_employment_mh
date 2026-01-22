@@ -107,7 +107,7 @@ $$
 V_{Total} = V_W + V_B + \frac{V_B}{m}
 $$
 
-
+# Imputation with maxit = 10
 ```{r impute-two-datasets}
 wide_data <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
@@ -271,96 +271,11 @@ ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
-## MCS baseline as static confounder
-
-### gFormulaMI
-
-```{r 4baseline-mi}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
-regimes <- intervention_pattern_4
-
-predictor_matrix <- base_predictor_matrix
-
-predictor_matrix[which(grepl("pre_mcs_\\d", rownames(predictor_matrix))),] <- 0
-predictor_matrix[,which(grepl("pre_mcs_\\d", colnames(predictor_matrix)))] <- 0
-
-imps <- gFormulaImpute(
-  wide_mids,
-  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
-  trtRegimes = regimes,
-  predictorMatrix = predictor_matrix
-)
-
-fits <- imps %$%
-  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
-
-mi_4baseline <- syntheticPool(fits)
-
-regimes_4 <- tibble(intervention = regimes |> 
-  map(paste, collapse = "-") |> 
-  reduce(c)
-)
-```
-
-### Comparing results
-
-```{r 4baseline-tab}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
-mod_4baseline <- mi_4baseline |>
-  as_tibble() |>
-  rownames_to_column("Intervention") |>
-  transmute(mi_effect = Estimate,
-            mi_se = sqrt(Total),
-            mi_ll = `95% CI L`,
-            mi_ul = `95% CI U`) |>
-  bind_cols(regimes_4)
-
-mod_4baseline |> 
-  knitr::kable(digits = 3)
-  
-```
-
-```{r 4baseline-graph}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
-mod_4baseline |>
-  pivot_longer(
-    -intervention,
-    names_to = c("Calculation method", ".value"),
-    names_pattern = "(.*)_(.*)"
-  ) |>
-  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
-           factor()) |> 
-ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
-    colour = n_unemp)) +
-  geom_point(size = 2, position = position_dodge(width = 0.7))  +
-  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
-```
-
 # Three periods of intervention
-
 ## Updating MCS as time-varying confounder
-
 ### gFormulaMI
 
 ```{r 3dynamic-mi}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
 regimes <- intervention_pattern_3
 
 predictor_matrix <- base_predictor_matrix
@@ -389,11 +304,7 @@ regimes_3 <- tibble(intervention = regimes |>
 ### Comparing results
 
 ```{r 3dynamic-tab}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
+#| output: true
 mod_3dynamic <- mi_3dynamic |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
@@ -409,11 +320,7 @@ mod_3dynamic |>
 ```
 
 ```{r 3dynamic-graph}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
+#| output: true
 mod_3dynamic |>
   pivot_longer(
     -intervention,
