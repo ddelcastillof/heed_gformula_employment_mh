@@ -134,7 +134,7 @@ wide_data <- long_data |>
 
 t0 <- Sys.time()
 message("Imputing wide data, starting at ", t0)
-wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 50, maxit = 10)
 # wide_mids <- readRDS(here::here("data", "wide_mids.rds"))
 
 # Imputation method with parallelisation
@@ -415,84 +415,6 @@ mod_3dynamic |>
 #| echo: false
 
 mod_3dynamic |>
-  pivot_longer(
-    -intervention,
-    names_to = c("Calculation method", ".value"),
-    names_pattern = "(.*)_(.*)"
-  ) |>
-  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
-           factor()) |> 
-ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
-    colour = n_unemp)) +
-  geom_point(size = 2, position = position_dodge(width = 0.7))  +
-  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
-```
-
-## MCS baseline as static confounder
-
-### gFormulaMI
-
-```{r 3baseline-mi}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
-regimes <- intervention_pattern_3
-
-predictor_matrix <- base_predictor_matrix
-
-predictor_matrix[which(grepl("pre_mcs_\\d", rownames(predictor_matrix))),] <- 0
-predictor_matrix[,which(grepl("pre_mcs_\\d", colnames(predictor_matrix)))] <- 0
-
-imps <- gFormulaImpute(
-  wide_mids,
-  trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
-  trtRegimes = regimes,
-  predictorMatrix = predictor_matrix
-)
-
-fits <- imps %$%
-  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
-
-mi_3baseline <- syntheticPool(fits)
-
-regimes_3 <- tibble(intervention = regimes |> 
-  map(paste, collapse = "-") |> 
-  reduce(c)
-)
-```
-
-### Comparing results
-
-```{r 3baseline-tab}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
-mod_3baseline <- mi_3baseline |>
-  as_tibble() |>
-  rownames_to_column("Intervention") |>
-  transmute(mi_effect = Estimate,
-            mi_se = sqrt(Total),
-            mi_ll = `95% CI L`,
-            mi_ul = `95% CI U`) |>
-  bind_cols(regimes_3)
-
-mod_3baseline |> 
-  knitr::kable(digits = 3)
-  
-```
-
-```{r 3baseline-graph}
-#| evaluate: false
-#| output: false
-#| include: false
-#| echo: false
-
-mod_3baseline |>
   pivot_longer(
     -intervention,
     names_to = c("Calculation method", ".value"),
