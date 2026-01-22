@@ -188,17 +188,15 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 
 ```{r 4dynamic-diag} 
 #| output: true
-plot(wide_mids, c("econ_emp_bin_1", "sf12mcs_dv_1", "pre_mcs_1", "pre_pcs_1",
-                     "econ_emp_bin_2", "sf12mcs_dv_2", "pre_mcs_2", "pre_pcs_2",
+plot(wide_mids, c("econ_emp_bin_1", "pre_mcs_1", "pre_pcs_1",
+                     "econ_emp_bin_2", "pre_mcs_2", "pre_pcs_2",
                      "econ_emp_bin_3", "sf12mcs_dv_3", "pre_mcs_3", "pre_pcs_3"))
 ```
 
 ### Diagnostics: distributions
 ```{r 4dynamic-diag-2}
 #| output: true
-densityplot(wide_mids, ~ sf12mcs_dv_1 + sf12mcs_dv_2 + sf12mcs_dv_3)
-
-densityplot(wide_mids, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3)
+densityplot(wide_mids, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3 + sf12mcs_dv_3)
 
 densityplot(wide_mids, ~ pre_pcs_1 + pre_pcs_2 + pre_pcs_3)
 
@@ -305,21 +303,19 @@ rm(t0)
 
 ```{r 4dynamic-diag-50} 
 #| output: true
-plot(wide_mids_50, c("econ_emp_bin_1", "sf12mcs_dv_1", "pre_mcs_1", "pre_pcs_1",
-                     "econ_emp_bin_2", "sf12mcs_dv_2", "pre_mcs_2", "pre_pcs_2",
+plot(wide_mids_50, c("econ_emp_bin_1", "pre_mcs_1", "pre_pcs_1",
+                     "econ_emp_bin_2", "pre_mcs_2", "pre_pcs_2",
                      "econ_emp_bin_3", "sf12mcs_dv_3", "pre_mcs_3", "pre_pcs_3"))
 ```
 
 ### Diagnostics: distributions
 ```{r 4dynamic-diag-2-50}
 #| output: true
-densityplot(wide_mids_50, ~ sf12mcs_dv_1 + sf12mcs_dv_2 + sf12mcs_dv_3)
+densityplot(wide_mids, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3 + sf12mcs_dv_3)
 
-densityplot(wide_mids_50, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3)
+densityplot(wide_mids, ~ pre_pcs_1 + pre_pcs_2 + pre_pcs_3)
 
-densityplot(wide_mids_50, ~ pre_pcs_1 + pre_pcs_2 + pre_pcs_3)
-
-densityplot(wide_mids_50, ~ econ_emp_bin_1 + econ_emp_bin_2 + econ_emp_bin_3)
+densityplot(wide_mids, ~ econ_emp_bin_1 + econ_emp_bin_2 + econ_emp_bin_3)
 ```
 
 ## gFormulaMI
@@ -422,21 +418,19 @@ rm(t0)
 
 ```{r 4dynamic-diag-35-20} 
 #| output: true
-plot(wide_mids_35, c("econ_emp_bin_1", "sf12mcs_dv_1", "pre_mcs_1", "pre_pcs_1",
-                     "econ_emp_bin_2", "sf12mcs_dv_2", "pre_mcs_2", "pre_pcs_2",
+plot(wide_mids_35, c("econ_emp_bin_1", "pre_mcs_1", "pre_pcs_1",
+                     "econ_emp_bin_2", "pre_mcs_2", "pre_pcs_2",
                      "econ_emp_bin_3", "sf12mcs_dv_3", "pre_mcs_3", "pre_pcs_3"))
 ```
 
 ### Diagnostics: distributions
 ```{r 4dynamic-diag-2-35-20}
 #| output: true
-densityplot(wide_mids_35, ~ sf12mcs_dv_1 + sf12mcs_dv_2 + sf12mcs_dv_3)
+densityplot(wide_mids, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3 + sf12mcs_dv_3)
 
-densityplot(wide_mids_35, ~ pre_mcs_1 + pre_mcs_2 + pre_mcs_3)
+densityplot(wide_mids, ~ pre_pcs_1 + pre_pcs_2 + pre_pcs_3)
 
-densityplot(wide_mids_35, ~ pre_pcs_1 + pre_pcs_2 + pre_pcs_3)
-
-densityplot(wide_mids_35, ~ econ_emp_bin_1 + econ_emp_bin_2 + econ_emp_bin_3)
+densityplot(wide_mids, ~ econ_emp_bin_1 + econ_emp_bin_2 + econ_emp_bin_3)
 ```
 
 ## gFormulaMI
