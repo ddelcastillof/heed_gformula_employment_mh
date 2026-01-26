@@ -144,7 +144,7 @@ future::plan(future::multisession, workers = 8)
  wide_data,
  defaultMethod = c("norm", "logreg", "pmm", "pmm"),
  m = 35, maxit = 10,
- n.core = 8,
+ n.core = 4,
  parallelseed = 20260115,
  future.plan = "multisession"
  )
