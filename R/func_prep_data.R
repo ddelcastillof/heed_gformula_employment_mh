@@ -23,10 +23,10 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
       ends_with("6"),
       ends_with("7"),
       ends_with("8"),
-      ends_with("9")
-      #-matches(paste0("^", quo_name(quo({{outcome}})), "_\\d+")),
-      #matches(paste(quo_name(quo({{outcome}})), t_max, sep = "_")),
-      #-starts_with(quo_name(quo({{outcome}}))),
+      ends_with("9"),
+      -matches(paste0("^", quo_name(quo({{outcome}})), "_\\d+")),
+      matches(paste(quo_name(quo({{outcome}})), t_max, sep = "_")),
+      -starts_with(quo_name(quo({{outcome}})))
     )
   
   attr(df_out, "n_tvars") <- length(t_conf)
