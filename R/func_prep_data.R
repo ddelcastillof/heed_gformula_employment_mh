@@ -14,30 +14,21 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
       values_from = -c({{id_col}}, {{time_col}}, {{base_cols}})) |> 
     select(
       {{base_cols}},
-      ends_with("0"),
-      ends_with("1"),
-      ends_with("2"),
-      ends_with("3"),
-      ends_with("4"),
-      ends_with("5"),
-      ends_with("6"),
-      ends_with("7"),
-      ends_with("8"),
-      ends_with("9"),
+      time_suffixes <- paste0("_", 0:t_max),
       -matches(paste0("^", quo_name(quo({{outcome}})), "_\\d+")),
       matches(paste(quo_name(quo({{outcome}})), t_max, sep = "_")),
       -starts_with(quo_name(quo({{outcome}})))
     )
   
   attr(df_out, "n_tvars") <- length(t_conf)
-  attr(df_out, "n_base") <- length(df[1,] |> select({{base_cols}}))
-  
+  attr(df_out, "n_base") <- length(tidyselect::eval_select(enquo(base_cols), df))
+
   df_out
 }
 
-
-
 make_predictor_matrix <- function(return_vals) {
+if (is.null(attr(return_vals, "n_tvars"))) stop("Missing 'n_tvars' attribute")
+
   n_tvars <- attr(return_vals, "n_tvars")
   n_base <- attr(return_vals, "n_base")
   n_vars <- length(return_vals) + 1
