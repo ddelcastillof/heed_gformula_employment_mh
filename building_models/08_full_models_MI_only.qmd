@@ -132,24 +132,10 @@ wide_data <- long_data |>
     log_income
 )
 
-# wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 50, maxit = 10)
-
 t0 <- Sys.time()
 message("Imputing wide data, starting at ", t0)
 
-future::plan(future::multisession, workers = 8)
-
-# Imputation method with parallelisation
- wide_mids <- futuremice(
- wide_data,
- defaultMethod = c("norm", "logreg", "pmm", "pmm"),
- m = 35, maxit = 10,
- n.core = 4,
- parallelseed = 20260115,
- future.plan = "multisession"
- )
-
-future::plan(future::sequential)
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
 
 message("Finished imputation at: ", format(Sys.time()),
          " | elapsed: ", round(difftime(Sys.time(), t0, units="mins"), 2), " min")
