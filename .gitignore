@@ -16,3 +16,6 @@ reports/
 **/*.quarto_ipynb
 CLAUDE.md
 R/dump_code.R
+
+# Ignoring files in figs
+/figs/*
