@@ -197,3 +197,124 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 
 
 <!-- # If this does not work, include the lagged vars in the make_wide step above -->
+
+## Second approach - lagged variables (just for checking CIs)
+```{r 4cummulative-mi-lagged}
+# Setup wide data for MI
+
+wide_data <- long_data |>
+  mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
+  make_wide(
+    pidp,
+    t0,
+    base_cols = c(sex_dv_base,
+                  wnw_race_base,
+                  hiqual_dv_base,
+                  age_dv_base,
+                  gor_dv_base,
+                  mastat_dv_base,
+                  sf12mcs_dv_base),
+    outcome = sf12mcs_dv,
+    pre_pcs,
+    econ_emp_bin,
+    log_income,
+    dnc,
+    home_owner,
+    econ_benefits,
+    econ_dist,
+    pre_mcs
+  )
+
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+#wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
+
+base_predictor_matrix <- make_predictor_matrix(wide_data)
+```
+
+## gFormulaMI
+
+```{r 4cummulative-mi-lagged-model}
+regimes <- intervention_pattern_4
+
+predictor_matrix <- base_predictor_matrix
+
+# pre_mcs (lagged) does not predict intermediate outcomes
+predictor_matrix[,"pre_mcs_0"] <- 0
+predictor_matrix[,"pre_mcs_1"] <- 0
+predictor_matrix[,"pre_mcs_2"] <- 0
+predictor_matrix[,"pre_mcs_3"] <- 0
+
+# pre_mcs chain: each depends on previous pre_mcs
+predictor_matrix["pre_mcs_1","pre_mcs_0"] <- 1
+predictor_matrix["pre_mcs_2","pre_mcs_1"] <- 1
+predictor_matrix["pre_mcs_3","pre_mcs_2"] <- 1
+
+# pre_mcs is not predicted by baseline MCS (except pre_mcs_0 which CAN use it)
+predictor_matrix["pre_mcs_1","sf12mcs_dv_base"] <- 0
+predictor_matrix["pre_mcs_2","sf12mcs_dv_base"] <- 0
+predictor_matrix["pre_mcs_3","sf12mcs_dv_base"] <- 0
+
+# sf12mcs_dv (contemporaneous) does not predict - we use pre_mcs instead
+predictor_matrix[,"sf12mcs_dv_0"] <- 0
+predictor_matrix[,"sf12mcs_dv_1"] <- 0
+predictor_matrix[,"sf12mcs_dv_2"] <- 0
+predictor_matrix[,"sf12mcs_dv_3"] <- 0
+
+# Final outcome sf12mcs_dv_3 is predicted by pre_mcs_3 (lagged MCS from t=2)
+predictor_matrix["sf12mcs_dv_3","pre_mcs_3"] <- 1
+
+imps <- gFormulaImpute(
+  wide_mids,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes = regimes,
+  predictorMatrix = predictor_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
+
+mi_4cummulative_lagged <- syntheticPool(fits)
+
+regimes_4_lagged <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+```
+
+## Table with estimates
+
+```{r 4cummulative-tab-lagged}
+#| output: true
+
+mod_4cummulative_lagged <- mi_4cummulative_lagged |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_4_lagged)
+
+mod_4cummulative_lagged |>
+  knitr::kable(digits = 3)
+
+```
+
+## Graph with estimates
+```{r 4cummulative-graph-lagged}
+#| output: true
+mod_4cummulative_lagged |>
+  pivot_longer(
+    -intervention,
+    names_to = c("Calculation method", ".value"),
+    names_pattern = "(.*)_(.*)"
+  ) |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |>
+ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+    colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
+```
