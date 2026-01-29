@@ -120,10 +120,6 @@ plot(wide_mids, c("sf12mcs_dv_0", "sf12mcs_dv_1", "sf12mcs_dv_2", "sf12mcs_dv_3"
 
 plot(wide_mids, c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"))
 
-plot(wide_mids, c("log_income_0", "log_income_1", "log_income_2", "log_income_3"))
-
-plot(wide_mids, c("econ_dist_0", "econ_dist_1", "econ_dist_2", "econ_dist_3"))
-
 plot(wide_mids, c("sf12pcs_dv_0", "sf12pcs_dv_1", "sf12pcs_dv_2", "sf12pcs_dv_3"))
 ```
 
