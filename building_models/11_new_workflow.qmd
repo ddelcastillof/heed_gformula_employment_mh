@@ -116,15 +116,15 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 #| output: true
 
 # Convergence plots
-mice::plot(wide_mids, c("sf12mcs_dv_0", "sf12mcs_dv_1", "sf12mcs_dv_2", "sf12mcs_dv_3"))
+plot(wide_mids, c("sf12mcs_dv_0", "sf12mcs_dv_1", "sf12mcs_dv_2", "sf12mcs_dv_3"))
 
-mice::plot(wide_mids, c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"))
+plot(wide_mids, c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"))
 
-mice::plot(wide_mids, c("log_income_0", "log_income_1", "log_income_2", "log_income_3"))
+plot(wide_mids, c("log_income_0", "log_income_1", "log_income_2", "log_income_3"))
 
-mice::plot(wide_mids, c("econ_dist_0", "econ_dist_1", "econ_dist_2", "econ_dist_3"))
+plot(wide_mids, c("econ_dist_0", "econ_dist_1", "econ_dist_2", "econ_dist_3"))
 
-mice::plot(wide_mids, c("sf12pcs_dv_0", "sf12pcs_dv_1", "sf12pcs_dv_2", "sf12pcs_dv_3"))
+plot(wide_mids, c("sf12pcs_dv_0", "sf12pcs_dv_1", "sf12pcs_dv_2", "sf12pcs_dv_3"))
 ```
 
 # Dictionary
@@ -193,8 +193,8 @@ grViz("digraph {
   C2 -> Y2, P3, E3, I3, C3
   C3 -> Y3
   Y0 -> Y1 -> Y2 -> Y3
-  {rank=min; E0, E1, E2, E3}
-  {rank=same; P0, P1, P2, P3}
+  {rank=min; P0, P1, P2, P3}
+  {rank=same; E0, E1, E2, E3}
   {rank=same; I0, I1, I2, I3}
   {rank=same; C0, C1, C2, C3}
   {rank=max; Y0, Y1, Y2, Y3}
