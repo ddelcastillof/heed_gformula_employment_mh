@@ -145,7 +145,7 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 - X0 \rightarrow Age \
 - Z \rightarrow Static confounders \
 
-```{r model-dynamic4-dag}
+```{r model-dynamic4-dag-mcs}
 #| echo: false
 #| output: true
 
@@ -322,7 +322,7 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```
 
 ### DAG
-```{r model-dynamic4-dag}
+```{r model-dynamic4-dag-pcs}
 #| echo: false
 #| output: true
 
