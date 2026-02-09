@@ -19,3 +19,6 @@ R/dump_code.R
 
 # Ignoring files in figs
 /figs/*
+
+# Ignoring manuscript folder
+/manuscript/
