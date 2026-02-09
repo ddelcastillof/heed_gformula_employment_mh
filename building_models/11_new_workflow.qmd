@@ -1,5 +1,5 @@
 ---
-title: "Estimating four-period with baseline and accumulating variables"
+title: "Estimating four-period with accumulating variables"
 author: "Darwin Del Castillo"
 format: 
   html:
@@ -78,6 +78,12 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
 ncores <- 2
 
 nsamples <- 100
+```
+
+# Mental health status - SF-12 MCS
+## Accumulating variables
+```{r mids_setup_mcs}
+#| output: false
 
 # Setup wide data for MI
 
@@ -104,102 +110,97 @@ wide_data <- long_data |>
     sf12mcs_dv
   )
 
-wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 50, maxit = 20)
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
 #wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```
 
-# Multiple Imputation Diagnostics
+## Four periods of intervention - accumulating treatment strategy
 
-```{r mi-diagnostics}
-#| output: true
+### DAG
+#### Dictionary
 
-# Convergence plots
-plot(wide_mids, c("sf12mcs_dv_0", "sf12mcs_dv_1", "sf12mcs_dv_2", "sf12mcs_dv_3"))
+"sf12pcs_dv": Physical health \
+"econ_emp_bin": Employment \
+"log_income": Income \
+"dnc": Number of children \ 
+"home_owner": Home owner \
+"econ_benefits": Receives any benefits \
+"econ_dist": Economic distress \
+"mastat_dv": Marital status \
+"pre_mcs": Previous mental health score from waves 2,3,4,5 \
+"pre_pcs": Previous physical health score from waves 2,3,4,5 \
+"sf12mcs_dv": Mental health score \
+"hiqual_dv_base": Highest qualification at baseline \
+"wnw_race_base": Race (white/non-white) \
 
-plot(wide_mids, c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"))
-
-plot(wide_mids, c("sf12pcs_dv_0", "sf12pcs_dv_1", "sf12pcs_dv_2", "sf12pcs_dv_3"))
-```
-
-# Dictionary
-
-"sf12pcs_dv": Physical health 
-"econ_emp_bin": Employment 
-"log_income": Income 
-"dnc": Number of children 
-"home_owner": Home owner 
-"econ_benefits": Receives any benefits 
-"econ_dist": Economic distress
-"mastat_dv": Marital status
-"pre_mcs": Previous mental health score from waves 2,3,4,5
-"pre_pcs": Previous physical health score from waves 2,3,4,5
-
-# DAG
-
-P0 <p>&rarr</p> PCS at wave 2 
-E0 <p>&rarr</p> Employment at wave 2 
-Conf_base <p>&rarr</p> Confounders (static) at wave 1 (baseline)
-I0 <p>&rarr</p> Income at wave 2 
-Y0 <p>&rarr</p> MCS at wave 2
-C0 <p>&rarr</p> Economic distress at wave 2
+#### Legend:
+- P0 \rightarrow PCS \
+- E0 \rightarrow Employment \
+- I0 \rightarrow Income \ 
+- Y0 \rightarrow MCS \ 
+- C0 \rightarrow Intermediate confounders \ 
+- F0 \rightarrow Financial distress \
+- X0 \rightarrow Age \
+- Z \rightarrow Static confounders \
 
 ```{r model-dynamic4-dag}
 #| echo: false
 #| output: true
+
 grViz("digraph {
   graph []
   node [fontname=Arial]
-  P0 [label=<PCS<SUB>1</SUB>>] 
-  P1 [label=<PCS<SUB>2</SUB>>]
-  P2 [label=<PCS<SUB>3</SUB>>]
-  P3 [label=<PCS<SUB>4</SUB>>]
-  E0 [label=<Employment<SUB>1</SUB>>] 
-  E1 [label=<Employment<SUB>2</SUB>>]
-  E2 [label=<Employment<SUB>3</SUB>>]
-  E3 [label=<Employment<SUB>4</SUB>>]
-  I0 [label=<Income<SUB>1</SUB>>] 
-  I1 [label=<Income<SUB>2</SUB>>]
-  I2 [label=<Income<SUB>3</SUB>>]
-  I3 [label=<Income<SUB>4</SUB>>]
-  C0 [label=<Conf<SUP>Int</SUP><SUB>1</SUB>>] 
-  C1 [label=<Conf<SUP>Int</SUP><SUB>2</SUB>>]
-  C2 [label=<Conf<SUP>Int</SUP><SUB>3</SUB>>]
-  C3 [label=<Conf<SUP>Int</SUP><SUB>4</SUB>>]
-  Y0 [label=<<I>MCS<SUB>1</SUB></I>>]
-  Y1 [label=<<I>MCS<SUB>2</SUB></I>>]
-  Y2 [label=<<I>MCS<SUB>3</SUB></I>>]
-  Y3 [label=<<I>MCS<SUB>4</SUB></I>>]
+  X0 [label=<Age<SUB>t-1</SUB>>]
+  X1 [label=<Age<SUB>t</SUB>>]
+  C0 [label=<Int_Conf<SUB>t-1</SUB>>]
+  C1 [label=<Int_Conf<SUB>t</SUB>>]
+  E1 [label=<Empl<SUB>t</SUB>>]
+  E2 [label=<Empl<SUB>t+1</SUB>>]
+  I1 [label=<Inc<SUB>t</SUB>>]
+  I2 [label=<Inc<SUB>t+1</SUB>>]
+  F1 [label=<Fin_Dist<SUB>t</SUB>>]
+  F2 [label=<Fin_Dist<SUB>t+1</SUB>>]
+  Y0 [label=<<I>MCS<SUB>t-1</SUB></I>>]
+  Y1 [label=<<I>MCS<SUB>t</SUB></I>>]
+  Y2 [label=<<I>MCS<SUB>t+1</SUB></I>>]
+  P0 [label=<PCS<SUB>t-1</SUB>>]
+  P1 [label=<PCS<SUB>t</SUB>>]
+  Z [label=<Static_Conf>]
   edge []
-  P0 -> E0, I0, C0, Y0, P1
-  P1 -> E1, I1, C1, Y1, P2
-  P2 -> E2, I2, C2, Y2, P3
-  P3 -> E3, I3, C3, Y3
-  E0 -> I0, C0, Y0, P1, E1
-  E1 -> I1, C1, Y1, P2, E2
-  E2 -> I2, C2, Y2, P3, E3
-  E3 -> I3, C3, Y3
-  I0 -> C0, Y0, P1, E1, I1
-  I1 -> C1, Y1, P2, E2, I2
-  I2 -> C2, Y2, P3, E3, I3
-  I3 -> C3, Y3
-  C0 -> Y0, P1, E1, I1, C1
-  C1 -> Y1, P2, E2, I2, C2
-  C2 -> Y2, P3, E3, I3, C3
-  C3 -> Y3
-  Y0 -> Y1 -> Y2 -> Y3
-  {rank=min; P0, P1, P2, P3}
-  {rank=same; E0, E1, E2, E3}
-  {rank=same; I0, I1, I2, I3}
-  {rank=same; C0, C1, C2, C3}
-  {rank=max; Y0, Y1, Y2, Y3}
-}") #Improve the graph after the next model run
+  X0 -> X1
+  X0 -> C0, E1, Y1, I1, F1, P0
+  X1 -> C1, E2, Y2, I2, F2, P1
+  P0 -> P1
+  P0 -> E1, I1, F1, Y1
+  P1 -> E2, I2, F2, Y2
+  E1 -> I1, C1, F1, Y1, P1
+  E1 -> E2
+  I1 -> F1, Y1, C1, P1, E2
+  I1 -> I2
+  I2 -> F2, Y2
+  C0 -> C1
+  C0 -> E1, I1, F1, Y1
+  C1 -> E2, I2, F2, Y2
+  F1 -> F2
+  F1 -> C1, Y1, P1
+  F2 -> Y2
+  Y0 -> C0, I1, P0, E1
+  Y0 -> Y1 -> Y2
+  Z -> Y0, C0, P0, I1, F1, E1, Y1, P1, C1, E2, I2, F2, Y2
+  {rank=min; Z}
+  {rank=same; X0, X1}
+  {rank=same; P0, P1}
+  {rank=same; E1, E2}
+  {rank=same; I1, I2}
+  {rank=same; C0, C1}
+  {rank=same; F1, F2}
+  {rank=max; Y0, Y1, Y2}
+}")
 ```
 
-# Four periods of intervention - dynamic baseline
-
-## gFormulaMI
+### gFormulaMI
 
 ```{r 4cummulative-mi}
 regimes <- intervention_pattern_4
@@ -245,7 +246,7 @@ regimes_4 <- tibble(intervention = regimes |>
 )
 ```
 
-## Table with estimates
+### Table with estimates
 
 ```{r 4cummulative-tab}
 #| output: true
@@ -263,6 +264,8 @@ mod_4cummulative |>
   knitr::kable(digits = 3)
 ```
 
+### Graph with estimates
+
 ```{r 4cummulative-graph}
 #| output: true
 mod_4cummulative |>
@@ -279,4 +282,97 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
   facet_wrap(~`Calculation method`, ncol = 1)
+```
+
+# Physical health status - SF-12 PCS
+
+## Four periods of intervention - accumulating treatment strategy
+```{r mids_setup_pcs}
+#| output: false
+
+# Setup wide data for MI
+
+wide_data <- long_data |>
+  mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
+  make_wide(
+    pidp,
+    t0,
+    base_cols = c(sex_dv_base, # wave 1
+                  wnw_race_base, # wave 1
+                  hiqual_dv_base, # wave 1
+                  age_dv_base, # wave 1
+                  gor_dv_base, # wave 1
+                  mastat_dv_base, # wave 1
+                  sf12pcs_dv_base), # wave 1
+    outcome = sf12pcs_dv, 
+    sf12mcs_dv,
+    econ_emp_bin,
+    log_income,
+    dnc,
+    home_owner,
+    econ_benefits,
+    econ_dist,
+    sf12pcs_dv
+  )
+
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 15)
+#wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
+
+base_predictor_matrix <- make_predictor_matrix(wide_data)
+```
+
+### DAG
+```{r model-dynamic4-dag}
+#| echo: false
+#| output: true
+
+grViz("digraph {
+  graph []
+  node [fontname=Arial]
+  X0 [label=<Age<SUB>t-1</SUB>>]
+  X1 [label=<Age<SUB>t</SUB>>]
+  C0 [label=<Int_Conf<SUB>t-1</SUB>>]
+  C1 [label=<Int_Conf<SUB>t</SUB>>]
+  E1 [label=<Empl<SUB>t</SUB>>]
+  E2 [label=<Empl<SUB>t+1</SUB>>]
+  I1 [label=<Inc<SUB>t</SUB>>]
+  I2 [label=<Inc<SUB>t+1</SUB>>]
+  F1 [label=<Fin_Dist<SUB>t</SUB>>]
+  F2 [label=<Fin_Dist<SUB>t+1</SUB>>]
+  Y0 [label=<<I>PCS<SUB>t-1</SUB></I>>]
+  Y1 [label=<<I>PCS<SUB>t</SUB></I>>]
+  Y2 [label=<<I>PCS<SUB>t+1</SUB></I>>]
+  P0 [label=<MCS<SUB>t-1</SUB>>]
+  P1 [label=<MCS<SUB>t</SUB>>]
+  Z [label=<Static_Conf>]
+  edge []
+  X0 -> X1
+  X0 -> C0, E1, Y1, I1, F1, P0
+  X1 -> C1, E2, Y2, I2, F2, P1
+  P0 -> P1
+  P0 -> E1, I1, F1, Y1
+  P1 -> E2, I2, F2, Y2
+  E1 -> I1, C1, F1, Y1, P1
+  E1 -> E2
+  I1 -> F1, Y1, C1, P1, E2
+  I1 -> I2
+  I2 -> F2, Y2
+  C0 -> C1
+  C0 -> E1, I1, F1, Y1
+  C1 -> E2, I2, F2, Y2
+  F1 -> F2
+  F1 -> C1, Y1, P1
+  F2 -> Y2
+  Y0 -> C0, I1, P0, E1
+  Y0 -> Y1 -> Y2
+  Z -> Y0, C0, P0, I1, F1, E1, Y1, P1, C1, E2, I2, F2, Y2
+  {rank=min; Z}
+  {rank=same; X0, X1}
+  {rank=same; P0, P1}
+  {rank=same; E1, E2}
+  {rank=same; I1, I2}
+  {rank=same; C0, C1}
+  {rank=same; F1, F2}
+  {rank=max; Y0, Y1, Y2}
+}")
 ```
