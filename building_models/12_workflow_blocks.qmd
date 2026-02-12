@@ -37,6 +37,20 @@ execute:
 - X0 \rightarrow Age \
 - Z \rightarrow Static confounders \
 
+
+```{r packages-setup}
+here::i_am("building_models/12_workflow_blocks.qmd")
+source(here::here("R", "data_import_and_cleaning.R"))
+source(here::here("R", "func_prep_data.R"))
+
+library(gfoRmula)
+library(gFormulaMI)
+library(magrittr)
+library(SPHSUgraphs)
+library(tidyverse)
+library(data.table)
+library(DiagrammeR)
+```
 ```{r model-dynamic4-dag-mcs}
 #| echo: false
 #| output: true
@@ -96,17 +110,6 @@ grViz("digraph {
 
 ```{r setup-wave3-6}
 #| output: false
-here::i_am("building_models/12_workflow_blocks.qmd")
-source(here::here("R", "data_import_and_cleaning.R"))
-source(here::here("R", "func_prep_data.R"))
-
-library(gfoRmula)
-library(gFormulaMI)
-library(magrittr)
-library(SPHSUgraphs)
-library(tidyverse)
-library(data.table)
-library(DiagrammeR)
 
 pop_data <- import_data() |> 
   select(-econ_incquint) 
@@ -290,17 +293,6 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 
 ```{r setup-wave4-7}
 #| output: false
-here::i_am("building_models/12_workflow_blocks.qmd")
-source(here::here("R", "data_import_and_cleaning.R"))
-source(here::here("R", "func_prep_data.R"))
-
-library(gfoRmula)
-library(gFormulaMI)
-library(magrittr)
-library(SPHSUgraphs)
-library(tidyverse)
-library(data.table)
-library(DiagrammeR)
 
 pop_data <- import_data() |> 
   select(-econ_incquint) 
@@ -482,17 +474,6 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 
 ```{r setup-wave5-8}
 #| output: false
-here::i_am("building_models/12_workflow_blocks.qmd")
-source(here::here("R", "data_import_and_cleaning.R"))
-source(here::here("R", "func_prep_data.R"))
-
-library(gfoRmula)
-library(gFormulaMI)
-library(magrittr)
-library(SPHSUgraphs)
-library(tidyverse)
-library(data.table)
-library(DiagrammeR)
 
 pop_data <- import_data() |>
   select(-econ_incquint)
@@ -667,17 +648,6 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 
 ```{r setup-wave6-9}
 #| output: false
-here::i_am("building_models/12_workflow_blocks.qmd")
-source(here::here("R", "data_import_and_cleaning.R"))
-source(here::here("R", "func_prep_data.R"))
-
-library(gfoRmula)
-library(gFormulaMI)
-library(magrittr)
-library(SPHSUgraphs)
-library(tidyverse)
-library(data.table)
-library(DiagrammeR)
 
 pop_data <- import_data() |>
   select(-econ_incquint)
@@ -852,17 +822,6 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 
 ```{r setup-wave7-10}
 #| output: false
-here::i_am("building_models/12_workflow_blocks.qmd")
-source(here::here("R", "data_import_and_cleaning.R"))
-source(here::here("R", "func_prep_data.R"))
-
-library(gfoRmula)
-library(gFormulaMI)
-library(magrittr)
-library(SPHSUgraphs)
-library(tidyverse)
-library(data.table)
-library(DiagrammeR)
 
 pop_data <- import_data() |>
   select(-econ_incquint)
