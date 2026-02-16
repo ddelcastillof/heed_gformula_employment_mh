@@ -45,8 +45,8 @@ pop_dt <- pop_data |>
 
 long_data <- pop_dt[, `:=`(
   t0 = t0 - 2,
-  pre_mcs = shift(sf12mcs_dv, type = "lag"),
-  pre_pcs = shift(sf12pcs_dv, type = "lag"),
+#  pre_mcs = shift(sf12mcs_dv, type = "lag"),
+#  pre_pcs = shift(sf12pcs_dv, type = "lag"),
   mcs_outcome = sf12mcs_dv,
   pcs_outcome = sf12pcs_dv
 )][wave %in% 3:6]
@@ -98,7 +98,8 @@ wide_data <- long_data |>
                   age_dv_base, # wave 1
                   gor_dv_base, # wave 1
                   mastat_dv_base, # wave 1
-                  sf12mcs_dv_base), # wave 1
+                  sf12mcs_dv_base # wave 1
+                  ), 
     outcome = sf12mcs_dv, 
     sf12pcs_dv,
     econ_emp_bin,
@@ -129,8 +130,8 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 "econ_benefits": Receives any benefits \
 "econ_dist": Economic distress \
 "mastat_dv": Marital status \
-"pre_mcs": Previous mental health score from waves 2,3,4,5 \
-"pre_pcs": Previous physical health score from waves 2,3,4,5 \
+"pre_mcs": Previous mental health score from waves 2,3,4,5 (not currently in use) \
+"pre_pcs": Previous physical health score from waves 2,3,4,5 (not currently in use) \
 "sf12mcs_dv": Mental health score \
 "hiqual_dv_base": Highest qualification at baseline \
 "wnw_race_base": Race (white/non-white) \
@@ -200,9 +201,96 @@ grViz("digraph {
 }")
 ```
 
-### gFormulaMI
+### gFormulaMI - accumulating MCS
 
 ```{r 4cummulative-mi}
+regimes <- intervention_pattern_4
+
+predictor_matrix <- base_predictor_matrix
+
+# predictor_matrix |> as.data.frame() |>
+# openxlsx::write.xlsx(here::here("data", "predictor_matrix.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
+
+# predictor_matrix["sf12mcs_dv_0",] <- 0
+# predictor_matrix["sf12mcs_dv_1",] <- 0
+# predictor_matrix["sf12mcs_dv_2",] <- 0
+# predictor_matrix["sf12mcs_dv_3",] <- 0
+
+# MCS does not predict intermediate outcomes
+predictor_matrix[,"sf12mcs_dv_0"] <- 0
+predictor_matrix[,"sf12mcs_dv_1"] <- 0
+predictor_matrix[,"sf12mcs_dv_2"] <- 0
+predictor_matrix[,"sf12mcs_dv_3"] <- 0
+
+# MCS is dependent on previous MCS values
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
+
+# MCS is not predicted by baseline MCS
+predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
+
+imps <- gFormulaImpute(
+  wide_mids,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes = regimes,
+  predictorMatrix = predictor_matrix
+)
+
+fits <- imps %$%
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
+
+mi_4cummulative <- syntheticPool(fits)
+
+regimes_4 <- tibble(intervention = regimes |> 
+  map(paste, collapse = "-") |> 
+  reduce(c)
+)
+```
+
+#### Table with estimates
+
+```{r 4cummulative-tab}
+#| output: true
+
+mod_4cummulative <- mi_4cummulative |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_4)
+
+mod_4cummulative |> 
+  knitr::kable(digits = 3)
+```
+
+#### Graph with estimates
+
+```{r 4cummulative-graph}
+#| output: true
+mod_4cummulative |>
+  pivot_longer(
+    -intervention,
+    names_to = c("Calculation method", ".value"),
+    names_pattern = "(.*)_(.*)"
+  ) |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |> 
+ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+    colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
+```
+
+### gFormulaMI - without intermediate MCS
+
+```{r 4static-mi}
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -246,43 +334,11 @@ regimes_4 <- tibble(intervention = regimes |>
 )
 ```
 
-### Table with estimates
+#### Table with estimates
 
-```{r 4cummulative-tab}
-#| output: true
 
-mod_4cummulative <- mi_4cummulative |>
-  as_tibble() |>
-  rownames_to_column("Intervention") |>
-  transmute(mi_effect = Estimate,
-            mi_se = sqrt(Total),
-            mi_ll = `95% CI L`,
-            mi_ul = `95% CI U`) |>
-  bind_cols(regimes_4)
+#### Graph with estimates
 
-mod_4cummulative |> 
-  knitr::kable(digits = 3)
-```
-
-### Graph with estimates
-
-```{r 4cummulative-graph}
-#| output: true
-mod_4cummulative |>
-  pivot_longer(
-    -intervention,
-    names_to = c("Calculation method", ".value"),
-    names_pattern = "(.*)_(.*)"
-  ) |>
-  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
-           factor()) |> 
-ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
-    colour = n_unemp)) +
-  geom_point(size = 2, position = position_dodge(width = 0.7))  +
-  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
-  facet_wrap(~`Calculation method`, ncol = 1)
-```
 
 # Physical health status - SF-12 PCS
 
