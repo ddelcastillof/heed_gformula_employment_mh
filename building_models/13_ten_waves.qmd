@@ -103,7 +103,22 @@ wide_data <- long_data |>
     sf12mcs_dv
   )
 
+if (file.exists(here::here("data", "wide_mids_10_waves.rds"))) {
+wide_mids <- readRDS(here::here("data", "wide_mids_10_waves.rds"))
+message("Loaded mice from 'data'")
+
+} else {
+if (!dir.exists(here::here("data")))
+{
+dir.create(here::here("data"))
+message("Directory 'data' did not exist. Creating directory 'data'")
+}
+message("Creating wide_mids.rds into 'data'")
 wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+saveRDS(wide_mids, file = here::here("data", "wide_mids_10_waves.rds"))
+message("Computed wide_mids and saved to 'data'")
+}
+
 #wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
