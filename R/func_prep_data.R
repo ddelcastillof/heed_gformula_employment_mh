@@ -1,10 +1,13 @@
-make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
+make_wide <- function(df, id_col, time_col, base_cols, outcome, ..., static = FALSE) {
   
   require(rlang)
+  
+  outcome_name <- as_name(ensym(outcome))
   
   t_conf <- enquos(...)
   
   t_max <- max(df |> pull({{time_col}}))
+  t_min <- min(df |> pull({{time_col}}))
   
   df_out <- df |> 
     select({{id_col}}, {{time_col}}, {{base_cols}}, !!!t_conf, {{outcome}}) |> 
@@ -24,18 +27,18 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ...) {
       ends_with("7"),
       ends_with("8"),
       ends_with("9")
-      # -matches(paste0("^", quo_name(quo({{outcome}})), "_\\d+")),
-      # -starts_with(quo_name(quo({{outcome}}))),
-      # matches(paste(quo_name(quo({{outcome}})), t_max, sep = "_"))
     )
   
+  if (static) {
+      intermediate_cols <- paste0(outcome_name, "_", (t_min + 1):(t_max - 1))
+      df_out <- df_out |> select(-any_of(intermediate_cols))
+    }
+
   attr(df_out, "n_tvars") <- length(t_conf)
   attr(df_out, "n_base") <- length(df[1,] |> select({{base_cols}}))
   
   df_out
 }
-
-
 
 make_predictor_matrix <- function(return_vals) {
   n_tvars <- attr(return_vals, "n_tvars")
