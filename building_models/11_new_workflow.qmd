@@ -45,8 +45,12 @@ pop_dt <- pop_data |>
 
 long_data <- pop_dt[, `:=`(
   t0 = t0 - 2,
-#  pre_mcs = shift(sf12mcs_dv, type = "lag"),
-#  pre_pcs = shift(sf12pcs_dv, type = "lag"),
+  pcs_lagged = shift(sf12pcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
+  mcs_lagged = shift(sf12mcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
+  # the other time-varying confounders should also be lagged
+  lagged_dnc = shift(dnc, type = "lag"),
+  lagged_home_owner = shift(home_owner, type = "lag"),
+  lagged_econ_benefits = shift(econ_benefits, type = "lag"),
   mcs_outcome = sf12mcs_dv,
   pcs_outcome = sf12pcs_dv
 )][wave %in% 3:6]
@@ -100,13 +104,13 @@ wide_data <- long_data |>
                   mastat_dv_base, # wave 1
                   sf12mcs_dv_base # wave 1
                   ), 
-    outcome = sf12mcs_dv, 
-    sf12pcs_dv,
+    outcome = mcs_outcome, 
+    pcs_lagged,
     econ_emp_bin,
     log_income,
-    dnc,
-    home_owner,
-    econ_benefits,
+    lagged_dnc,
+    lagged_home_owner,
+    lagged_econ_benefits,
     econ_dist,
     sf12mcs_dv
   )
@@ -121,20 +125,39 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 
 ### DAG
 #### Dictionary
+##### Time invariant confounders
+"hiqual_dv_base": Highest qualification at baseline \
+"wnw_race_base": Race (white/non-white) \
+"sex_dv_base": Sex \
+"age_dv_base": Age \ 
+"gor_dv_base": Geographical region \
 
+##### Time varying confounders
+:::{.callout-important}
+These are lagged variables, their information come from wave 2
+:::
 "sf12pcs_dv": Physical health \
-"econ_emp_bin": Employment \
-"log_income": Income \
 "dnc": Number of children \ 
 "home_owner": Home owner \
 "econ_benefits": Receives any benefits \
-"econ_dist": Economic distress \
 "mastat_dv": Marital status \
+
+##### Time varying outcome
+"sf12mcs_dv": Mental health score \
+
+##### Time varying mediators
+"log_income": Income \
+"econ_dist": Economic distress \
+
+##### Time varying treatment
+"econ_emp_bin": Binary variable which represents whether the individual experienced unemployment or not \
+
+:::{.callout-note}
+This DAG is a simplification of the protocol DAG, as it does not include all the waves of the study, only summarises them in three time periods. \
+**Legacy variables:**\
 "pre_mcs": Previous mental health score from waves 2,3,4,5 (not currently in use) \
 "pre_pcs": Previous physical health score from waves 2,3,4,5 (not currently in use) \
-"sf12mcs_dv": Mental health score \
-"hiqual_dv_base": Highest qualification at baseline \
-"wnw_race_base": Race (white/non-white) \
+:::
 
 #### Legend:
 - P0 \rightarrow PCS \
@@ -208,8 +231,7 @@ regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
 
-# predictor_matrix |> as.data.frame() |>
-# openxlsx::write.xlsx(here::here("data", "predictor_matrix.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
+# base_predictor_matrix |> as.data.frame() |> openxlsx::write.xlsx(here::here("data", "base_predictor_matrix.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
 
 # predictor_matrix["sf12mcs_dv_0",] <- 0
 # predictor_matrix["sf12mcs_dv_1",] <- 0
@@ -227,10 +249,22 @@ predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
 predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
 predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
 
-# MCS is not predicted by baseline MCS
+# MCS is not predicted by baseline MCS, only by their immediate previous value
 predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
 predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
 predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
+
+# MCS in period t (not baseline) predicts employment and income in the period t+1
+predictor_matrix["sf12mcs_dv_0",c("econ_emp_bin_1", "log_income_1")] <- 1
+predictor_matrix["sf12mcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
+predictor_matrix["sf12mcs_dv_2",c("econ_emp_bin_3", "log_income_3")] <- 1
+
+# Economic distress does not affect income or employment of the next period
+predictor_matrix["econ_dist_0",c("econ_emp_bin_1", "log_income_1")] <- 0
+predictor_matrix["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
+predictor_matrix["econ_dist_2",c("econ_emp_bin_3", "log_income_3")] <- 0
+
+# predictor_matrix |> as.data.frame() |> openxlsx::write.xlsx(here::here("data", "predictor_matrix.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
 
 imps <- gFormulaImpute(
   wide_mids,
@@ -291,6 +325,7 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 ### gFormulaMI - without intermediate MCS
 
 ```{r 4static-mi}
+#| eval: false
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -345,6 +380,7 @@ regimes_4 <- tibble(intervention = regimes |>
 ## Four periods of intervention - accumulating treatment strategy
 ```{r setup-pcs}
 #| output: false
+#| eval: false
 here::i_am("building_models/11_new_workflow.qmd")
 source(here::here("R", "data_import_and_cleaning.R"))
 source(here::here("R", "func_prep_data.R"))
@@ -414,6 +450,7 @@ nsamples <- 100
 
 ```{r mids_setup_pcs}
 #| output: false
+#| eval: false
 
 # Setup wide data for MI
 
@@ -450,6 +487,7 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```{r model-dynamic4-dag-pcs}
 #| echo: false
 #| output: true
+#| eval: false
 
 grViz("digraph {
   graph []
@@ -505,6 +543,8 @@ grViz("digraph {
 ### gFormulaMI-PCS
 
 ```{r 4cummulative-mi-pcs}
+#| eval: false
+
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -552,6 +592,7 @@ regimes_4 <- tibble(intervention = regimes |>
 
 ```{r 4cummulative-tab-pcs}
 #| output: true
+#| eval: false
 
 mod_4cummulative <- mi_4cummulative |>
   as_tibble() |>
@@ -570,6 +611,8 @@ mod_4cummulative |>
 
 ```{r 4cummulative-graph-pcs}
 #| output: true
+#| eval: false
+
 mod_4cummulative |>
   pivot_longer(
     -intervention,
