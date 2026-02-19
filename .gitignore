@@ -25,3 +25,6 @@ R/dump_code.R
 
 #DS_Store files
 .DS_Store
+
+# Git worktrees
+.worktrees/
