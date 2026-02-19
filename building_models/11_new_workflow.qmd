@@ -46,13 +46,12 @@ pop_dt <- pop_data |>
 long_data <- pop_dt[, `:=`(
   t0 = t0 - 2,
   pcs_lagged = shift(sf12pcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
-  mcs_lagged = shift(sf12mcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
+#  mcs_lagged = shift(sf12mcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
   # the other time-varying confounders should also be lagged
   lagged_dnc = shift(dnc, type = "lag"),
   lagged_home_owner = shift(home_owner, type = "lag"),
   lagged_econ_benefits = shift(econ_benefits, type = "lag"),
-  mcs_outcome = sf12mcs_dv,
-  pcs_outcome = sf12pcs_dv
+  mcs_outcome = sf12mcs_dv
 )][wave %in% 3:6]
 
 no_mh_outcomes <- long_data |> 
@@ -104,7 +103,7 @@ wide_data <- long_data |>
                   mastat_dv_base, # wave 1
                   sf12mcs_dv_base # wave 1
                   ), 
-    outcome = sf12mcs_dv, # legacy argument meant to drop intermediate waves of the outcome
+    outcome = mcs_outcome, # legacy argument meant to drop intermediate waves of the outcome
     pcs_lagged,
     econ_emp_bin,
     log_income,
@@ -112,7 +111,7 @@ wide_data <- long_data |>
     lagged_home_owner,
     lagged_econ_benefits,
     econ_dist,
-    sf12mcs_dv
+    static = FALSE
   )
 
 wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
