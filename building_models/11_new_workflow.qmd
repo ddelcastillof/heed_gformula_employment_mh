@@ -85,7 +85,7 @@ nsamples <- 100
 
 # Mental health status - SF-12 MCS
 ## Accumulating variables
-```{r mids_setup_mcs}
+```{r mids_setup_mcs_accumulating}
 #| output: false
 
 # Setup wide data for MI
@@ -103,7 +103,7 @@ wide_data <- long_data |>
                   mastat_dv_base, # wave 1
                   sf12mcs_dv_base # wave 1
                   ), 
-    outcome = mcs_outcome, # legacy argument meant to drop intermediate waves of the outcome
+    outcome = sf12mcs_dv,
     pcs_lagged,
     econ_emp_bin,
     log_income,
@@ -120,7 +120,7 @@ wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "p
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```
 
-## Four periods of intervention - accumulating treatment strategy
+## Four periods of intervention - accumulating outcomes
 
 ### DAG
 #### Dictionary
@@ -321,10 +321,47 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
   facet_wrap(~`Calculation method`, ncol = 1)
 ```
 
+## Four periods of intervention - without intermediate outcomes
+
 ### gFormulaMI - without intermediate MCS
+```{r mids_setup_mcs_static}
+#| output: false
+
+# Setup wide data for MI
+
+wide_data <- long_data |>
+  mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
+  make_wide(
+    pidp,
+    t0,
+    base_cols = c(sex_dv_base, # wave 1
+                  wnw_race_base, # wave 1
+                  hiqual_dv_base, # wave 1
+                  age_dv_base, # wave 1
+                  gor_dv_base, # wave 1
+                  mastat_dv_base, # wave 1
+                  sf12mcs_dv_base # wave 1
+                  ), 
+    outcome = sf12mcs_dv, # legacy argument meant to drop intermediate waves of the outcome
+    pcs_lagged,
+    econ_emp_bin,
+    log_income,
+    lagged_dnc,
+    lagged_home_owner,
+    lagged_econ_benefits,
+    econ_dist,
+    static = TRUE
+  )
+
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+#wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
+
+base_predictor_matrix <- make_predictor_matrix(wide_data)
+```
+
+### gFormulaMI - non-accumulating MCS
 
 ```{r 4static-mi}
-#| eval: false
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -336,19 +373,22 @@ predictor_matrix <- base_predictor_matrix
 
 # MCS does not predict intermediate outcomes
 predictor_matrix[,"sf12mcs_dv_0"] <- 0
-predictor_matrix[,"sf12mcs_dv_1"] <- 0
-predictor_matrix[,"sf12mcs_dv_2"] <- 0
 predictor_matrix[,"sf12mcs_dv_3"] <- 0
 
 # MCS is dependent on previous MCS values
 predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
-predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
-predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_1"] <- 1
 
 # MCS is not predicted by baseline MCS
-predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
-predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
 predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
+
+# MCS in period t (not baseline) predicts employment and income in the period t+1
+predictor_matrix["sf12mcs_dv_0",c("econ_emp_bin_1", "log_income_1")] <- 1
+
+# Economic distress does not affect income or employment of the next period
+predictor_matrix["econ_dist_0",c("econ_emp_bin_1", "log_income_1")] <- 0
+predictor_matrix["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
+predictor_matrix["econ_dist_2",c("econ_emp_bin_3", "log_income_3")] <- 0
 
 imps <- gFormulaImpute(
   wide_mids,
@@ -360,7 +400,7 @@ imps <- gFormulaImpute(
 fits <- imps %$%
   lm(sf12mcs_dv_3 ~ 0 + factor(regime))
 
-mi_4cummulative <- syntheticPool(fits)
+mi_4static <- syntheticPool(fits)
 
 regimes_4 <- tibble(intervention = regimes |> 
   map(paste, collapse = "-") |> 
@@ -369,10 +409,40 @@ regimes_4 <- tibble(intervention = regimes |>
 ```
 
 #### Table with estimates
+```{r 4static-tab}
+#| output: true
 
+mod_4static <- mi_4static |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_4)
+
+mod_4static |> 
+  knitr::kable(digits = 3)
+```
 
 #### Graph with estimates
-
+```{r 4static-graph}
+#| output: true
+mod_4static |>
+  pivot_longer(
+    -intervention,
+    names_to = c("Calculation method", ".value"),
+    names_pattern = "(.*)_(.*)"
+  ) |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |> 
+ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+    colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1)
+```
 
 # Physical health status - SF-12 PCS
 
