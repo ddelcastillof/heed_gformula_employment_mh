@@ -104,7 +104,7 @@ wide_data <- long_data |>
                   mastat_dv_base, # wave 1
                   sf12mcs_dv_base # wave 1
                   ), 
-    outcome = mcs_outcome, 
+    outcome = sf12mcs_dv, # legacy argument meant to drop intermediate waves of the outcome
     pcs_lagged,
     econ_emp_bin,
     log_income,
