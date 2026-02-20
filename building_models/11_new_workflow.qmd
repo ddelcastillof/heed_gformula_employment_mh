@@ -376,8 +376,7 @@ predictor_matrix[,"sf12mcs_dv_0"] <- 0
 predictor_matrix[,"sf12mcs_dv_3"] <- 0
 
 # MCS is dependent on previous MCS values
-predictor_matrix["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
-predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_1"] <- 1
+predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_0"] <- 1
 
 # MCS is not predicted by baseline MCS
 predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
