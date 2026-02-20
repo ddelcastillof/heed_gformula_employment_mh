@@ -46,8 +46,8 @@ pop_dt <- pop_data |>
 long_data <- pop_dt[, `:=`(
   t0 = t0 - 2,
   pcs_lagged = shift(sf12pcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
-#  mcs_lagged = shift(sf12mcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
-  # the other time-varying confounders should also be lagged
+# mcs_lagged = shift(sf12mcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
+# the other time-varying confounders should also be lagged
   lagged_dnc = shift(dnc, type = "lag"),
   lagged_home_owner = shift(home_owner, type = "lag"),
   lagged_econ_benefits = shift(econ_benefits, type = "lag"),
@@ -114,8 +114,21 @@ wide_data <- long_data |>
     static = FALSE
   )
 
+if (file.exists(here::here("data", "wide_mids_4_waves_mcs_dynamic.rds"))) {
+wide_mids <- readRDS(here::here("data", "wide_mids_4_waves_mcs_dynamic.rds"))
+message("Loaded mice from 'data'")
+
+} else {
+if (!dir.exists(here::here("data")))
+{
+dir.create(here::here("data"))
+message("Directory 'data' did not exist. Creating directory 'data'")
+}
+message("Creating wide_mids.rds into 'data'")
 wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
-#wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
+saveRDS(wide_mids, file = here::here("data", "wide_mids_4_waves_mcs_dynamic.rds"))
+message("Computed wide_mids and saved to 'data'")
+}
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```
@@ -353,13 +366,26 @@ wide_data <- long_data |>
     static = TRUE
   )
 
+if (file.exists(here::here("data", "wide_mids_4_waves_mcs_static.rds"))) {
+wide_mids <- readRDS(here::here("data", "wide_mids_4_waves_mcs_static.rds"))
+message("Loaded mice from 'data'")
+
+} else {
+if (!dir.exists(here::here("data")))
+{
+dir.create(here::here("data"))
+message("Directory 'data' did not exist. Creating directory 'data'")
+}
+message("Creating wide_mids.rds into 'data'")
 wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
-#wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
+saveRDS(wide_mids, file = here::here("data", "wide_mids_4_waves_mcs_static.rds"))
+message("Computed wide_mids and saved to 'data'")
+}
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```
 
-### gFormulaMI - non-accumulating MCS
+#### gFormulaMI - non-accumulating MCS
 
 ```{r 4static-mi}
 regimes <- intervention_pattern_4
@@ -446,9 +472,9 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 # Physical health status - SF-12 PCS
 
 ## Four periods of intervention - accumulating treatment strategy
-```{r setup-pcs}
+```{r setup-pcs-dynamic}
 #| output: false
-#| eval: false
+
 here::i_am("building_models/11_new_workflow.qmd")
 source(here::here("R", "data_import_and_cleaning.R"))
 source(here::here("R", "func_prep_data.R"))
@@ -481,9 +507,12 @@ pop_dt <- pop_data |>
 
 long_data <- pop_dt[, `:=`(
   t0 = t0 - 2,
-  pre_mcs = shift(sf12mcs_dv, type = "lag"),
-  pre_pcs = shift(sf12pcs_dv, type = "lag"),
-  mcs_outcome = sf12mcs_dv,
+# pcs_lagged = shift(sf12pcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
+  mcs_lagged = shift(sf12mcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
+# the other time-varying confounders should also be lagged
+  lagged_dnc = shift(dnc, type = "lag"),
+  lagged_home_owner = shift(home_owner, type = "lag"),
+  lagged_econ_benefits = shift(econ_benefits, type = "lag"),
   pcs_outcome = sf12pcs_dv
 )][wave %in% 3:6]
 
@@ -516,9 +545,11 @@ ncores <- 2
 nsamples <- 100
 ```
 
-```{r mids_setup_pcs}
+## Physical health status - SF-12 PCS
+### Accumulating variables
+
+```{r mids-setup-pcs-dynamic}
 #| output: false
-#| eval: false
 
 # Setup wide data for MI
 
@@ -535,18 +566,31 @@ wide_data <- long_data |>
                   mastat_dv_base, # wave 1
                   sf12pcs_dv_base), # wave 1
     outcome = sf12pcs_dv, 
-    sf12mcs_dv,
+    mcs_lagged,
     econ_emp_bin,
     log_income,
-    dnc,
-    home_owner,
-    econ_benefits,
+    lagged_dnc,
+    lagged_home_owner,
+    lagged_econ_benefits,
     econ_dist,
-    sf12pcs_dv
+    static = FALSE
   )
 
-wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 15)
-#wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
+if (file.exists(here::here("data", "wide_mids_4_waves_pcs_dynamic.rds"))) {
+wide_mids <- readRDS(here::here("data", "wide_mids_4_waves_pcs_dynamic.rds"))
+message("Loaded mice from 'data'")
+
+} else {
+if (!dir.exists(here::here("data")))
+{
+dir.create(here::here("data"))
+message("Directory 'data' did not exist. Creating directory 'data'")
+}
+message("Creating wide_mids.rds into 'data'")
+wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
+saveRDS(wide_mids, file = here::here("data", "wide_mids_4_waves_pcs_dynamic.rds"))
+message("Computed wide_mids and saved to 'data'")
+}
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```
@@ -555,7 +599,6 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```{r model-dynamic4-dag-pcs}
 #| echo: false
 #| output: true
-#| eval: false
 
 grViz("digraph {
   graph []
@@ -611,8 +654,6 @@ grViz("digraph {
 ### gFormulaMI-PCS
 
 ```{r 4cummulative-mi-pcs}
-#| eval: false
-
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -638,6 +679,16 @@ predictor_matrix["sf12pcs_dv_1","sf12pcs_dv_base"] <- 0
 predictor_matrix["sf12pcs_dv_2","sf12pcs_dv_base"] <- 0
 predictor_matrix["sf12pcs_dv_3","sf12pcs_dv_base"] <- 0
 
+# PCS in period t (not baseline) predicts employment and income in the period t+1
+predictor_matrix["sf12pcs_dv_0",c("econ_emp_bin_1", "log_income_1")] <- 1
+predictor_matrix["sf12pcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
+predictor_matrix["sf12pcs_dv_2",c("econ_emp_bin_3", "log_income_3")] <- 1
+
+# Economic distress does not affect income or employment of the next period
+predictor_matrix["econ_dist_0",c("econ_emp_bin_1", "log_income_1")] <- 0
+predictor_matrix["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
+predictor_matrix["econ_dist_2",c("econ_emp_bin_3", "log_income_3")] <- 0
+
 imps <- gFormulaImpute(
   wide_mids,
   trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
@@ -660,8 +711,6 @@ regimes_4 <- tibble(intervention = regimes |>
 
 ```{r 4cummulative-tab-pcs}
 #| output: true
-#| eval: false
-
 mod_4cummulative <- mi_4cummulative |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
@@ -679,8 +728,6 @@ mod_4cummulative |>
 
 ```{r 4cummulative-graph-pcs}
 #| output: true
-#| eval: false
-
 mod_4cummulative |>
   pivot_longer(
     -intervention,
