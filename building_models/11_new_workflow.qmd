@@ -508,7 +508,7 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 ## Four periods of intervention - accumulating treatment strategy
 ```{r setup-pcs-dynamic}
 #| output: false
-#| eval: false
+
 here::i_am("building_models/11_new_workflow.qmd")
 source(here::here("R", "data_import_and_cleaning.R"))
 source(here::here("R", "func_prep_data.R"))
