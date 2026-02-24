@@ -290,10 +290,19 @@ fits <- imps %$%
 
 mi_4cummulative <- syntheticPool(fits)
 
-regimes_4 <- tibble(intervention = regimes |> 
-  map(paste, collapse = "-") |> 
+regimes_4 <- tibble(intervention = regimes |>
+  map(paste, collapse = "-") |>
   reduce(c)
 )
+
+regime_obs_n <- wide_data |>
+  mutate(across(c(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3), as.character)) |>
+  filter(!is.na(econ_emp_bin_0), !is.na(econ_emp_bin_1),
+         !is.na(econ_emp_bin_2), !is.na(econ_emp_bin_3)) |>
+  count(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3) |>
+  mutate(intervention = paste(econ_emp_bin_0, econ_emp_bin_1,
+                              econ_emp_bin_2, econ_emp_bin_3, sep = "-")) |>
+  select(intervention, n_obs = n)
 ```
 
 #### Table with estimates
@@ -308,9 +317,11 @@ mod_4cummulative <- mi_4cummulative |>
             mi_se = sqrt(Total),
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
-  bind_cols(regimes_4)
+  bind_cols(regimes_4) |>
+  left_join(regime_obs_n, by = "intervention") |>
+  mutate(n_obs = replace_na(n_obs, 0L))
 
-mod_4cummulative |> 
+mod_4cummulative |>
   knitr::kable(digits = 3)
 ```
 
@@ -319,13 +330,16 @@ mod_4cummulative |>
 ```{r 4cummulative-graph}
 #| output: true
 mod_4cummulative |>
+  mutate(
+    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = paste0(intervention, " (n=", n_obs, ")")
+  ) |>
+  select(-n_obs) |>
   pivot_longer(
-    -intervention,
+    -c(intervention, n_unemp),
     names_to = c("Calculation method", ".value"),
     names_pattern = "(.*)_(.*)"
   ) |>
-  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
-           factor()) |> 
 ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
@@ -339,6 +353,7 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 ### gFormulaMI - without intermediate MCS
 ```{r mids_setup_mcs_static}
 #| output: false
+#| eval: false
 
 # Setup wide data for MI
 
@@ -388,6 +403,8 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 #### gFormulaMI - non-accumulating MCS
 
 ```{r 4static-mi}
+#| eval: false
+
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -427,15 +444,25 @@ fits <- imps %$%
 
 mi_4static <- syntheticPool(fits)
 
-regimes_4 <- tibble(intervention = regimes |> 
-  map(paste, collapse = "-") |> 
+regimes_4 <- tibble(intervention = regimes |>
+  map(paste, collapse = "-") |>
   reduce(c)
 )
+
+regime_obs_n <- wide_data |>
+  mutate(across(c(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3), as.character)) |>
+  filter(!is.na(econ_emp_bin_0), !is.na(econ_emp_bin_1),
+         !is.na(econ_emp_bin_2), !is.na(econ_emp_bin_3)) |>
+  count(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3) |>
+  mutate(intervention = paste(econ_emp_bin_0, econ_emp_bin_1,
+                              econ_emp_bin_2, econ_emp_bin_3, sep = "-")) |>
+  select(intervention, n_obs = n)
 ```
 
 #### Table with estimates
 ```{r 4static-tab}
 #| output: true
+#| eval: false
 
 mod_4static <- mi_4static |>
   as_tibble() |>
@@ -444,23 +471,30 @@ mod_4static <- mi_4static |>
             mi_se = sqrt(Total),
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
-  bind_cols(regimes_4)
+  bind_cols(regimes_4) |>
+  left_join(regime_obs_n, by = "intervention") |>
+  mutate(n_obs = replace_na(n_obs, 0L))
 
-mod_4static |> 
+mod_4static |>
   knitr::kable(digits = 3)
 ```
 
 #### Graph with estimates
 ```{r 4static-graph}
 #| output: true
+#| eval: false
+
 mod_4static |>
+  mutate(
+    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = paste0(intervention, " (n=", n_obs, ")")
+  ) |>
+  select(-n_obs) |>
   pivot_longer(
-    -intervention,
+    -c(intervention, n_unemp),
     names_to = c("Calculation method", ".value"),
     names_pattern = "(.*)_(.*)"
   ) |>
-  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
-           factor()) |> 
 ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
@@ -474,7 +508,7 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 ## Four periods of intervention - accumulating treatment strategy
 ```{r setup-pcs-dynamic}
 #| output: false
-
+#| eval: false
 here::i_am("building_models/11_new_workflow.qmd")
 source(here::here("R", "data_import_and_cleaning.R"))
 source(here::here("R", "func_prep_data.R"))
@@ -701,10 +735,19 @@ fits <- imps %$%
 
 mi_4cummulative <- syntheticPool(fits)
 
-regimes_4 <- tibble(intervention = regimes |> 
-  map(paste, collapse = "-") |> 
+regimes_4 <- tibble(intervention = regimes |>
+  map(paste, collapse = "-") |>
   reduce(c)
 )
+
+regime_obs_n <- wide_data |>
+  mutate(across(c(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3), as.character)) |>
+  filter(!is.na(econ_emp_bin_0), !is.na(econ_emp_bin_1),
+         !is.na(econ_emp_bin_2), !is.na(econ_emp_bin_3)) |>
+  count(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3) |>
+  mutate(intervention = paste(econ_emp_bin_0, econ_emp_bin_1,
+                              econ_emp_bin_2, econ_emp_bin_3, sep = "-")) |>
+  select(intervention, n_obs = n)
 ```
 
 ### Table with estimates
@@ -718,9 +761,11 @@ mod_4cummulative <- mi_4cummulative |>
             mi_se = sqrt(Total),
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
-  bind_cols(regimes_4)
+  bind_cols(regimes_4) |>
+  left_join(regime_obs_n, by = "intervention") |>
+  mutate(n_obs = replace_na(n_obs, 0L))
 
-mod_4cummulative |> 
+mod_4cummulative |>
   knitr::kable(digits = 3)
 ```
 
@@ -729,13 +774,16 @@ mod_4cummulative |>
 ```{r 4cummulative-graph-pcs}
 #| output: true
 mod_4cummulative |>
+  mutate(
+    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = paste0(intervention, " (n=", n_obs, ")")
+  ) |>
+  select(-n_obs) |>
   pivot_longer(
-    -intervention,
+    -c(intervention, n_unemp),
     names_to = c("Calculation method", ".value"),
     names_pattern = "(.*)_(.*)"
   ) |>
-  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
-           factor()) |> 
 ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
