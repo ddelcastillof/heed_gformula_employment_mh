@@ -1,4 +1,4 @@
-- source: 08_full_models_MI_only.qmd
+- source: 11_new_workflow.qmd
   quarto-pub:
     - id: 
       url: 'https://ddelcastillo.quarto.pub/full-models'
