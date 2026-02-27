@@ -28,3 +28,16 @@ R/dump_code.R
 
 # Git worktrees
 .worktrees/
+
+# ignoring stata build files
+/ukhls/
+*.dta
+
+# ingoring dag until futher notice
+/dag/
+
+# ignoring documentation
+/docs/
+
+# ignoring meta-analysis until further notice
+/overall_estimates/
