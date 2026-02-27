@@ -353,7 +353,6 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 ### gFormulaMI - without intermediate MCS
 ```{r mids_setup_mcs_static}
 #| output: false
-#| eval: false
 
 # Setup wide data for MI
 
@@ -403,8 +402,6 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 #### gFormulaMI - non-accumulating MCS
 
 ```{r 4static-mi}
-#| eval: false
-
 regimes <- intervention_pattern_4
 
 predictor_matrix <- base_predictor_matrix
@@ -462,8 +459,6 @@ regime_obs_n <- wide_data |>
 #### Table with estimates
 ```{r 4static-tab}
 #| output: true
-#| eval: false
-
 mod_4static <- mi_4static |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
@@ -482,7 +477,6 @@ mod_4static |>
 #### Graph with estimates
 ```{r 4static-graph}
 #| output: true
-#| eval: false
 
 mod_4static |>
   mutate(
