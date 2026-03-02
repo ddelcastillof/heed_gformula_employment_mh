@@ -1,4 +1,4 @@
-make_wide <- function(df, id_col, time_col, base_cols, outcome, ..., static = FALSE) {
+make_wide <- function(df, id_col, time_col, base_cols, outcome, ..., static = FALSE, waves = NULL) {
   
   require(rlang)
   
@@ -6,6 +6,10 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ..., static = FA
   
   t_conf <- enquos(...)
   
+  if (!is.null(waves)) {                                                                                                                                                                                                                                                                            
+    df <- df |> filter({{time_col}} %in% waves)                                                                                                                                                                                                                                                     
+  } 
+
   t_max <- max(df |> pull({{time_col}}))
   t_min <- min(df |> pull({{time_col}}))
   
