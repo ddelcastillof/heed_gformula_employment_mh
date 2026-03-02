@@ -90,9 +90,8 @@ intervention_pattern_3 <- expand_grid(0:1, 0:1, 0:1) |>
   unclass()
 ```
 
-# Three periods of intervention - static baseline
-
-```{r model-baseline3-dag}
+# Three periods of intervention - with intermediate outcomes
+```{r model-cummulative3-dag}
 #| echo: false
 #| output: true
 grViz("digraph {
@@ -110,28 +109,32 @@ grViz("digraph {
   C0 [label=<Conf<SUP>Int</SUP><SUB>1</SUB>>]
   C1 [label=<Conf<SUP>Int</SUP><SUB>2</SUB>>]
   C2 [label=<Conf<SUP>Int</SUP><SUB>3</SUB>>]
-  Y [label=<<I>MCS<SUB>3</SUB></I>>]
+  Y0 [label=<<I>MCS<SUB>1</SUB></I>>]
+  Y1 [label=<<I>MCS<SUB>2</SUB></I>>]
+  Y2 [label=<<I>MCS<SUB>3</SUB></I>>]
   edge []
-  P0 -> E0, I0, C0, P1
-  P1 -> E1, I1, C1, P2
-  P2 -> E2, I2, C2, Y
-  E0 -> I0, C0, P1, E1
-  E1 -> I1, C1, P2, E2
-  E2 -> I2, C2, Y
-  I0 -> C0, P1, E1, I1
-  I1 -> C1, P2, E2, I2
-  I2 -> C2, Y
-  C0 -> P1, E1, I1, C1
-  C1 -> P2, E2, I2, C2
-  C2 -> Y
+  P0 -> E0, I0, C0, Y0, P1
+  P1 -> E1, I1, C1, Y1, P2
+  P2 -> E2, I2, C2, Y2
+  E0 -> I0, C0, Y0, P1, E1
+  E1 -> I1, C1, Y1, P2, E2
+  E2 -> I2, C2, Y2
+  I0 -> C0, Y0, P1, E1, I1
+  I1 -> C1, Y1, P2, E2, I2
+  I2 -> C2, Y2
+  C0 -> Y0, P1, E1, I1, C1
+  C1 -> Y1, P2, E2, I2, C2
+  C2 -> Y2
+  Y0 -> Y1 -> Y2
   {rank=min; P0, P1, P2}
   {rank=same; E0, E1, E2}
   {rank=same; I0, I1, I2}
-  {rank=max; C0, C1, C2, Y}
+  {rank=same; C0, C1, C2}
+  {rank=max; Y0, Y1, Y2}
 }")
 ```
 
-# Setup wide data for MI
+## Setup wide data for MI
 ```{r setup-wide}
 wide_data <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
@@ -231,7 +234,7 @@ regime_obs_n <- wide_data |>
   select(intervention, n_obs = n)
 ```
 
-## Comparing results
+## Table
 
 ```{r 3wavesmi-tab}
 #| output: true
@@ -250,6 +253,7 @@ mod_3cummulative |>
   knitr::kable(digits = 3)
 ```
 
+## Graph
 ```{r 3wavesmi-graph}
 #| output: true
 mod_3cummulative |>
@@ -274,8 +278,7 @@ ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax =
 
 
 # Three periods of intervention - without intermediate outcomes
-
-```{r model-cummulative3-dag}
+```{r model-baseline3-dag}
 #| echo: false
 #| output: true
 grViz("digraph {
@@ -293,34 +296,28 @@ grViz("digraph {
   C0 [label=<Conf<SUP>Int</SUP><SUB>1</SUB>>]
   C1 [label=<Conf<SUP>Int</SUP><SUB>2</SUB>>]
   C2 [label=<Conf<SUP>Int</SUP><SUB>3</SUB>>]
-  Y0 [label=<<I>MCS<SUB>1</SUB></I>>]
-  Y1 [label=<<I>MCS<SUB>2</SUB></I>>]
-  Y2 [label=<<I>MCS<SUB>3</SUB></I>>]
+  Y [label=<<I>MCS<SUB>3</SUB></I>>]
   edge []
-  P0 -> E0, I0, C0, Y0, P1
-  P1 -> E1, I1, C1, Y1, P2
-  P2 -> E2, I2, C2, Y2
-  E0 -> I0, C0, Y0, P1, E1
-  E1 -> I1, C1, Y1, P2, E2
-  E2 -> I2, C2, Y2
-  I0 -> C0, Y0, P1, E1, I1
-  I1 -> C1, Y1, P2, E2, I2
-  I2 -> C2, Y2
-  C0 -> Y0, P1, E1, I1, C1
-  C1 -> Y1, P2, E2, I2, C2
-  C2 -> Y2
-  Y0 -> Y1 -> Y2
+  P0 -> E0, I0, C0, P1
+  P1 -> E1, I1, C1, P2
+  P2 -> E2, I2, C2, Y
+  E0 -> I0, C0, P1, E1
+  E1 -> I1, C1, P2, E2
+  E2 -> I2, C2, Y
+  I0 -> C0, P1, E1, I1
+  I1 -> C1, P2, E2, I2
+  I2 -> C2, Y
+  C0 -> P1, E1, I1, C1
+  C1 -> P2, E2, I2, C2
+  C2 -> Y
   {rank=min; P0, P1, P2}
   {rank=same; E0, E1, E2}
   {rank=same; I0, I1, I2}
-  {rank=same; C0, C1, C2}
-  {rank=max; Y0, Y1, Y2}
+  {rank=max; C0, C1, C2, Y}
 }")
 ```
- 
-## gFormulaMI - three waves of intervention, without intermediate outcomes
 
-# Setup wide data for MI
+## Setup wide data for MI
 ```{r setup-wide-static}
 wide_data <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
@@ -368,6 +365,7 @@ message("Computed wide_mids and saved to 'data'")
 base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```
 
+## gFormulaMI - three waves of intervention, without intermediate outcomes
 ```{r 3static-mi}
 regimes <- intervention_pattern_3
 
@@ -418,7 +416,7 @@ regime_obs_n <- wide_data |>
   select(intervention, n_obs = n)
 ```
 
-## Comparing results
+## Table
 
 ```{r 3staticmi-tab}
 #| output: true
@@ -437,6 +435,7 @@ mod_3static |>
   knitr::kable(digits = 3)
 ```
 
+## Graph
 ```{r 3staticmi-graph}
 #| output: true
 mod_3static |>
