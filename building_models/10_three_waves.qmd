@@ -198,7 +198,7 @@ imps <- gFormulaImpute(
 )
 
 fits <- imps %$%
-  lm(sf12mcs_dv_3 ~ factor(regime))
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
 
 mi_3cummulative <- syntheticPool(fits)
 
@@ -385,7 +385,7 @@ imps <- gFormulaImpute(
 )
 
 fits <- imps %$%
-  lm(sf12mcs_dv_3 ~ factor(regime))
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
 
 mi_3static <- syntheticPool(fits)
 
