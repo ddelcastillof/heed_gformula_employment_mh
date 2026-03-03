@@ -268,12 +268,11 @@ mod_3cummulative |>
   ) |>
   mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
            factor()) |> 
-ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
-  facet_wrap(~`Calculation method`, ncol = 1)
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
 
