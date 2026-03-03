@@ -126,6 +126,8 @@ grViz("digraph {
   C1 -> Y1, P2, E2, I2, C2
   C2 -> Y2
   Y0 -> Y1 -> Y2
+  Y0 -> E1
+  Y1 -> E2
   {rank=min; P0, P1, P2}
   {rank=same; E0, E1, E2}
   {rank=same; I0, I1, I2}
@@ -209,6 +211,10 @@ predictor_matrix["sf12mcs_dv_2",c("econ_emp_bin_3", "log_income_3")] <- 1
 predictor_matrix["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
 predictor_matrix["econ_dist_2",c("econ_emp_bin_3", "log_income_3")] <- 0
 
+# MCS in wave t predicts employment at time t+1
+predictor_matrix["econ_emp_bin_2", "sf12mcs_dv_1"] <- 1
+predictor_matrix["econ_emp_bin_3", "sf12mcs_dv_2"] <- 1
+
 imps <- gFormulaImpute(
   wide_mids,
   trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
@@ -245,9 +251,7 @@ mod_3cummulative <- mi_3cummulative |>
             mi_se = sqrt(Total),
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
-  bind_cols(regimes_3) |>
-  left_join(regime_obs_n, by = "intervention") |>
-  mutate(n_obs = replace_na(n_obs, 0L))
+  bind_cols(regimes_3)
 
 mod_3cummulative |>
   knitr::kable(digits = 3)
@@ -257,16 +261,13 @@ mod_3cummulative |>
 ```{r 3wavesmi-graph}
 #| output: true
 mod_3cummulative |>
-  mutate(
-    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
-    intervention = paste0(intervention, " (n=", n_obs, ")")
-  ) |>
-  select(-n_obs) |>
   pivot_longer(
-    -c(intervention, n_unemp),
+    -intervention,
     names_to = c("Calculation method", ".value"),
     names_pattern = "(.*)_(.*)"
   ) |>
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |> 
 ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
@@ -296,24 +297,28 @@ grViz("digraph {
   C0 [label=<Conf<SUP>Int</SUP><SUB>1</SUB>>]
   C1 [label=<Conf<SUP>Int</SUP><SUB>2</SUB>>]
   C2 [label=<Conf<SUP>Int</SUP><SUB>3</SUB>>]
-  Y [label=<<I>MCS<SUB>3</SUB></I>>]
+  Y0 [label=<<I>MCS<SUB>1</SUB></I>>]
+  Y2 [label=<<I>MCS<SUB>3</SUB></I>>]
   edge []
-  P0 -> E0, I0, C0, P1
+  P0 -> E0, I0, C0, Y0, P1
   P1 -> E1, I1, C1, P2
-  P2 -> E2, I2, C2, Y
-  E0 -> I0, C0, P1, E1
+  P2 -> E2, I2, C2, Y2
+  E0 -> I0, C0, Y0, P1, E1
   E1 -> I1, C1, P2, E2
-  E2 -> I2, C2, Y
-  I0 -> C0, P1, E1, I1
+  E2 -> I2, C2, Y2
+  I0 -> C0, Y0, P1, E1, I1
   I1 -> C1, P2, E2, I2
-  I2 -> C2, Y
-  C0 -> P1, E1, I1, C1
+  I2 -> C2, Y2
+  C0 -> Y0, P1, E1, I1, C1
   C1 -> P2, E2, I2, C2
-  C2 -> Y
+  C2 -> Y2
+  Y0 -> Y2
+  Y0 -> E1
   {rank=min; P0, P1, P2}
   {rank=same; E0, E1, E2}
   {rank=same; I0, I1, I2}
-  {rank=max; C0, C1, C2, Y}
+  {rank=same; C0, C1, C2}
+  {rank=max; Y0, Y2}
 }")
 ```
 
@@ -391,6 +396,9 @@ predictor_matrix["sf12mcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
 # Economic distress does not affect income or employment of the next period
 predictor_matrix["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
 
+# MCS in wave t predicts employment at time t+1
+predictor_matrix["econ_emp_bin_2", "sf12mcs_dv_1"] <- 1
+
 imps <- gFormulaImpute(
   wide_mids,
   trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
@@ -427,9 +435,7 @@ mod_3static <- mi_3static |>
             mi_se = sqrt(Total),
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
-  bind_cols(regimes_3) |>
-  left_join(regime_obs_n, by = "intervention") |>
-  mutate(n_obs = replace_na(n_obs, 0L))
+  bind_cols(regimes_3)
 
 mod_3static |>
   knitr::kable(digits = 3)
@@ -439,21 +445,17 @@ mod_3static |>
 ```{r 3staticmi-graph}
 #| output: true
 mod_3static |>
-  mutate(
-    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
-    intervention = paste0(intervention, " (n=", n_obs, ")")
-  ) |>
-  select(-n_obs) |>
   pivot_longer(
-    -c(intervention, n_unemp),
+    -intervention,
     names_to = c("Calculation method", ".value"),
     names_pattern = "(.*)_(.*)"
   ) |>
-ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+           factor()) |> 
+ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
-  facet_wrap(~`Calculation method`, ncol = 1)
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
