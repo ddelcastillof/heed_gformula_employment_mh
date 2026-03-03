@@ -41,3 +41,6 @@ R/dump_code.R
 
 # ignoring meta-analysis until further notice
 /overall_estimates/
+
+# settings json vscode
+.vscode/
