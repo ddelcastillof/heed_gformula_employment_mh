@@ -182,6 +182,14 @@ message("Computed wide_mids and saved to 'data'")
 #wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
 
 base_predictor_matrix <- make_predictor_matrix(wide_data)
+
+#information for descriptive table
+regime_obs_n <- wide_data |>
+  mutate(across(c(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3), as.character)) |>
+  filter(!is.na(econ_emp_bin_1), !is.na(econ_emp_bin_2), !is.na(econ_emp_bin_3)) |>
+  count(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3) |>
+  mutate(intervention = paste(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3, sep = "-")) |>
+  select(intervention, n_obs = n)
 ```
 
 ## gFormulaMI with accumulating variables: three waves of intervention
@@ -231,13 +239,6 @@ regimes_3 <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |>
   reduce(c)
 )
-
-regime_obs_n <- wide_data |>
-  mutate(across(c(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3), as.character)) |>
-  filter(!is.na(econ_emp_bin_1), !is.na(econ_emp_bin_2), !is.na(econ_emp_bin_3)) |>
-  count(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3) |>
-  mutate(intervention = paste(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3, sep = "-")) |>
-  select(intervention, n_obs = n)
 ```
 
 ## Table
@@ -458,3 +459,8 @@ ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
+# Three waves of intervention - controlled direct effect of MCS_{2} via descomposition
+```{r decomposition-setup}
+#| output: false
+#| eval: false
+```
