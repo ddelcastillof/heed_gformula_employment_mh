@@ -464,9 +464,9 @@ ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
-# Three waves of intervention - mediation analysis of $MCS_{2}$ via descomposition
+# Three waves of intervention - mediation analysis of MCS\_{2} via descomposition
 
-We will estimate the randomised interventional effect of $MCS_{2}$ on $MCS_{3}$ as described in [VanderWeele, TJ and Tchetgen, ET 2014](https://biostats.bepress.com/harvardbiostat/paper168/) and [Lin, SH et al. 2017](https://doi.org/10.1097/EDE.0000000000000609). This effect is calculated by the generalised (parametric) mediational g-formula as follows:
+We will estimate the randomised interventional effect of MCS\_{2} on MCS\_{3} as described in [VanderWeele, TJ and Tchetgen, ET 2014](https://biostats.bepress.com/harvardbiostat/paper168/) and [Lin, SH et al. 2017](https://doi.org/10.1097/EDE.0000000000000609). This effect is calculated by the generalised (parametric) mediational g-formula as follows:
 
 $$
 \begin{aligned}
@@ -476,26 +476,28 @@ IDE &= Q(\bar{a}, \bar{a}) - Q(\bar{a}, \bar{a^*})
 \end{aligned}
 $$
 
-$IDE$ represents the interventional direct effect of employment on $MCS_{3}$ not operating through $MCS_{2}$, while $rNDE$ represents the total effect (TE) of employment on $MCS_{3}$. The interventional indirect effect ($IIE$) is then calculated as the difference between the total and direct effects ($IIE = TE - IDE$).
+$IDE$ represents the interventional direct effect of employment on MCS\_{3} not operating through MCS\_{2}, while $rNDE$ represents the total effect (TE) of employment on MCS\_{3}. The interventional indirect effect ($IIE$) is then calculated as the difference between the total and direct effects ($IIE = TE - IDE$).
 
 Where:
 $$
 \begin{aligned}
-Q(\bar{a_{1}}, \bar{a_{2}}) &= \sum_{\bar{m}}\sum_{\bar{l}(T-1)} E(Y\mid\bar{a},\bar{m},\bar{l},v)\prod_{t=1}^{T-1}P(l(t)\mid \overline{a_{1}(t-1)}, \overline{m(t-1)}, \overline{l(t-1)}) \times \sum_{\bar{l'}}\prod_{t=0}^{T-1}P(m(t)\mid \overline{a_{2}(t)}, \overline{m(t-1)}, \overline{l'(t)})P(l'(t)\mid\overline{a_{2}(t-1)}\overline{m(t-1)},\overline{l(t-1)})
+Q(\bar{a_{1}}, \bar{a_{2}}) &= \sum_{\bar{m}}\sum_{\bar{l}(T-1)} E(Y\mid\bar{a},\bar{m},\bar{l},v)\prod_{t=1}^{T-1}P(l(t)\mid \overline{a_{1}(t-1)}, \overline{m(t-1)}, \overline{l(t-1)}) \\ 
+&\quad \times \sum_{\bar{l'}}\prod_{t=0}^{T-1}P(m(t)\mid \overline{a_{2}(t)}, \overline{m(t-1)}, \overline{l'(t)})P(l'(t)\mid\overline{a_{2}(t-1)}\overline{m(t-1)},\overline{l(t-1)})
 \end{aligned}
 $$
 
-$G_{a*|C}$ represents a random draw from the distribution of $MCS_{2}$ under the reference regime (employment = 0) conditional on confounders. By "randomising" the mediator to draws from the reference-regime distribution in both arms, we break the Empl→MCS₂→MCS₃ pathway and isolate the direct effect of employment on $MCS_{3}$ not operating through $MCS_{2}$.
+$G_{a*|C}$ represents a random draw from the distribution of MCS\_{2} under the reference regime (employment = 0) conditional on confounders. By "randomising" the mediator to draws from the reference-regime distribution in both arms, we break the Empl→MCS₂→MCS₃ pathway and isolate the direct effect of employment on MCS\_{3} not operating through MCS\_{2}. \
 
 Identification requires the following assumptions:
-\begin{itemize}
-\item (i)   No unmeasured Empl–MCS₃ confounding given C
-\item (ii*) No unmeasured MCS₂–MCS₃ confounding given Empl, C, L
-\item (iii) No unmeasured Empl–MCS₂ confounding given C
-\end{itemize} 
-Does NOT require the cross-world independence assumption needed for NDE/NIE.
-Identified even with the MCS_t → Empl_{t+1} feedback present in this DAG.
-\end{itemize}
+
+- (i)   No unmeasured Empl–MCS₃ confounding given C
+- (ii*) No unmeasured MCS₂–MCS₃ confounding given Empl, C, L
+- (iii) No unmeasured Empl–MCS₂ confounding given C
+
+Does NOT require the cross-world independence assumption needed for NDE/NIE. \
+
+Identified even with the MCS\_t → Empl\_{t+1} feedback present in this DAG. \
+
 
 ```{r decomposition-setup}
 #| output: false
@@ -701,6 +703,8 @@ rie_decomposition <- rie_pooled |>
 
 ## Table
 ```{r decomposition-table}
+#| output: true
+
 rie_decomposition |>
   knitr::kable(digits = 3)
 ```
