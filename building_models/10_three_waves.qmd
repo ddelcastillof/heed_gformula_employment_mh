@@ -91,6 +91,7 @@ intervention_pattern_3 <- expand_grid(0:1, 0:1, 0:1) |>
 ```
 
 # Three periods of intervention - with intermediate outcomes
+
 ```{r model-cummulative3-dag}
 #| echo: false
 #| output: true
@@ -137,6 +138,7 @@ grViz("digraph {
 ```
 
 ## Setup wide data for MI
+
 ```{r setup-wide}
 wide_data <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
@@ -259,6 +261,7 @@ mod_3cummulative |>
 ```
 
 ## Graph
+
 ```{r 3wavesmi-graph}
 #| output: true
 mod_3cummulative |>
@@ -276,9 +279,8 @@ ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
+# Exploratory analysis: Three periods of intervention - without intermediate outcomes
 
-
-# Three periods of intervention - without intermediate outcomes
 ```{r model-baseline3-dag}
 #| echo: false
 #| output: true
@@ -323,6 +325,7 @@ grViz("digraph {
 ```
 
 ## Setup wide data for MI
+
 ```{r setup-wide-static}
 wide_data <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
@@ -371,6 +374,7 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 ```
 
 ## gFormulaMI - three waves of intervention, without intermediate outcomes
+
 ```{r 3static-mi}
 regimes <- intervention_pattern_3
 
@@ -442,6 +446,7 @@ mod_3static |>
 ```
 
 ## Graph
+
 ```{r 3staticmi-graph}
 #| output: true
 mod_3static |>
@@ -459,8 +464,243 @@ ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
-# Three waves of intervention - controlled direct effect of MCS_{2} via descomposition
+# Three waves of intervention - mediation analysis of $MCS_{2}$ via descomposition
+
+We will estimate the randomised interventional effect of $MCS_{2}$ on $MCS_{3}$ as described in [VanderWeele, TJ and Tchetgen, ET 2014](https://biostats.bepress.com/harvardbiostat/paper168/) and [Lin, SH et al. 2017](https://doi.org/10.1097/EDE.0000000000000609). This effect is calculated by the generalised (parametric) mediational g-formula as follows:
+
+$$
+\begin{aligned}
+rNDE &= Q(\bar{a}, \bar{a^*}) - Q(\bar{a^*}, \bar{a^*}) 
+\\[1pt]
+IDE &= Q(\bar{a}, \bar{a}) - Q(\bar{a}, \bar{a^*})
+\end{aligned}
+$$
+
+$IDE$ represents the interventional direct effect of employment on $MCS_{3}$ not operating through $MCS_{2}$, while $rNDE$ represents the total effect (TE) of employment on $MCS_{3}$. The interventional indirect effect ($IIE$) is then calculated as the difference between the total and direct effects ($IIE = TE - IDE$).
+
+Where:
+$$
+\begin{aligned}
+Q(\bar{a_{1}}, \bar{a_{2}}) &= \sum_{\bar{m}}\sum_{\bar{l}(T-1)} E(Y\mid\bar{a},\bar{m},\bar{l},v)\prod_{t=1}^{T-1}P(l(t)\mid \overline{a_{1}(t-1)}, \overline{m(t-1)}, \overline{l(t-1)}) \times \sum_{\bar{l'}}\prod_{t=0}^{T-1}P(m(t)\mid \overline{a_{2}(t)}, \overline{m(t-1)}, \overline{l'(t)})P(l'(t)\mid\overline{a_{2}(t-1)}\overline{m(t-1)},\overline{l(t-1)})
+\end{aligned}
+$$
+
+$G_{a*|C}$ represents a random draw from the distribution of $MCS_{2}$ under the reference regime (employment = 0) conditional on confounders. By "randomising" the mediator to draws from the reference-regime distribution in both arms, we break the Empl→MCS₂→MCS₃ pathway and isolate the direct effect of employment on $MCS_{3}$ not operating through $MCS_{2}$.
+
+Identification requires the following assumptions:
+\begin{itemize}
+\item (i)   No unmeasured Empl–MCS₃ confounding given C
+\item (ii*) No unmeasured MCS₂–MCS₃ confounding given Empl, C, L
+\item (iii) No unmeasured Empl–MCS₂ confounding given C
+\end{itemize} 
+Does NOT require the cross-world independence assumption needed for NDE/NIE.
+Identified even with the MCS_t → Empl_{t+1} feedback present in this DAG.
+\end{itemize}
+
 ```{r decomposition-setup}
 #| output: false
-#| eval: false
+
+# Identification (Approach 3 from VanderWeele et al. 2014):
+#   (i)   No unmeasured Empl–MCS₃ confounding given C
+#   (ii*) No unmeasured MCS₂–MCS₃ confounding given Empl, C, L
+#   (iii) No unmeasured Empl–MCS₂ confounding given C
+#   → Does NOT require the cross-world independence assumption needed for NDE/NIE.
+#   → Identified even with the MCS_t → Empl_{t+1} feedback present in this DAG.
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+# ── STEP 0: Reload the dynamic MICE object ────────────────────────────────────
+# wide_mids was overwritten in the static-model section above.
+# The RIE requires the dynamic model (sf12mcs_dv_2 must be present in the data).
+wide_mids_dyn <- readRDS(here::here("data", "wide_mids_3_waves_mcs_dynamic.rds"))
+
+# wide_mids_dyn$data is the original incomplete wide data passed to mice().
+# The n_tvars attribute set by make_wide() is preserved in the RDS object.
+wide_data_dyn <- wide_mids_dyn$data
+
+# Verify: the n_tvars attribute must be present for make_predictor_matrix()
+stopifnot(!is.null(attr(wide_data_dyn, "n_tvars")))
+
+
+# ── STEP 1: Rebuild the predictor matrix ──────────────────────────────────────
+# Exact copy of the modifications in the dynamic model chunk (3waves_mi).
+# This ensures the MCS₂ and MCS₃ model specifications are identical.
+pm_rie <- make_predictor_matrix(wide_data_dyn)
+
+# MCS intermediate outcomes do not act as predictors of other intermediates
+pm_rie[, "sf12mcs_dv_1"] <- 0
+pm_rie[, "sf12mcs_dv_2"] <- 0
+
+# MCS₂ is predicted by its immediate predecessor MCS₁ (not by baseline MCS)
+pm_rie["sf12mcs_dv_2", "sf12mcs_dv_1"]   <- 1
+pm_rie["sf12mcs_dv_2", "sf12mcs_dv_base"] <- 0
+
+# MCS₃ (outcome) is predicted by MCS₂ (not by baseline MCS)
+pm_rie["sf12mcs_dv_3", "sf12mcs_dv_2"]   <- 1
+pm_rie["sf12mcs_dv_3", "sf12mcs_dv_base"] <- 0
+
+# MCS₁ and MCS₂ predict employment and income at the next wave (feedback arrows)
+pm_rie["sf12mcs_dv_1", c("econ_emp_bin_2", "log_income_2")] <- 1
+pm_rie["sf12mcs_dv_2", c("econ_emp_bin_3", "log_income_3")] <- 1
+
+# Economic distress does not carry forward to next-period employment or income
+pm_rie["econ_dist_1", c("econ_emp_bin_2", "log_income_2")] <- 0
+pm_rie["econ_dist_2", c("econ_emp_bin_3", "log_income_3")] <- 0
+
+# MCS at time t is used as a predictor when imputing employment at t+1 (feedback)
+pm_rie["econ_emp_bin_2", "sf12mcs_dv_1"] <- 1
+pm_rie["econ_emp_bin_3", "sf12mcs_dv_2"] <- 1
+
+
+# ── STEP 2: Extract model formulas from the predictor matrix ──────────────────
+# Convention: pm_rie[i, j] = 1  →  variable j predicts variable i.
+# "regime" is a column in the matrix but only exists in synthetic data; exclude it.
+
+# Model for MCS₂ (intermediate mediator): predictors at t=1 and baseline
+mcs2_preds   <- setdiff(names(which(pm_rie["sf12mcs_dv_2", ] == 1)), "regime")
+mcs2_formula <- reformulate(mcs2_preds, response = "sf12mcs_dv_2")
+
+# Model for MCS₃ (final outcome): predictors include MCS₂ — we will intervene on this
+mcs3_preds   <- setdiff(names(which(pm_rie["sf12mcs_dv_3", ] == 1)), "regime")
+mcs3_formula <- reformulate(mcs3_preds, response = "sf12mcs_dv_3")
+
+# Verify the key variables are in the right models before running anything
+stopifnot("sf12mcs_dv_1"   %in% mcs2_preds)   # MCS₁ → MCS₂
+stopifnot("sf12mcs_dv_2"   %in% mcs3_preds)   # MCS₂ → MCS₃ (will be frozen in RIE)
+stopifnot("econ_emp_bin_2" %in% mcs2_preds)   # Empl₂ → MCS₂ (the path we intervene on)
+stopifnot("econ_emp_bin_3" %in% mcs3_preds)   # Empl₃ → MCS₃
+
+
+# ── STEP 3: Two-stage gFormulaImpute ──────────────────────────────────────────
+# We stay within the gFormulaMI framework throughout so that:
+#   (a) the same MICE models drive all imputations (no re-fitting),
+#   (b) intermediate confounders (PCS₂, Inc₂, …) are re-simulated sequentially
+#       under the correct employment regime, and
+#   (c) syntheticPool is used for variance estimation (consistent with the rest
+#       of the file).
+#
+# The two stages are:
+#
+#   STAGE 1 — reference regime only, MCS₂ free to re-impute
+#     gFormulaImpute sets employment = (0,0,0) and lets MCS₂ be re-drawn from
+#     its MICE model given those reference employment values.
+#     The resulting sf12mcs_dv_2 in each completed dataset IS G_{a*|C}.
+#
+#   STAGE 2 — all 8 regimes; then MCS₂ frozen to Stage 1 draws per imputation
+#     gFormulaImpute re-simulates all intermediate confounders under each
+#     employment regime. We extract each imputation's completed data,
+#     replace sf12mcs_dv_2 with G_{a*|C} from Stage 1, and fit the outcome
+#     model. Results are collected for syntheticPool.
+#
+# Key note: gFormulaImpute returns a mids object. Variable columns are NOT
+# directly accessible via $ (e.g. ref_imps$sf12mcs_dv_2 returns NULL —
+# that would look up a mids list slot, not a data column). We must use
+# mice::complete(mids, action = k) to extract the k-th completed data frame.
+
+# ── Stage 1: generate G_{a*|C} under reference employment ────────────────────
+# trtRegimes must be a plain numeric vector (not list) for a single regime.
+# gFormulaImpute's numRegimes==1 path uses trtRegimes[i] (single bracket).
+# On a list, [i] returns a sub-list → assignment to data frame fails.
+# A plain vector makes [i] return a scalar, which assigns correctly.
+ref_imps <- gFormulaImpute(
+  wide_mids_dyn,
+  trtVars     = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes  = c(0, 0, 0),   # plain vector: always employed (reference)
+  predictorMatrix = pm_rie
+)
+
+# ── Stage 2: all 8 regimes ────────────────────────────────────────────────────
+rie_imps <- gFormulaImpute(
+  wide_mids_dyn,
+  trtVars     = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes  = intervention_pattern_3,
+  predictorMatrix = pm_rie
+)
+
+# ── Merge + fit: freeze MCS₂ to G_{a*|C} per imputation ─────────────────────
+# For each synthetic imputation k:
+#   ref_k  = mice::complete(ref_imps, k) → nSim rows (1 regime)
+#   rie_k  = mice::complete(rie_imps, k) → nSim × 8 rows (8 regime blocks)
+# We tile ref_k$sf12mcs_dv_2 across the 8 blocks in rie_k, then fit lm.
+# syntheticPool expects a list with element $analyses (list of lm fits).
+M <- wide_mids_dyn$m
+
+# Sanity check: verify nSim and regime count from the mids objects
+n_ref_per_imp <- nrow(mice::complete(ref_imps, action = 1))
+n_rie_per_imp <- nrow(mice::complete(rie_imps, action = 1))
+n_regimes     <- n_rie_per_imp / n_ref_per_imp
+stopifnot(n_regimes == length(intervention_pattern_3))   # should equal 8
+
+fits_analyses <- lapply(seq_len(M), function(k) {
+  ref_k <- mice::complete(ref_imps, action = k)   # reference-regime synthetic data
+  rie_k <- mice::complete(rie_imps, action = k)   # all-regime synthetic data
+  # Freeze MCS₂: tile G_{a*|C} from ref_k across the 8 regime blocks in rie_k
+  rie_k$sf12mcs_dv_2 <- rep(ref_k$sf12mcs_dv_2, times = n_regimes)
+  lm(sf12mcs_dv_3 ~ 0 + factor(regime), data = rie_k)
+})
+
+# ── STEP 4: Pool with syntheticPool ───────────────────────────────────────────
+# syntheticPool accesses fits$analyses (list of lm objects), consistent with
+# the mira objects produced by %$% in the dynamic and static model chunks.
+fits_rie <- list(analyses = fits_analyses)
+
+mi_rie <- syntheticPool(fits_rie)
+
+rie_pooled <- mi_rie |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(
+    rie_effect = Estimate,
+    rie_se     = sqrt(Total),
+    rie_ll     = `95% CI L`,
+    rie_ul     = `95% CI U`
+  ) |>
+  bind_cols(regimes_3)
+
+
+# ── STEP 5: Compute IDE and IIE ───────────────────────────────────────────────
+# All effects are contrasted against the reference regime: always employed (0-0-0).
+#
+# IDE = E[MCS₃(Empl=a, G_{a*|C})] − E[MCS₃(Empl=a*, G_{a*|C})]
+#     = rie_pooled[regime=a] − rie_pooled[regime="0-0-0"]
+#     (both arms use the same frozen reference MCS₂ distribution)
+#
+# IIE = TE − IDE
+#     = (mod_3cummulative[regime=a] − mod_3cummulative[regime="0-0-0"]) − IDE
+#     (TE comes from the dynamic model where MCS₂ is free to respond to employment)
+
+ref_label <- "0-0-0"
+
+# Extract reference-regime RIE mean (denominator of IDE).
+# rie_pooled has an "intervention" column (added via bind_cols(regimes_3) above).
+rie_ref_mean <- rie_pooled$rie_effect[rie_pooled$intervention == ref_label]
+
+# Extract reference-regime TE from the dynamic model.
+# mod_3cummulative is already a processed tibble with mi_effect + intervention columns
+# (created in chunk 3wavesmi-tab). No need to re-apply as_tibble()/bind_cols().
+te_ref_mean <- mod_3cummulative |>
+  filter(intervention == ref_label) |>
+  pull(mi_effect)
+
+rie_decomposition <- rie_pooled |>
+  left_join(
+    mod_3cummulative |>
+      transmute(intervention, te_mean = mi_effect),
+    by = "intervention"
+  ) |>
+  mutate(
+    # Total effect: contrast vs reference regime
+    TE  = te_mean - te_ref_mean,
+    # Interventional Direct Effect: MCS₂ frozen, employment varies
+    IDE = rie_effect - rie_ref_mean,
+    # Interventional Indirect Effect: remainder = effect operating through MCS₂
+    IIE = TE - IDE
+  ) |>
+  select(intervention, TE, IDE, IIE, rie_effect, rie_se, rie_ll, rie_ul)
+```
+
+## Table
+```{r decomposition-table}
+rie_decomposition |>
+  knitr::kable(digits = 3)
 ```
