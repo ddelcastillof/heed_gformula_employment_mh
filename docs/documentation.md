@@ -24,7 +24,7 @@ Variables of interest for this study
 
 ### Special variables
 
-> [!NOTE] Gross personal non-benefit income
+> [!note] Gross personal non-benefit income
 > Constructed to mirror UKMOD market income. Composed of:
 > - **`fimnlabgrs_dv`** — total monthly gross labour income
 > - **`fimnpen_dv`** — net pension income (employer pensions only: `ficode` 2–3)
