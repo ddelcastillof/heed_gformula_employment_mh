@@ -35,9 +35,6 @@ R/dump_code.R
 # ingoring dag until futher notice
 /dag/
 
-# ignoring documentation
-/docs/
-
 # ignoring meta-analysis until further notice
 /overall_estimates/
 
