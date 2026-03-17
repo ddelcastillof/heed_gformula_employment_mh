@@ -36,7 +36,9 @@ Variables of interest for this study
 > - **`inc_oth`** — any other regular payment (`ficode` 38; not available in Wave 1)
 >
 > **Exclusions:** State/NI retirement pension (`ficode` 1) and educational grants (`ficode` 24) are excluded as they are transfer income, not market income.
+>
 > All components are sourced from `frmnthimp_dv` in the income file and collapsed to person-wave level in `01_merge.do`.
+>
 > Gross individual income is created for individuals and partners. These are the sources for household income variable, which is the sum of individual income and partner's income if coupled. If single, household income = individual income.
 
 > [!NOTE]
