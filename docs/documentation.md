@@ -24,7 +24,7 @@ Variables of interest for this study
 
 ### Special variables
 
-> [!note] Gross personal non-benefit income
+> **Gross personal non-benefit income** /
 > Constructed to mirror UKMOD market income. Composed of:
 > - **`fimnlabgrs_dv`** — total monthly gross labour income
 > - **`fimnpen_dv`** — net pension income (employer pensions only: `ficode` 2–3)
@@ -34,9 +34,9 @@ Variables of interest for this study
 > - **`inc_fm`** — payments from a family member not living in household (`ficode` 27)
 > - **`inc_oth`** — any other regular payment (`ficode` 38; not available in Wave 1)
 >
-> **Exclusions:** State/NI retirement pension (`ficode` 1) and educational grants (`ficode` 24) are excluded as they are transfer income, not market income.
-> All components are sourced from `frmnthimp_dv` in the income file and collapsed to person-wave level in `01_merge.do`.
-> Gross individual income is created for individuals and partners. These are the sources for household income variable, which is the sum of individual income and partner's income if coupled. If single, household income = individual income.
+> **Exclusions:** State/NI retirement pension (`ficode` 1) and educational grants (`ficode` 24) are excluded as they are transfer income, not market income. //
+> All components are sourced from `frmnthimp_dv` in the income file and collapsed to person-wave level in `01_merge.do`. //
+> Gross individual income is created for individuals and partners. These are the sources for household income variable, which is the sum of individual income and partner's income if coupled. If single, household income = individual income. //
 
 > [!NOTE] Economic benefits
 > This variable is created from `fihhmnsben_dv`. A binary variable that indicates whether a person receives universal credit
