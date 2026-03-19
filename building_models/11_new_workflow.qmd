@@ -77,10 +77,6 @@ intervention_pattern_4 <- expand_grid(0:1, 0:1, 0:1, 0:1) |>
   t() |>
   as_tibble(.name_repair = "minimal") |>
   unclass()
-
-ncores <- 2
-
-nsamples <- 100
 ```
 
 # Mental health status - SF-12 MCS
@@ -337,7 +333,6 @@ mod_4cummulative |>
   select(-n_obs) |>
   pivot_longer(
     -c(intervention, n_unemp),
-    names_to = c("Calculation method", ".value"),
     names_pattern = "(.*)_(.*)"
   ) |>
 ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
@@ -445,15 +440,6 @@ regimes_4 <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |>
   reduce(c)
 )
-
-regime_obs_n <- wide_data |>
-  mutate(across(c(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3), as.character)) |>
-  filter(!is.na(econ_emp_bin_0), !is.na(econ_emp_bin_1),
-         !is.na(econ_emp_bin_2), !is.na(econ_emp_bin_3)) |>
-  count(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3) |>
-  mutate(intervention = paste(econ_emp_bin_0, econ_emp_bin_1,
-                              econ_emp_bin_2, econ_emp_bin_3, sep = "-")) |>
-  select(intervention, n_obs = n)
 ```
 
 #### Table with estimates
@@ -466,9 +452,7 @@ mod_4static <- mi_4static |>
             mi_se = sqrt(Total),
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
-  bind_cols(regimes_4) |>
-  left_join(regime_obs_n, by = "intervention") |>
-  mutate(n_obs = replace_na(n_obs, 0L))
+  bind_cols(regimes_4)
 
 mod_4static |>
   knitr::kable(digits = 3)
@@ -481,20 +465,13 @@ mod_4static |>
 mod_4static |>
   mutate(
     n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
-    intervention = paste0(intervention, " (n=", n_obs, ")")
+    intervention = paste0(intervention)
   ) |>
-  select(-n_obs) |>
-  pivot_longer(
-    -c(intervention, n_unemp),
-    names_to = c("Calculation method", ".value"),
-    names_pattern = "(.*)_(.*)"
-  ) |>
-ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
-  facet_wrap(~`Calculation method`, ncol = 1)
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
 # Physical health status - SF-12 PCS
@@ -573,7 +550,6 @@ ncores <- 2
 nsamples <- 100
 ```
 
-## Physical health status - SF-12 PCS
 ### Accumulating variables
 
 ```{r mids-setup-pcs-dynamic}
@@ -733,15 +709,6 @@ regimes_4 <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |>
   reduce(c)
 )
-
-regime_obs_n <- wide_data |>
-  mutate(across(c(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3), as.character)) |>
-  filter(!is.na(econ_emp_bin_0), !is.na(econ_emp_bin_1),
-         !is.na(econ_emp_bin_2), !is.na(econ_emp_bin_3)) |>
-  count(econ_emp_bin_0, econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3) |>
-  mutate(intervention = paste(econ_emp_bin_0, econ_emp_bin_1,
-                              econ_emp_bin_2, econ_emp_bin_3, sep = "-")) |>
-  select(intervention, n_obs = n)
 ```
 
 ### Table with estimates
@@ -755,9 +722,7 @@ mod_4cummulative <- mi_4cummulative |>
             mi_se = sqrt(Total),
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
-  bind_cols(regimes_4) |>
-  left_join(regime_obs_n, by = "intervention") |>
-  mutate(n_obs = replace_na(n_obs, 0L))
+  bind_cols(regimes_4)
 
 mod_4cummulative |>
   knitr::kable(digits = 3)
@@ -772,16 +737,9 @@ mod_4cummulative |>
     n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
     intervention = paste0(intervention, " (n=", n_obs, ")")
   ) |>
-  select(-n_obs) |>
-  pivot_longer(
-    -c(intervention, n_unemp),
-    names_to = c("Calculation method", ".value"),
-    names_pattern = "(.*)_(.*)"
-  ) |>
-ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
+ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
-  facet_wrap(~`Calculation method`, ncol = 1)
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
