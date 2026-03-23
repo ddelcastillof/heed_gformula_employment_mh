@@ -54,8 +54,7 @@ long_data <- pop_dt[, `:=`(
   mcs_outcome = sf12mcs_dv
 )][wave %in% 3:6]
 
-# Two-stage filtering before synthetic data generation. 
-## Stage 1: outcome
+# filtering out those with no observed MCS outcomes (at least 2 missing, and baseline missing)
 no_mh_outcomes <- long_data |> 
   group_by(pidp) |> 
   summarise(n_missing = sum(is.na(sf12mcs_dv)), base_missing = all(is.na(sf12mcs_dv_base))) |> 
@@ -63,21 +62,7 @@ no_mh_outcomes <- long_data |>
   select(pidp) |> 
   as.data.table()
 
- ## Stage 2: covariates
-high_missing_cov <- long_data |>
-   group_by(pidp) |>
-   summarise(across(c(econ_emp_bin, log_income, pcs_lagged,
-                      lagged_dnc, lagged_home_owner,
-                      lagged_econ_benefits, econ_dist),
-                    ~sum(is.na(.)))) |>
-   rowwise() |>
-   mutate(total_cov_missing = sum(c_across(-pidp))) |>
-   filter(total_cov_missing >= 2) |>
-   select(pidp) |>
-   as.data.table()
-
 long_data <- long_data[!no_mh_outcomes, on = .(pidp)] 
-long_data <- long_data[!high_missing_cov, on = .(pidp)]
 
 intervention_pattern_2 <- expand_grid(0:1, 0:1) |>
   t() |>
