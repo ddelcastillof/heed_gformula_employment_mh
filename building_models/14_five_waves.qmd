@@ -324,7 +324,7 @@ mi_5cummulative_mcs_diff |>
 
 ```{r 5cummulative-graph-mcs}
 #| output: true
-bind_rows(
+graph5waves_diff_mcs <- bind_rows(
   mi_5cummulative_mcs_marginal |> mutate(`Calculation method` = "Causal marginal mean"),
   mi_5cummulative_mcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(`Calculation method` = "Mean difference")
 ) |>
@@ -338,6 +338,12 @@ bind_rows(
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
   facet_wrap(~`Calculation method`, ncol = 1, scales = "free_x") +
   labs(x = "Estimate", y = "Intervention strategy")
+
+print(graph5waves_diff_mcs)
+```
+
+```{r 5cummulative-graph-mcs-save}
+ggsave(here::here("figs", "5waves_diff_mcs.png"), plot = graph5waves_diff_mcs, dpi = 300, width = 8, height = 6)
 ```
 
 # Physical health status - SF-12 PCS
@@ -502,7 +508,7 @@ mi_5cummulative_pcs_diff |>
 
 ```{r 5cummulative-graph-pcs}
 #| output: true
-bind_rows(
+graph5waves_diff_pcs <- bind_rows(
   mi_5cummulative_pcs_marginal |> mutate(`Calculation method` = "Causal marginal mean"),
   mi_5cummulative_pcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(`Calculation method` = "Mean difference")
 ) |>
@@ -516,13 +522,19 @@ bind_rows(
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
   facet_wrap(~`Calculation method`, ncol = 1, scales = "free_x") +
   labs(x = "Estimate", y = "Intervention strategy")
+
+print(graph5waves_diff_pcs)
+```
+
+```{r 5cummulative-graph-pcs-save}
+ggsave(here::here("figs", "5waves_diff_pcs.png"), plot = graph5waves_diff_pcs, dpi = 300, width = 8, height = 6)
 ```
 
 ## Combined MCS and PCS mean differences
 
 ```{r 5cummulative-graph-mcs-pcs-grid}
 #| output: true
-bind_rows(
+combined_graph5waves_diff <- bind_rows(
   mi_5cummulative_mcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(outcome = "MCS"),
   mi_5cummulative_pcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(outcome = "PCS")
 ) |>
@@ -537,4 +549,10 @@ bind_rows(
   scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
   facet_wrap(~outcome, ncol = 2, scales = "free_x") +
   labs(x = "Mean difference vs always employed", y = "Intervention strategy")
+
+print(combined_graph5waves_diff)
+```
+
+```{r 5cummulative-graph-mcs-pcs-grid-save}
+ggsave(here::here("figs", "5waves_diff_mcs_pcs.png"), plot = combined_graph5waves_diff, dpi = 300, width = 10, height = 6)
 ```
