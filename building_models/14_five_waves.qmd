@@ -58,6 +58,16 @@ This DAG is a simplification of the protocol DAG, as it does not include all the
 here::i_am("building_models/14_five_waves.qmd")
 
 library(DiagrammeR)
+library(gfoRmula)
+library(gFormulaMI)
+library(magrittr)
+library(SPHSUgraphs)
+library(tidyverse)
+library(data.table)
+library(DiagrammeR)
+
+source(here::here("R", "data_import_and_cleaning.R"))
+source(here::here("R", "func_prep_data.R"))
 ```
 
 ```{r model-summary}
@@ -273,11 +283,15 @@ imps <- gFormulaImpute(
   silent = TRUE
 )
 
+rm(wide_data, wide_mids, predictor_matrix); gc()
+
 fits_marginal <- imps %$%
   lm(sf12mcs_dv_4 ~ factor(regime) + 0)
 
 fits_diff <- imps %$%
   lm(sf12mcs_dv_4 ~ factor(regime))
+
+rm(imps); gc()
 
 regimes_5 <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |>
@@ -458,11 +472,15 @@ imps_pcs <- gFormulaImpute(
   silent = TRUE
 )
 
+rm(wide_data_pcs, wide_mids_pcs, predictor_matrix_pcs); gc()
+
 fits_pcs_marginal <- imps_pcs %$%
   lm(sf12pcs_dv_4 ~ factor(regime) + 0)
 
 fits_pcs_diff <- imps_pcs %$%
   lm(sf12pcs_dv_4 ~ factor(regime))
+
+rm(imps_pcs); gc()
 
 regimes_5_pcs <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |>
