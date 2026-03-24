@@ -572,5 +572,5 @@ print(combined_graph5waves_diff)
 ```
 
 ```{r 5cummulative-graph-mcs-pcs-grid-save}
-ggsave(here::here("figs", "5waves_diff_mcs_pcs.png"), plot = combined_graph5waves_diff, dpi = 300, width = 10, height = 6)
+ggsave(here::here("figs", "5waves_diff_mcs_pcs.png"), plot = combined_graph5waves_diff, dpi = 300, width = 10, height = 12)
 ```
