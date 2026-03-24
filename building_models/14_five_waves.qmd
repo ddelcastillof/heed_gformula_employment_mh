@@ -220,6 +220,14 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 ## gFormulaMI - setup of predictor matrix and regimes
 
 ```{r 5cummulative-mi-wave3-7}
+if (file.exists(here::here("output", "mod_5cummulative_marginal_mcs_wave3-7.rds")) && file.exists(here::here("output", "mod_5cummulative_diff_mcs_wave3-7.rds"))) {
+mi_5cummulative_mcs_marginal <- readRDS(here::here("output", "mod_5cummulative_marginal_mcs_wave3-7.rds"))
+mi_5cummulative_mcs_diff     <- readRDS(here::here("output", "mod_5cummulative_diff_mcs_wave3-7.rds"))
+message("Loaded models from 'output'")
+
+} else {
+message("Performing gFormulaMI imputation and model fitting for wave 3-7 MCS, and saving results to 'output'")
+
 regimes <- intervention_pattern_5
 
 predictor_matrix <- base_predictor_matrix
@@ -265,21 +273,18 @@ imps <- gFormulaImpute(
   silent = TRUE
 )
 
-fits <- imps %$%
+fits_marginal <- imps %$%
   lm(sf12mcs_dv_4 ~ factor(regime) + 0)
 
-mi_5cummulative <- syntheticPool(fits)
+fits_diff <- imps %$%
+  lm(sf12mcs_dv_4 ~ factor(regime))
 
-regimes_5 <- tibble(intervention = regimes |> 
-  map(paste, collapse = "-") |> 
+regimes_5 <- tibble(intervention = regimes |>
+  map(paste, collapse = "-") |>
   reduce(c)
 )
-```
 
-```{r 4cummulative-tab}
-#| output: true
-
-mi_5cummulative <- mi_5cummulative |>
+mi_5cummulative_mcs_marginal <- syntheticPool(fits_marginal) |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
   transmute(mi_effect = Estimate,
@@ -288,25 +293,248 @@ mi_5cummulative <- mi_5cummulative |>
             mi_ul = `95% CI U`) |>
   bind_cols(regimes_5)
 
-mi_5cummulative |>
-  knitr::kable(digits = 3)
+mi_5cummulative_mcs_diff <- syntheticPool(fits_diff) |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_5)
+
+mi_5cummulative_mcs_marginal |> saveRDS(here::here("output", "mod_5cummulative_marginal_mcs_wave3-7.rds"))
+mi_5cummulative_mcs_diff     |> saveRDS(here::here("output", "mod_5cummulative_diff_mcs_wave3-7.rds"))
+
+}
 ```
 
-```{r 4cummulative-graph}
+```{r 5cummulative-tab-mcs}
 #| output: true
-mi_5cummulative |>
+
+mi_5cummulative_mcs_marginal |>
+  knitr::kable(digits = 3) |>
+  kableExtra::kable_styling(bootstrap_options = "basic", full_width = FALSE) |>
+   kableExtra::save_kable(here::here("output", "mod_5cummulative_marginal_mcs_wave3-7.pdf"), zoom = 1.5)
+
+mi_5cummulative_mcs_diff |>
+  knitr::kable(digits = 3) |>
+  kableExtra::kable_styling(bootstrap_options = "basic", full_width = FALSE) |>
+  kableExtra::save_kable(here::here("output", "mod_5cummulative_diff_mcs_wave3-7.pdf"), zoom = 1.5)
+```
+
+```{r 5cummulative-graph-mcs}
+#| output: true
+bind_rows(
+  mi_5cummulative_mcs_marginal |> mutate(`Calculation method` = "Causal marginal mean"),
+  mi_5cummulative_mcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(`Calculation method` = "Mean difference")
+) |>
   mutate(
     n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
-    intervention = paste0(intervention)
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
   ) |>
-  pivot_longer(
-    -c(intervention, n_unemp),
-    names_to = c("Calculation method", ".value"),
-    names_pattern = "(.*)_(.*)"
-  ) |>
-ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
-    colour = n_unemp)) +
-  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7)) +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1, scales = "free_x") +
+  labs(x = "Estimate", y = "Intervention strategy")
+```
+
+# Physical health status - SF-12 PCS
+## Accumulating variables
+```{r mids_setup_pcs_accumulating}
+#| output: false
+
+# Add mcs_lagged to long_data for use as time-varying confounder in PCS model
+long_data[, mcs_lagged := shift(sf12mcs_dv, type = "lag")]
+
+no_pcs_outcomes <- long_data |>
+  group_by(pidp) |>
+  summarise(
+    n_missing = sum(is.na(sf12pcs_dv)),
+    base_missing = all(is.na(sf12pcs_dv_base))
+  ) |>
+  filter(n_missing >= 2, base_missing) |>
+  select(pidp) |>
+  as.data.table()
+
+long_data_pcs <- long_data[!no_pcs_outcomes, on = .(pidp)]
+
+wide_data_pcs <- long_data_pcs |>
+  mutate(econ_emp_bin = as_factor(econ_emp_bin)) |>
+  make_wide(
+    pidp,
+    t0,
+    base_cols = c(sex_dv_base,
+                  wnw_race_base,
+                  hiqual_dv_base,
+                  age_dv_base,
+                  gor_dv_base,
+                  mastat_dv_base,
+                  sf12pcs_dv_base
+                  ),
+    outcome = sf12pcs_dv,
+    mcs_lagged,
+    econ_emp_bin,
+    log_income,
+    lagged_dnc,
+    lagged_home_owner,
+    lagged_econ_benefits,
+    econ_dist,
+    static = FALSE
+  )
+
+if (file.exists(here::here("data", "wide_mids_5_waves_pcs_dynamic.rds"))) {
+wide_mids_pcs <- readRDS(here::here("data", "wide_mids_5_waves_pcs_dynamic.rds"))
+message("Loaded mice from 'data'")
+
+} else {
+message("Creating wide_mids_5_waves_pcs_dynamic.rds into 'data'")
+wide_mids_pcs <- mice::mice(wide_data_pcs, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 50, maxit = 15, printFlag = FALSE)
+saveRDS(wide_mids_pcs, file = here::here("data", "wide_mids_5_waves_pcs_dynamic.rds"))
+message("Computed wide_mids_pcs and saved to 'data'")
+}
+
+base_predictor_matrix_pcs <- make_predictor_matrix(wide_data_pcs)
+```
+
+## gFormulaMI - setup of predictor matrix and regimes
+
+```{r 5cummulative-mi-pcs-wave3-7}
+if (file.exists(here::here("output", "mod_5cummulative_marginal_pcs_wave3-7.rds")) && file.exists(here::here("output", "mod_5cummulative_diff_pcs_wave3-7.rds"))) {
+mi_5cummulative_pcs_marginal <- readRDS(here::here("output", "mod_5cummulative_marginal_pcs_wave3-7.rds"))
+mi_5cummulative_pcs_diff     <- readRDS(here::here("output", "mod_5cummulative_diff_pcs_wave3-7.rds"))
+message("Loaded models from 'output'")
+
+} else {
+message("Performing gFormulaMI imputation and model fitting for wave 3-7 PCS, and saving results to 'output'")
+
+regimes <- intervention_pattern_5
+
+predictor_matrix_pcs <- base_predictor_matrix_pcs
+
+# PCS does not predict intermediate outcomes
+predictor_matrix_pcs[,"sf12pcs_dv_0"] <- 0
+predictor_matrix_pcs[,"sf12pcs_dv_1"] <- 0
+predictor_matrix_pcs[,"sf12pcs_dv_2"] <- 0
+predictor_matrix_pcs[,"sf12pcs_dv_3"] <- 0
+predictor_matrix_pcs[,"sf12pcs_dv_4"] <- 0
+
+# PCS is dependent on previous PCS values
+predictor_matrix_pcs["sf12pcs_dv_1","sf12pcs_dv_0"] <- 1
+predictor_matrix_pcs["sf12pcs_dv_2","sf12pcs_dv_1"] <- 1
+predictor_matrix_pcs["sf12pcs_dv_3","sf12pcs_dv_2"] <- 1
+predictor_matrix_pcs["sf12pcs_dv_4","sf12pcs_dv_3"] <- 1
+
+# PCS is not predicted by baseline PCS, only by their immediate previous value
+predictor_matrix_pcs["sf12pcs_dv_1","sf12pcs_dv_base"] <- 0
+predictor_matrix_pcs["sf12pcs_dv_2","sf12pcs_dv_base"] <- 0
+predictor_matrix_pcs["sf12pcs_dv_3","sf12pcs_dv_base"] <- 0
+predictor_matrix_pcs["sf12pcs_dv_4","sf12pcs_dv_base"] <- 0
+
+# PCS in period t (not baseline) predicts employment and income in the period t+1
+predictor_matrix_pcs["sf12pcs_dv_0",c("econ_emp_bin_1", "log_income_1")] <- 1
+predictor_matrix_pcs["sf12pcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
+predictor_matrix_pcs["sf12pcs_dv_2",c("econ_emp_bin_3", "log_income_3")] <- 1
+predictor_matrix_pcs["sf12pcs_dv_3",c("econ_emp_bin_4", "log_income_4")] <- 1
+
+# Economic distress does not affect income or employment of the next period
+predictor_matrix_pcs["econ_dist_0",c("econ_emp_bin_1", "log_income_1")] <- 0
+predictor_matrix_pcs["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
+predictor_matrix_pcs["econ_dist_2",c("econ_emp_bin_3", "log_income_3")] <- 0
+predictor_matrix_pcs["econ_dist_3",c("econ_emp_bin_4", "log_income_4")] <- 0
+
+imps_pcs <- gFormulaImpute(
+  wide_mids_pcs,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3", "econ_emp_bin_4"),
+  trtRegimes = regimes,
+  predictorMatrix = predictor_matrix_pcs,
+  silent = TRUE
+)
+
+fits_pcs_marginal <- imps_pcs %$%
+  lm(sf12pcs_dv_4 ~ factor(regime) + 0)
+
+fits_pcs_diff <- imps_pcs %$%
+  lm(sf12pcs_dv_4 ~ factor(regime))
+
+regimes_5_pcs <- tibble(intervention = regimes |>
+  map(paste, collapse = "-") |>
+  reduce(c)
+)
+
+mi_5cummulative_pcs_marginal <- syntheticPool(fits_pcs_marginal) |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_5_pcs)
+
+mi_5cummulative_pcs_diff <- syntheticPool(fits_pcs_diff) |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_5_pcs)
+
+mi_5cummulative_pcs_marginal |> saveRDS(here::here("output", "mod_5cummulative_marginal_pcs_wave3-7.rds"))
+mi_5cummulative_pcs_diff     |> saveRDS(here::here("output", "mod_5cummulative_diff_pcs_wave3-7.rds"))
+
+}
+```
+
+```{r 5cummulative-tab-pcs}
+#| output: true
+mi_5cummulative_pcs_marginal |>
+  knitr::kable(digits = 3) |>
+  kableExtra::kable_styling(bootstrap_options = "basic", full_width = FALSE) |>
+  kableExtra::save_kable(here::here("output", "mod_5cummulative_marginal_pcs_wave3-7.pdf"), zoom = 1.5)
+
+mi_5cummulative_pcs_diff |>
+  knitr::kable(digits = 3) |>
+  kableExtra::kable_styling(bootstrap_options = "basic", full_width = FALSE) |>
+  kableExtra::save_kable(here::here("output", "mod_5cummulative_diff_pcs_wave3-7.pdf"), zoom = 1.5)
+```
+
+```{r 5cummulative-graph-pcs}
+#| output: true
+bind_rows(
+  mi_5cummulative_pcs_marginal |> mutate(`Calculation method` = "Causal marginal mean"),
+  mi_5cummulative_pcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(`Calculation method` = "Mean difference")
+) |>
+  mutate(
+    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
+  ) |>
+  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7)) +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1, scales = "free_x") +
+  labs(x = "Estimate", y = "Intervention strategy")
+```
+
+## Combined MCS and PCS mean differences
+
+```{r 5cummulative-graph-mcs-pcs-grid}
+#| output: true
+bind_rows(
+  mi_5cummulative_mcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(outcome = "MCS"),
+  mi_5cummulative_pcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(outcome = "PCS")
+) |>
+  mutate(
+    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
+  ) |>
+  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7)) +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~outcome, ncol = 2, scales = "free_x") +
+  labs(x = "Mean difference vs always employed", y = "Intervention strategy")
 ```
