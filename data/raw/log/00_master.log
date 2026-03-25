@@ -1,0 +1,823 @@
+--------------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/raw/log/0
+> 0_master.log
+  log type:  text
+ opened on:  25 Mar 2026, 17:56:08
+
+. 
+. /**************************************************************************************
+> * ROUTE TO WORKER FILES 
+> **************************************************************************************/
+. * process UKHLS data
+. do "${dir_do}/01_merge.do"
+
+. ***************************************************************************************
+. * PROJECT:              Health Equity and its Economic Determinants
+. * DO-FILE NAME:         01_merge.do
+. * DESCRIPTION:          Merges individual and household response files
+. ***************************************************************************************
+. * COUNTRY:              UK
+. * DATA:                     UKHLS EUL version - UKDA-6614-stata [to wave o]
+. * AUTHORS:                              Darwin del Castillo
+. * LAST UPDATE:          17 Mar 2026
+. ***************************************************************************************
+. /*
+> * This do-file merges the individual and household response files by:
+> 1. Selecting relevant variables from each file and renaming them to have a consistent wave prefix (w1_, w2_, etc.)
+> 2. Appending the selected variables across waves to create combined datasets for individual and household responses
+> 3. Merging the combined individual and household datasets together using the unique identifiers (pidp, hidp, swv) to create a final 
+> merged dataset with all relevant variables for analysis
+> */
+. 
+. cd "${dir_ukhls_data}"
+/Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/raw/ukhls
+
+. 
+. /**************************************************************************************
+> * Select and merge UKHLS data 
+> *************************************************************************************/
+. 
+. *add variables from the all persons (Household grid) dataset
+. foreach w of global UKHLS_panel_waves {
+  2. 
+.         // find the wave number
+.         local waveno=strpos("abcdefghijklmnopqrstuvwxyz","`w'")
+  3.         
+.         if (`waveno'<13) {
+  4.                 use pidp `w'_ivfho `w'_ivfio `w'_hhorig `w'_memorig `w'_buno_dv `w'_dvage `w'_sex `w'_depchl `w'_hidp `w'_pno `w'
+> _pns1pid `w'_pns2pid `w'_month `w'_intdaty_dv ///
+>                 `w'_mnspid `w'_fnspid `w'_ppid `w'_ppno `w'_sppid `w'_sex_dv `w'_mastat_dv `w'_gor_dv `w'_age_dv  /* `w'_hgbioad1 `w
+> '_hgbioad2 */ ///
+>                 `w'_intdatd_dv `w'_intdatm_dv `w'_intdaty_dv `w'_ethn_dv using `w'_indall.dta, clear
+  5.         }
+  6.         else {
+  7.                 use pidp `w'_ivfho `w'_ivfio `w'_hhorig `w'_memorig `w'_buno_dv `w'_dvage `w'_sex `w'_depchl `w'_hidp `w'_pno `w'
+> _pns1pid `w'_pns2pid `w'_month `w'_intdaty_dv ///
+>                 `w'_mnspid `w'_fnspid `w'_ppid `w'_ppno `w'_sppid `w'_sex_dv `w'_mastat_dv `w'_gor_dv `w'_age_dv  `w'_hgbioad1 `w'_h
+> gbioad2 ///
+>                 `w'_intdatd_dv `w'_intdatm_dv `w'_intdaty_dv `w'_ethn_dv using `w'_indall.dta, clear
+  8.         }
+  9. 
+.         gen swv = `waveno'
+ 10.         rename `w'_* *
+ 11.         if (`waveno'>1) {
+ 12.                 append using "$dir_out/add_vars_ukhls.dta"
+ 13.         }
+ 14.         save "$dir_out/add_vars_ukhls.dta", replace
+ 15. }
+(Information for all persons in household, incl. children and non-respondents)
+(file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta not found)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+(Information for all persons in household, incl. children and non-respondents)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+(Information for all persons in household, incl. children and non-respondents)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls.dta saved
+
+. 
+. 
+. 
+. 
+. *add variables from the Responding adults (16+) dataset
+. foreach w of global UKHLS_panel_waves {
+  2. 
+.         // find the wave number
+.         local waveno=strpos("abcdefghijklmnopqrstuvwxyz","`w'")
+  3. 
+.         if (`waveno'==1) {
+  4.                 use pidp `w'_hidp `w'_pno `w'_buno_dv `w'_jbhrs `w'_jbot `w'_jshrs `w'_scghq1_dv `w'_scghq2_dv `w'_fimngrs_dv `w'
+> _fimnnet_dv `w'_fimnlabnet_dv ///
+>                 `w'_fimnmisc_dv `w'_fimnprben_dv `w'_fimninvnet_dv `w'_fimnsben_dv `w'_fimnlabgrs_dv `w'_fimnpen_dv `w'_jbstat `w'_h
+> iqual_dv `w'_jbhrs ///
+>                 `w'_j2hrs `w'_jshrs /*`w'_scsfl*/ `w'_scghq1_dv `w'_scghq2_dv `w'_jbsic07_cc `w'_bendis* `w'_scghq1_dv `w'_scghq2_dv
+>  ///
+>                 /*`w'_indinus_lw `w'_indscus_lw `w'_indpxub_xw `w'_indpxui_xw `w'_relup `w'_currpart* `w'_lmcbm* `w'_lmcby4* */ `w'_
+> sf12mcs_dv `w'_sf12pcs_dv ///
+>         `w'_sclfsato `w'_finnow ///
+>                 using `w'_indresp.dta, clear
+  5.         }
+  6.         else if (`waveno'<6) {
+  7.                 use pidp `w'_hidp `w'_pno `w'_buno_dv `w'_jbhrs `w'_jbot `w'_jshrs `w'_scghq1_dv `w'_scghq2_dv `w'_fimngrs_dv `w'
+> _fimnnet_dv `w'_fimnlabnet_dv ///
+>                 `w'_fimnmisc_dv `w'_fimnprben_dv `w'_fimninvnet_dv `w'_fimnsben_dv `w'_fimnlabgrs_dv `w'_fimnpen_dv `w'_jbstat `w'_h
+> iqual_dv `w'_jbhrs ///
+>                 `w'_j2hrs `w'_jshrs `w'_scsf1 `w'_scghq1_dv `w'_scghq2_dv `w'_jbsic07_cc `w'_bendis* `w'_scghq1_dv `w'_scghq2_dv ///
+>                 `w'_indinus_lw `w'_indscus_lw `w'_indpxub_xw /*`w'_indpxui_xw*/ `w'_relup `w'_currpart* `w'_lmcbm* `w'_lmcby4* `w'_s
+> f12mcs_dv `w'_sf12pcs_dv ///
+>         `w'_sclfsato `w'_finnow ///
+>                 using `w'_indresp.dta, clear
+  8.         }
+  9.         else if (`waveno'<13) {
+ 10.                 use pidp `w'_hidp `w'_pno `w'_buno_dv `w'_jbhrs `w'_jbot `w'_jshrs `w'_scghq1_dv `w'_scghq2_dv `w'_fimngrs_dv `w'
+> _fimnnet_dv `w'_fimnlabnet_dv ///
+>                 `w'_fimnmisc_dv `w'_fimnprben_dv `w'_fimninvnet_dv `w'_fimnsben_dv `w'_fimnlabgrs_dv `w'_fimnpen_dv `w'_jbstat `w'_h
+> iqual_dv `w'_jbhrs ///
+>                 `w'_j2hrs `w'_jshrs `w'_scsf1 `w'_scghq1_dv `w'_scghq2_dv `w'_jbsic07_cc `w'_bendis* `w'_scghq1_dv `w'_scghq2_dv ///
+>                 `w'_indinus_lw `w'_indscus_lw /*`w'_indpxub_xw*/ `w'_indpxui_xw `w'_relup `w'_currpart* `w'_lmcbm* `w'_lmcby4* `w'_s
+> f12mcs_dv `w'_sf12pcs_dv ///
+>         `w'_sclfsato `w'_finnow ///
+>                 using `w'_indresp.dta, clear
+ 11.         } 
+ 12. 
+.         else if (`waveno'==13) {
+ 13.                 use pidp `w'_hidp `w'_pno /*`w'_buno_dv*/ `w'_jbhrs `w'_jbot `w'_jshrs `w'_scghq1_dv `w'_scghq2_dv `w'_fimngrs_dv
+>  `w'_fimnnet_dv `w'_fimnlabnet_dv ///
+>                 `w'_fimnmisc_dv `w'_fimnprben_dv `w'_fimninvnet_dv `w'_fimnsben_dv `w'_fimnlabgrs_dv `w'_fimnpen_dv `w'_jbstat `w'_h
+> iqual_dv `w'_jbhrs ///
+>                 /*`w'_j2hrs*/ `w'_jshrs `w'_scsf1 `w'_scghq1_dv `w'_scghq2_dv `w'_jbsic07_cc `w'_bendis* `w'_scghq1_dv `w'_scghq2_dv
+>  ///
+>                 `w'_indinus_lw `w'_indscus_lw /*`w'_indpxub_xw `w'_indpxui_xw*/ `w'_relup `w'_currpart* `w'_lmcbm* `w'_lmcby4* `w'_i
+> ndpxui_xw `w'_sf12mcs_dv `w'_sf12pcs_dv ///
+>         `w'_sclfsato `w'_finnow ///
+>                 using `w'_indresp.dta, clear 
+ 14.                 gen m_j2hrs=-9 /*m_j2hrs not available in wave 13*/
+ 15.         }
+ 16.         
+.                 else if (`waveno'==14) {
+ 17.                 use pidp `w'_hidp `w'_pno `w'_buno_dv `w'_jbhrs `w'_jbot `w'_jshrs `w'_scghq1_dv `w'_scghq2_dv `w'_fimngrs_dv `w'
+> _fimnnet_dv `w'_fimnlabnet_dv ///
+>                 `w'_fimnmisc_dv `w'_fimnprben_dv `w'_fimninvnet_dv `w'_fimnsben_dv `w'_fimnlabgrs_dv `w'_fimnpen_dv `w'_jbstat `w'_h
+> iqual_dv `w'_jbhrs ///
+>                 /*`w'_j2hrs*/ `w'_jshrs `w'_scsf1 `w'_scghq1_dv `w'_scghq2_dv `w'_jbsic07_cc `w'_bendis* `w'_scghq1_dv `w'_scghq2_dv
+>  ///
+>                 `w'_indinus_lw `w'_indscus_lw /*`w'_indpxub_xw `w'_indpxui_xw*/ `w'_indpxg2_xw `w'_inding2_xw `w'_relup `w'_currpart
+> * `w'_lmcbm* `w'_lmcby4* `w'_sf12mcs_dv `w'_sf12pcs_dv ///
+>                 using `w'_indresp.dta, clear
+ 18.                 gen m_j2hrs=-9 /*m_j2hrs not available in wave 14*/
+ 19.         } 
+ 20.         
+.         else if (`waveno'==15) {
+ 21.                 use pidp `w'_hidp `w'_pno `w'_buno_dv `w'_jbhrs `w'_jbot `w'_jshrs `w'_scghq1_dv `w'_scghq2_dv `w'_fimngrs_dv `w'
+> _fimnnet_dv `w'_fimnlabnet_dv ///
+>                 `w'_fimnmisc_dv `w'_fimnprben_dv `w'_fimninvnet_dv `w'_fimnsben_dv `w'_fimnlabgrs_dv `w'_fimnpen_dv `w'_jbstat `w'_h
+> iqual_dv `w'_jbhrs ///
+>                 /*`w'_j2hrs*/ `w'_jshrs `w'_scsf1 `w'_scghq1_dv `w'_scghq2_dv `w'_jbsic07_cc `w'_bendis* `w'_scghq1_dv `w'_scghq2_dv
+>  ///
+>                 `w'_indinus_lw `w'_indscus_lw /*`w'_indpxub_xw `w'_indpxui_xw `w'_indpxg2_xw*/ `w'_inding2_xw `w'_relup `w'_currpart
+> * `w'_lmcbm* `w'_lmcby4* `w'_sf12mcs_dv `w'_sf12pcs_dv ///
+>                 using `w'_indresp.dta, clear
+ 22.                 gen m_j2hrs=-9 /*m_j2hrs not available in wave 14*/
+ 23.         } 
+ 24.         
+.         
+.         gen swv = `waveno'
+ 25.         rename `w'_* *
+ 26.         if (`waveno'>1) {
+ 27.                 append using "$dir_out/add_vars_ukhls_indresp.dta"
+ 28.         }
+ 29.         save "$dir_out/add_vars_ukhls_indresp.dta", replace
+ 30. }
+(Substantive data for responding adults (16+), incl. proxies)
+(file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta not found)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+(variable lmcby43 was byte, now int to accommodate using data's values)
+(variable lmcby44 was byte, now int to accommodate using data's values)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+(variable lmcby43 was byte, now int to accommodate using data's values)
+(variable lmcby44 was byte, now int to accommodate using data's values)
+(variable jshrs was byte, now float to accommodate using data's values)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+(variable jshrs was byte, now float to accommodate using data's values)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+(variable lmcby45 was byte, now int to accommodate using data's values)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+(variable lmcby45 was byte, now int to accommodate using data's values)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+(Substantive data for responding adults (16+), incl. proxies)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_indresp.dta saved
+
+. 
+. 
+. *add variables from the Responding households dataset
+. foreach w of global UKHLS_panel_waves {
+  2. 
+.         // find the wave number
+.         local waveno=strpos("abcdefghijklmnopqrstuvwxyz","`w'")
+  3. 
+.         if (`waveno'==1) {
+  4.                 use `w'_hidp `w'_fihhmnnet1_dv `w'_fihhmngrs1_dv `w'_fihhmnsben_dv `w'_nch02_dv /*`w'_hhdenub_xw `w'_hhdenui_xw*/
+>  `w'_hsownd using `w'_hhresp.dta, clear
+  5.         }
+  6.         else if (`waveno'<6) {
+  7.                 use `w'_hidp `w'_fihhmnnet1_dv `w'_fihhmngrs1_dv `w'_fihhmnsben_dv `w'_nch02_dv `w'_hhdenub_xw /*`w'_hhdenui_xw*/
+>  `w'_hsownd using `w'_hhresp.dta, clear
+  8.         }
+  9.         else if (`waveno'<=14) {
+ 10.                 use `w'_hidp `w'_fihhmnnet1_dv `w'_fihhmngrs1_dv `w'_fihhmnsben_dv `w'_nch02_dv /*`w'_hhdenub_xw*/ `w'_hhdenui_xw
+>  `w'_hsownd using `w'_hhresp.dta, clear
+ 11.         } 
+ 12.         else if (`waveno'>=15) {
+ 13.                 use `w'_hidp `w'_fihhmnnet1_dv `w'_fihhmngrs1_dv `w'_fihhmnsben_dv `w'_nch02_dv /*`w'_hhdenub_xw `w'_hhdenui_xw*/
+>  `w'_hhdeng2_xw `w'_hsownd using `w'_hhresp.dta, clear
+ 14.         }
+ 15.         
+.         gen swv = `waveno'
+ 16.         rename `w'_* *
+ 17.         if (`waveno'>1) {
+ 18.                 append using "$dir_out/add_vars_ukhls_hhresp.dta"
+ 19.         }
+ 20.         save "$dir_out/add_vars_ukhls_hhresp.dta", replace
+ 21. } 
+(Substantive data from responding households)
+(file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta not found)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+(Substantive data from responding households)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_hhresp.dta saved
+
+. 
+. 
+. /**************************************************************************************
+> * Prepare and merge income variables:
+> *************************************************************************************/
+. foreach w of global UKHLS_panel_waves {
+  2. 
+.         // find the wave number
+.         local waveno=strpos("abcdefghijklmnopqrstuvwxyz","`w'")
+  3. 
+.         use pidp `w'_hidp `w'_frmnthimp_dv `w'_ficode `w'_fiseq  using `w'_income.dta, clear
+  4.         
+.         gen swv = `waveno'
+  5.         rename `w'_* *
+  6.         if (`waveno'>1) {
+  7.                 append using "$dir_out/add_vars_ukhls_income.dta"
+  8.         }
+  9.         save "$dir_out/add_vars_ukhls_income.dta", replace
+ 10. }
+(Income and payment information)
+(file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta not found)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+(Income and payment information)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_income.dta saved
+
+. 
+. //check for duplicates 
+. sort swv pidp hidp fiseq
+
+. duplicates report swv pidp hidp fiseq
+
+Duplicates in terms of swv pidp hidp fiseq
+
+--------------------------------------
+   Copies | Observations       Surplus
+----------+---------------------------
+        1 |       876839             0
+--------------------------------------
+
+. 
+. //now collapse variables 
+. preserve
+
+. gen inc_pp = frmnthimp_dv if ficode == 4 //A Private Pension/Annuity
+(830,858 missing values generated)
+
+. gen inc_tu = frmnthimp_dv if ficode == 25 //Trade Union / Friendly Society Payment
+(876,542 missing values generated)
+
+. gen inc_ma = frmnthimp_dv if ficode == 26 //Maintenance or Alimony
+(867,298 missing values generated)
+
+. gen inc_fm = frmnthimp_dv if ficode == 27 //payments from a family member not living here
+(869,228 missing values generated)
+
+. gen inc_oth = frmnthimp_dv if ficode == 38 //any other regular payment (not asked in Wave 1)
+(868,961 missing values generated)
+
+. /*                                
+> 8  Severe Disablement Allowance 
+> 9  Industrial Injury Disablement Allowance      
+> 10 Disability Living Allowance  
+> 11 Attendance Allowance 
+> 12 Carer's Allowance (formerly Invalid Care     Allowance)                                        
+> 13 War Disablement Pension      
+> 14 Incapacity Benefit   
+> 33 Employment and Support Allowance                  
+> 34 Return to Work Credit                                  
+> 35 Sickness and Accident Insurance                      
+> 37 Other Disability Related Benefit or Payment          
+> 41 Personal Independence Payments                       
+> 43 Child Disability Payment                               
+> 44 Adult Disability Payment                              
+> 45 Pension Age Disability Payment                         
+> */
+. gen inc_disab = frmnthimp_dv if (ficode>=8 & ficode<=14) | ficode==33 |  ficode==34 |  ficode==35  |  ficode==37 |  ficode==41 |  fi
+> code==43 |  ficode==44 |  ficode==45 
+(787,130 missing values generated)
+
+. 
+. keep swv pidp hidp inc_pp inc_tu inc_ma inc_fm inc_oth inc_disab
+
+. drop if missing(inc_pp) & missing(inc_tu) & missing(inc_ma) & missing(inc_fm) & missing(inc_oth) & missing(inc_disab)
+(715,822 observations deleted)
+
+. collapse (sum) inc_pp inc_tu inc_ma inc_fm inc_oth inc_disab, by(swv pidp hidp)
+
+. save "$dir_out/tmp_income", replace
+(file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/tmp_incom
+    > e.dta not found)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/tmp_incom
+    > e.dta saved
+
+. restore
+
+. 
+. /******************************Benefits receipt *****************************/
+. 
+. preserve
+
+. * Generate UC benefit marker
+. gen benefits_uc=(ficode==40)
+
+. label var benefits_uc "Universal Credit indicator"
+
+. gen benefits_lb=(ficode == 15 | ficode == 16 | ficode == 19 | ficode == 20 | ficode == 22 | ficode == 33)
+
+. label var benefits_lb "Legacy Benefits indicator"
+
+. 
+. 
+. keep hidp pidp swv benefits_uc benefits_lb
+
+. collapse (max) benefits_uc benefits_lb, by(hidp swv)
+
+. compress
+  variable swv was float now byte
+  variable benefits_uc was float now byte
+  variable benefits_lb was float now byte
+  (2,375,658 bytes saved)
+
+. 
+. save "$dir_out/tmp_ucrcpt", replace
+(file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/tmp_ucrcp
+    > t.dta not found)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/tmp_ucrcp
+    > t.dta saved
+
+. restore
+
+. 
+. 
+. 
+. //merge variables from the youth dataset 9-18 years old * 
+. foreach w of global UKHLS_panel_waves {
+  2. 
+.         // find the wave number
+.         local waveno=strpos("abcdefghijklmnopqrstuvwxyz","`w'")
+  3. 
+.         if (`waveno'>7 | mod(`waveno',2)==0) {
+  4.                 use pidp `w'_hidp `w'_ypsrhlth  using  `w'_youth.dta, clear
+  5.                 
+.                 gen swv = `waveno'
+  6.                 rename `w'_* *
+  7.                 if (`waveno'>2) {
+  8.                         append using "$dir_out/add_vars_ukhls_youth.dta"
+  9.                 }
+ 10.                 save "$dir_out/add_vars_ukhls_youth.dta", replace
+ 11.         }
+ 12. }
+(Substantive data from youth questionnaire)
+(file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta not found)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+
+. 
+. //merge variables from the youth dataset 9-18 years old * 
+. 
+. foreach w of global UKHLS_panel_waves {
+  2. 
+.         // find the wave number
+.         local waveno=strpos("abcdefghijklmnopqrstuvwxyz","`w'")
+  3. 
+.         if (`waveno'>7 | mod(`waveno',2)==0) {
+  4.                 use pidp `w'_hidp `w'_ypsrhlth  using  `w'_youth.dta, clear
+  5.                 
+.                 gen swv = `waveno'
+  6.                 rename `w'_* *
+  7.                 if (`waveno'>2) {
+  8.                         append using "$dir_out/add_vars_ukhls_youth.dta"
+  9.                 }
+ 10.                 save "$dir_out/add_vars_ukhls_youth.dta", replace
+ 11.         }
+ 12. }
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+(Substantive data from youth questionnaire)
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/add_vars_
+    > ukhls_youth.dta saved
+
+. 
+. 
+. 
+. /**************************************************************************************
+> * merge all datasets together 
+> *************************************************************************************/
+. use "$dir_out/add_vars_ukhls.dta", clear
+
+. merge 1:1 pidp hidp swv using "$dir_out/add_vars_ukhls_indresp.dta", keep(1 3) nogen
+(label o_buno_dv already defined)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                       271,324
+        from master                   271,324  
+        from using                          0  
+
+    Matched                           601,795  
+    -----------------------------------------
+
+. merge m:1 hidp swv using "$dir_out/add_vars_ukhls_hhresp.dta", keep(1 3) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                        24,822
+        from master                    24,822  
+        from using                          0  
+
+    Matched                           848,297  
+    -----------------------------------------
+
+. merge m:1 hidp swv using "$dir_out/tmp_ucrcpt", keep(1 3) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                       188,575
+        from master                   188,575  
+        from using                          0  
+
+    Matched                           684,544  
+    -----------------------------------------
+
+. merge 1:1 pidp hidp swv using "$dir_out/tmp_income", keep(1 3) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                       751,774
+        from master                   751,774  
+        from using                          0  
+
+    Matched                           121,345  
+    -----------------------------------------
+
+. merge 1:1 pidp hidp swv using "$dir_out/add_vars_ukhls_youth.dta", keep(1 3) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                       843,409
+        from master                   843,409  
+        from using                          0  
+
+    Matched                            29,710  
+    -----------------------------------------
+
+. 
+. //Merge variables from cross-wave file (Stable characteristics of individuals)
+. merge m:1 pidp using "$dir_ukhls_data/xwavedat.dta" , keepusing(maedqf paedqf birthy racel_dv) keep(1 3) nogen 
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                           873,119  
+    -----------------------------------------
+
+. 
+. 
+. //Merge cohabitation variables from wave 1 (a) & 6 (f)
+. merge m:1 pidp using "$dir_ukhls_data/a_indresp.dta" , keepusing(a_ppid a_intdatd_dv a_intdatm_dv a_intdaty_dv a_lcmarm a_lcmary4 a_
+> lcmcbm a_lcmcby4) keep(1 3) nogen 
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                       486,343
+        from master                   486,343  
+        from using                          0  
+
+    Matched                           386,776  
+    -----------------------------------------
+
+. merge m:1 pidp using "$dir_ukhls_data/f_indresp.dta" , keepusing(f_ppid f_intdatd_dv f_intdatm_dv f_intdaty_dv f_lcmarm f_lcmary4 f_
+> lcmcbm f_lcmcby4) keep(1 3) nogen
+(label pid already defined)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                       377,220
+        from master                   377,220  
+        from using                          0  
+
+    Matched                           495,899  
+    -----------------------------------------
+
+. 
+. replace month = 1 if month == -10 // month not available for IEMB (Ethnic Minority Boost) sample. Treat as month 1.//DP: IEMB is dro
+> pped later on
+(8,409 real changes made)
+
+. 
+. 
+. /**************************************************************************************
+> * save output
+> *************************************************************************************/
+. save "$dir_out/ukhls_pooled_all_obs_01.dta", replace
+file
+    /Users/darwin.delcastillofernandez/Documents/GitHub/heed_gformula_employment_mh/.worktrees/fix-import-data/data/output/ukhls_poo
+    > led_all_obs_01.dta saved
+
+. cap log close 
