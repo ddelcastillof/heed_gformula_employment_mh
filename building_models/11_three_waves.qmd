@@ -810,7 +810,7 @@ near_zero_var <- caret::nearZeroVar(wide_data_pcs, saveMetrics = TRUE) |>
 # checking multicollinearity and perfect prediction issues in the wide data before running MICE
 pm <- mice::quickpred(wide_data_pcs, mincor = 0.1)
 
-pm |> as.data.frame() |> openxlsx::write.xlsx(here::here("output", "imputation_predictor.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
+#pm |> as.data.frame() |> openxlsx::write.xlsx(here::here("output", "imputation_predictor.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
 
 # age is a special case of a time-varying confounder so it needs to be handled differently in the predictor
 meth <- mice::make.method(wide_data_pcs)
