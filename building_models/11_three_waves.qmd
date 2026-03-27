@@ -151,8 +151,9 @@ wide_data_mcs <- long_data |>
 ```
 ```{r wide-data-check}
 # near zero variance predictors in the wide data
-near_zero_var <- caret::nearZeroVar(wide_data_mcs, saveMetrics = TRUE) |>
-  filter(nzv == TRUE)
+
+# near_zero_var <- caret::nearZeroVar(wide_data_mcs, saveMetrics = TRUE) |>
+#   filter(nzv == TRUE)
 
 # checking multicollinearity and perfect prediction issues in the wide data before running MICE
 pm <- mice::quickpred(wide_data_mcs, mincor = 0.1)
@@ -804,8 +805,9 @@ wide_data_pcs <- long_data_pcs |>
 
 ```{r wide-pcs-data-check}
 # near zero variance predictors in the wide data
-near_zero_var <- caret::nearZeroVar(wide_data_pcs, saveMetrics = TRUE) |>
-  filter(nzv == TRUE)
+
+# near_zero_var <- caret::nearZeroVar(wide_data_pcs, saveMetrics = TRUE) |>
+#  filter(nzv == TRUE)
 
 # checking multicollinearity and perfect prediction issues in the wide data before running MICE
 pm <- mice::quickpred(wide_data_pcs, mincor = 0.1)
