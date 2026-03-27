@@ -13,7 +13,7 @@ execute:
 
 ```{r setup}
 #| output: false
-here::i_am("building_models/10_three_waves.qmd")
+here::i_am("building_models/11_three_waves.qmd")
 source(here::here("R", "data_import_and_cleaning.R"))
 source(here::here("R", "func_prep_data.R"))
 
@@ -39,10 +39,11 @@ pop_dt <- pop_data |>
   filter(wave == 6, response == 1) |> 
   select(pidp) |> 
   left_join(pop_data, by = "pidp") |> 
-  filter(!is.na(mastat_dv_base)) |> 
   mutate(dnc = factor(dnc) |> fct_collapse(zero = "0", one = "1", other_level = "2+")) |> 
   data.table::as.data.table()
+```
 
+```{r setup-long}
 long_data <- pop_dt[, `:=`(
   t0 = t0 - 2,
   pcs_lagged = shift(sf12pcs_dv, type = "lag"), # when it acts as a confounder, it should be lagged, when it acts as an outcome, it should not be lagged
@@ -51,8 +52,11 @@ long_data <- pop_dt[, `:=`(
   lagged_dnc = shift(dnc, type = "lag"),
   lagged_home_owner = shift(home_owner, type = "lag"),
   lagged_econ_benefits = shift(econ_benefits, type = "lag"),
+  lagged_gor_dv = shift(gor_dv, type = "lag"),
+  lagged_mastat_dv = shift(mastat_dv, type = "lag"),
+  age_dv = age_dv_base + (t0 - 1), # age is a special case of a time-varying confounder that increases by 1 (average) each wave
   mcs_outcome = sf12mcs_dv
-)][wave %in% 3:6]
+)][wave %in% 3:5]
 
 # filtering out those with no observed MCS outcomes (at least 2 missing, and baseline missing)
 no_mh_outcomes <- long_data |> 
@@ -63,11 +67,6 @@ no_mh_outcomes <- long_data |>
   as.data.table()
 
 long_data <- long_data[!no_mh_outcomes, on = .(pidp)] 
-
-intervention_pattern_2 <- expand_grid(0:1, 0:1) |>
-  t() |>
-  as_tibble(.name_repair = "minimal") |>
-  unclass()
 
 intervention_pattern_3 <- expand_grid(0:1, 0:1, 0:1) |>
   t() |>
@@ -125,7 +124,7 @@ grViz("digraph {
 ## Setup wide data for MI
 
 ```{r setup-wide}
-wide_data <- long_data |>
+wide_data_mcs <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
   make_wide(
     pidp,
@@ -133,25 +132,41 @@ wide_data <- long_data |>
     base_cols = c(sex_dv_base, # wave 1
                   wnw_race_base, # wave 1
                   hiqual_dv_base, # wave 1
-                  age_dv_base, # wave 1
-                  gor_dv_base, # wave 1
-                  mastat_dv_base, # wave 1
                   sf12mcs_dv_base # wave 1
-                  ), 
+    ),
     outcome = sf12mcs_dv,
     pcs_lagged,
+    age_dv,
     econ_emp_bin,
+    lagged_gor_dv,
     log_income,
     lagged_dnc,
     lagged_home_owner,
     lagged_econ_benefits,
+    lagged_mastat_dv,
     econ_dist,
     static = FALSE,
     waves = c(1,2,3)
   )
+```
+```{r wide-data-check}
+# near zero variance predictors in the wide data
+near_zero_var <- caret::nearZeroVar(wide_data_mcs, saveMetrics = TRUE) |>
+  filter(nzv == TRUE)
 
+# checking multicollinearity and perfect prediction issues in the wide data before running MICE
+pm <- mice::quickpred(wide_data_mcs, mincor = 0.1)
+
+# pm |> as.data.frame() |> openxlsx::write.xlsx(here::here("output", "imputation_predictor.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
+
+# age is a special case of a time-varying confounder so it needs to be handled differently in the predictor 
+meth <- mice::make.method(wide_data_mcs)
+meth[grep("^age_dv_[0-9]", names(meth))] <- ""
+```
+
+```{r setup-wide-mi}
 if (file.exists(here::here("data", "wide_mids_3_waves_mcs_dynamic.rds"))) {
-wide_mids <- readRDS(here::here("data", "wide_mids_3_waves_mcs_dynamic.rds"))
+wide_mids_mcs <- readRDS(here::here("data", "wide_mids_3_waves_mcs_dynamic.rds"))
 message("Loaded mice from 'data'")
 
 } else {
@@ -161,78 +176,80 @@ dir.create(here::here("data"))
 message("Directory 'data' did not exist. Creating directory 'data'")
 }
 message("Creating wide_mids.rds into 'data'")
-wide_mids <- mice::mice(wide_data, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 35, maxit = 10)
-saveRDS(wide_mids, file = here::here("data", "wide_mids_3_waves_mcs_dynamic.rds"))
+wide_mids_mcs <- mice::mice(wide_data_mcs, 
+                        method = meth, 
+                        m = 35, 
+                        maxit = 10,
+                        printFlag = TRUE)
+saveRDS(wide_mids_mcs, file = here::here("data", "wide_mids_3_waves_mcs_dynamic.rds"))
 message("Computed wide_mids and saved to 'data'")
 }
 
-#wide_mids <- readRDS(here::here("data", "wide_mids_full_models_MI_only.rds"))
-
-base_predictor_matrix <- make_predictor_matrix(wide_data)
-
-#information for descriptive table
-regime_obs_n <- wide_data |>
-  mutate(across(c(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3), as.character)) |>
-  filter(!is.na(econ_emp_bin_1), !is.na(econ_emp_bin_2), !is.na(econ_emp_bin_3)) |>
-  count(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3) |>
-  mutate(intervention = paste(econ_emp_bin_1, econ_emp_bin_2, econ_emp_bin_3, sep = "-")) |>
-  select(intervention, n_obs = n)
+base_predictor_matrix <- make_predictor_matrix(wide_data_mcs)
 ```
 
-## gFormulaMI with accumulating variables: three waves of intervention
+## gFormulaMI - three waves of intervention, MCS
 
 ```{r 3waves_mi}
-regimes <- intervention_pattern_3
+if (file.exists(here::here("output", "mod_3cummulative_marginal_mcs.rds")) && file.exists(here::here("output", "mod_3cummulative_diff_mcs.rds"))) {
+mi_3cummulative_mcs_marginal <- readRDS(here::here("output", "mod_3cummulative_marginal_mcs.rds"))
+mi_3cummulative_mcs_diff     <- readRDS(here::here("output", "mod_3cummulative_diff_mcs.rds"))
+message("Loaded models from 'output'")
 
-predictor_matrix <- base_predictor_matrix
+} else {
+message("Performing gFormulaMI for three-wave MCS model")
+
+regimes_mcs <- intervention_pattern_3
+
+predictor_matrix_mcs <- base_predictor_matrix
 
 # MCS does not predict intermediate outcomes
-predictor_matrix[,"sf12mcs_dv_1"] <- 0
-predictor_matrix[,"sf12mcs_dv_2"] <- 0
+predictor_matrix_mcs[,"sf12mcs_dv_0"] <- 0
+predictor_matrix_mcs[,"sf12mcs_dv_1"] <- 0
 
 # MCS is dependent on previous MCS values
-predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
-predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_2"] <- 1
+predictor_matrix_mcs["sf12mcs_dv_1","sf12mcs_dv_0"] <- 1
+predictor_matrix_mcs["sf12mcs_dv_2","sf12mcs_dv_1"] <- 1
 
 # MCS is not predicted by baseline MCS, only by their immediate previous value
-predictor_matrix["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
-predictor_matrix["sf12mcs_dv_3","sf12mcs_dv_base"] <- 0
+predictor_matrix_mcs["sf12mcs_dv_1","sf12mcs_dv_base"] <- 0
+predictor_matrix_mcs["sf12mcs_dv_2","sf12mcs_dv_base"] <- 0
 
 # MCS in period t (not baseline) predicts employment and income in the period t+1
-predictor_matrix["sf12mcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
-predictor_matrix["sf12mcs_dv_2",c("econ_emp_bin_3", "log_income_3")] <- 1
+predictor_matrix_mcs["sf12mcs_dv_0",c("econ_emp_bin_1", "log_income_1")] <- 1
+predictor_matrix_mcs["sf12mcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
 
-# Economic distress does not affect income or employment of the next period
-predictor_matrix["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
-predictor_matrix["econ_dist_2",c("econ_emp_bin_3", "log_income_3")] <- 0
+# Economic distress does not affect income but affects employment of the next period
+predictor_matrix_mcs["econ_dist_0", "log_income_1"] <- 0
+predictor_matrix_mcs["econ_dist_1", "log_income_2"] <- 0
+
+predictor_matrix_mcs["econ_emp_bin_2", "econ_dist_1"] <- 1
+predictor_matrix_mcs["econ_emp_bin_3", "econ_dist_2"] <- 1
 
 # MCS in wave t predicts employment at time t+1
-predictor_matrix["econ_emp_bin_2", "sf12mcs_dv_1"] <- 1
-predictor_matrix["econ_emp_bin_3", "sf12mcs_dv_2"] <- 1
+predictor_matrix_mcs["econ_emp_bin_1", "sf12mcs_dv_0"] <- 1
+predictor_matrix_mcs["econ_emp_bin_2", "sf12mcs_dv_1"] <- 1
 
 imps <- gFormulaImpute(
-  wide_mids,
-  trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
-  trtRegimes = regimes,
-  predictorMatrix = predictor_matrix
+  wide_mids_mcs,
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtRegimes = regimes_mcs,
+  predictorMatrix = predictor_matrix_mcs,
+  silent = TRUE
 )
 
-fits <- imps %$%
+fits_mcs_marginal <- imps %$%
   lm(sf12mcs_dv_3 ~ 0 + factor(regime))
 
-mi_3cummulative <- syntheticPool(fits)
+fits_mcs_diff <- imps %$%
+  lm(sf12mcs_dv_3 ~ factor(regime))
 
 regimes_3 <- tibble(intervention = regimes |>
   map(paste, collapse = "-") |>
   reduce(c)
 )
-```
 
-## Table
-
-```{r 3wavesmi-tab}
-#| output: true
-mod_3cummulative <- mi_3cummulative |>
+mi_3cummulative_mcs_marginal <- syntheticPool(fits_mcs_marginal) |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
   transmute(mi_effect = Estimate,
@@ -241,27 +258,66 @@ mod_3cummulative <- mi_3cummulative |>
             mi_ul = `95% CI U`) |>
   bind_cols(regimes_3)
 
-mod_3cummulative |>
-  knitr::kable(digits = 3)
+mi_3cummulative_mcs_diff <- syntheticPool(fits_mcs_diff) |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_3)
+
+mi_3cummulative_mcs_marginal |> saveRDS(here::here("output", "mod_3cummulative_marginal_mcs.rds"))
+mi_3cummulative_mcs_diff     |> saveRDS(here::here("output", "mod_3cummulative_diff_mcs.rds"))
+
+}
+```
+
+## Table
+
+```{r 3wavesmi-tab}
+#| output: true
+mi_3cummulative_mcs_marginal |>
+  knitr::kable(digits = 3) |>
+  kableExtra::kable_styling(full_width = FALSE, bootstrap_options = "basic") |>
+  kableExtra::save_kable(here::here("output", "mod_3cummulative_marginal_mcs_wave3-5.pdf"), zoom = 1.5)
+
+mi_3cummulative_mcs_diff |>
+  knitr::kable(digits = 3) |>
+  kableExtra::kable_styling(full_width = FALSE, bootstrap_options = "basic") |>
+  kableExtra::save_kable(here::here("output", "mod_3cummulative_diff_mcs_wave3-5.pdf"), zoom = 1.5)
 ```
 
 ## Graph
 
 ```{r 3wavesmi-graph}
 #| output: true
-mod_3cummulative |>
-  pivot_longer(
-    -intervention,
-    names_to = c("Calculation method", ".value"),
-    names_pattern = "(.*)_(.*)"
+graph3waves_diff_mcs <- bind_rows(
+  mi_3cummulative_mcs_marginal |> mutate(`Calculation method` = "Causal marginal mean"),
+  mi_3cummulative_mcs_diff |> filter(intervention != "0-0-0") |> mutate(`Calculation method` = "Mean difference")
+) |>
+  mutate(
+    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
   ) |>
-  mutate(n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
-           factor()) |> 
-ggplot(aes(effect, intervention, xmin = ll, xmax = ul,
-    colour = n_unemp)) +
-  geom_point(size = 2, position = position_dodge(width = 0.7))  +
+  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7)) +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1, scales = "free_x") +
+  labs(x = "Estimate", y = "Intervention strategy")
+
+print(graph3waves_diff_mcs)
+```
+
+```{r 3wavesmi-graph-save}
+ggsave(
+  filename = here::here("figs", "graph_3waves_mcs.png"),
+  plot = graph3waves_diff_mcs,
+  width = 8,
+  height = 6,
+  dpi = 300
+)
 ```
 
 # Exploratory analysis: Three periods of intervention - without intermediate outcomes
@@ -653,7 +709,7 @@ rie_pooled <- mi_rie |>
 #     (both arms use the same frozen reference MCS₂ distribution)
 #
 # IIE = TE − IDE
-#     = (mod_3cummulative[regime=a] − mod_3cummulative[regime="0-0-0"]) − IDE
+#     = (mi_3cummulative_mcs_diff[regime=a] − mi_3cummulative_mcs_diff[regime="0-0-0"]) − IDE
 #     (TE comes from the dynamic model where MCS₂ is free to respond to employment)
 
 ref_label <- "0-0-0"
@@ -663,15 +719,13 @@ ref_label <- "0-0-0"
 rie_ref_mean <- rie_pooled$rie_effect[rie_pooled$intervention == ref_label]
 
 # Extract reference-regime TE from the dynamic model.
-# mod_3cummulative is already a processed tibble with mi_effect + intervention columns
-# (created in chunk 3wavesmi-tab). No need to re-apply as_tibble()/bind_cols().
-te_ref_mean <- mod_3cummulative |>
+te_ref_mean <- mi_3cummulative_mcs_diff |>
   filter(intervention == ref_label) |>
   pull(mi_effect)
 
 rie_decomposition <- rie_pooled |>
   left_join(
-    mod_3cummulative |>
+    mi_3cummulative_mcs_diff |>
       transmute(intervention, te_mean = mi_effect),
     by = "intervention"
   ) |>
@@ -692,4 +746,251 @@ rie_decomposition <- rie_pooled |>
 
 rie_decomposition |>
   knitr::kable(digits = 3)
+```
+
+# Physical health - SF-12 PCS
+
+## Setup wide data for MI
+
+```{r setup-wide-pcs}
+# Add mcs_lagged for use as time-varying confounder in PCS model
+long_data[, mcs_lagged := shift(sf12mcs_dv, type = "lag")]
+
+no_pcs_outcomes <- long_data |>
+  group_by(pidp) |>
+  summarise(n_missing = sum(is.na(sf12pcs_dv)), base_missing = all(is.na(sf12pcs_dv_base))) |>
+  filter(n_missing >= 2, base_missing) |>
+  select(pidp) |>
+  as.data.table()
+
+long_data_pcs <- long_data[!no_pcs_outcomes, on = .(pidp)]
+
+wide_data_pcs <- long_data_pcs |>
+  mutate(econ_emp_bin = as_factor(econ_emp_bin)) |>
+  make_wide(
+    pidp,
+    t0,
+    base_cols = c(sex_dv_base, # wave 1
+                  wnw_race_base, # wave 1
+                  hiqual_dv_base, # wave 1
+                  age_dv_base, # wave 1
+                  sf12pcs_dv_base # wave 1
+                  ),
+    outcome = sf12pcs_dv,
+    mcs_lagged,
+    age_dv,
+    econ_emp_bin,
+    lagged_gor_dv,
+    log_income,
+    lagged_dnc,
+    lagged_home_owner,
+    lagged_econ_benefits,
+    lagged_mastat_dv,
+    econ_dist,
+    static = FALSE,
+    waves = c(1,2,3)
+  )
+```
+
+```{r wide-pcs-data-check}
+# near zero variance predictors in the wide data
+near_zero_var <- caret::nearZeroVar(wide_data, saveMetrics = TRUE) |>
+  filter(nzv == TRUE)
+
+# checking multicollinearity and perfect prediction issues in the wide data before running MICE
+pm <- mice::quickpred(wide_data, mincor = 0.1)
+
+# pm |> as.data.frame() |> openxlsx::write.xlsx(here::here("output", "imputation_predictor.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
+
+# age is a special case of a time-varying confounder so it needs to be handled differently in the predictor 
+meth <- mice::make.method(wide_data)
+meth[grep("^age_dv_[0-9]", names(meth))] <- ""
+
+# omitting predictors without missingness
+meth["econ_dist_3"] <- ""
+meth["sex_dv_base"] <- ""
+```
+
+```{r setup-wide-pcs-mids}
+if (file.exists(here::here("data", "wide_mids_3_waves_pcs_dynamic.rds"))) {
+wide_mids_pcs <- readRDS(here::here("data", "wide_mids_3_waves_pcs_dynamic.rds"))
+message("Loaded mice from 'data'")
+
+} else {
+if (!dir.exists(here::here("data")))
+{
+dir.create(here::here("data"))
+message("Directory 'data' did not exist. Creating directory 'data'")
+}
+message("Creating wide_mids_3_waves_pcs_dynamic.rds into 'data'")
+wide_mids_pcs <- mice::mice(wide_data_pcs, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 50, maxit = 15, printFlag = TRUE)
+saveRDS(wide_mids_pcs, file = here::here("data", "wide_mids_3_waves_pcs_dynamic.rds"))
+message("Computed wide_mids_pcs and saved to 'data'")
+}
+
+base_predictor_matrix_pcs <- make_predictor_matrix(wide_data_pcs)
+```
+
+## gFormulaMI - three waves of intervention, PCS
+
+```{r 3waves-mi-pcs}
+if (file.exists(here::here("output", "mod_3cummulative_marginal_pcs.rds")) && file.exists(here::here("output", "mod_3cummulative_diff_pcs.rds"))) {
+mi_3cummulative_pcs_marginal <- readRDS(here::here("output", "mod_3cummulative_marginal_pcs.rds"))
+mi_3cummulative_pcs_diff     <- readRDS(here::here("output", "mod_3cummulative_diff_pcs.rds"))
+message("Loaded models from 'output'")
+
+} else {
+message("Performing gFormulaMI for three-wave PCS model")
+
+regimes_pcs <- intervention_pattern_3
+
+predictor_matrix_pcs <- base_predictor_matrix_pcs
+
+# PCS does not predict intermediate outcomes
+predictor_matrix_pcs[,"sf12pcs_dv_1"] <- 0
+predictor_matrix_pcs[,"sf12pcs_dv_2"] <- 0
+
+# PCS is dependent on previous PCS values
+predictor_matrix_pcs["sf12pcs_dv_2","sf12pcs_dv_1"] <- 1
+predictor_matrix_pcs["sf12pcs_dv_3","sf12pcs_dv_2"] <- 1
+
+# PCS is not predicted by baseline PCS, only by their immediate previous value
+predictor_matrix_pcs["sf12pcs_dv_2","sf12pcs_dv_base"] <- 0
+predictor_matrix_pcs["sf12pcs_dv_3","sf12pcs_dv_base"] <- 0
+
+# PCS in period t predicts employment and income in the period t+1
+predictor_matrix_pcs["sf12pcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
+predictor_matrix_pcs["sf12pcs_dv_2",c("econ_emp_bin_3", "log_income_3")] <- 1
+
+# Economic distress does not affect income or employment of the next period
+predictor_matrix_pcs["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
+predictor_matrix_pcs["econ_dist_2",c("econ_emp_bin_3", "log_income_3")] <- 0
+
+# PCS in wave t predicts employment at time t+1
+predictor_matrix_pcs["econ_emp_bin_2", "sf12pcs_dv_1"] <- 1
+predictor_matrix_pcs["econ_emp_bin_3", "sf12pcs_dv_2"] <- 1
+
+# financial distress in wave t predicts employment at time t+1
+predictor_matrix_pcs["econ_emp_bin_2", "econ_dist_1"] <- 1
+predictor_matrix_pcs["econ_emp_bin_3", "econ_dist_2"] <- 1 
+
+imps_pcs <- gFormulaImpute(
+  wide_mids_pcs,
+  trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtRegimes = regimes_pcs,
+  predictorMatrix = predictor_matrix_pcs,
+  silent = TRUE
+)
+
+fits_pcs_marginal <- imps_pcs %$%
+  lm(sf12pcs_dv_3 ~ 0 + factor(regime))
+
+fits_pcs_diff <- imps_pcs %$%
+  lm(sf12pcs_dv_3 ~ factor(regime))
+
+regimes_3_pcs <- tibble(intervention = intervention_pattern_3 |>
+  map(paste, collapse = "-") |>
+  reduce(c)
+)
+
+mi_3cummulative_pcs_marginal <- syntheticPool(fits_pcs_marginal) |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_3_pcs)
+
+mi_3cummulative_pcs_diff <- syntheticPool(fits_pcs_diff) |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(mi_effect = Estimate,
+            mi_se = sqrt(Total),
+            mi_ll = `95% CI L`,
+            mi_ul = `95% CI U`) |>
+  bind_cols(regimes_3_pcs)
+
+mi_3cummulative_pcs_marginal |> saveRDS(here::here("output", "mod_3cummulative_marginal_pcs.rds"))
+mi_3cummulative_pcs_diff     |> saveRDS(here::here("output", "mod_3cummulative_diff_pcs.rds"))
+
+}
+```
+
+## Table
+
+```{r 3waves-tab-pcs}
+#| output: true
+mi_3cummulative_pcs_marginal |>
+  knitr::kable(digits = 3) |>
+  kableExtra::kable_styling(full_width = FALSE, bootstrap_options = "basic") |>
+  kableExtra::save_kable(here::here("output", "mod_3cummulative_marginal_pcs_wave4-6.pdf"), zoom = 1.5)
+
+mi_3cummulative_pcs_diff |>
+  knitr::kable(digits = 3) |>
+  kableExtra::kable_styling(full_width = FALSE, bootstrap_options = "basic") |>
+  kableExtra::save_kable(here::here("output", "mod_3cummulative_diff_pcs_wave4-6.pdf"), zoom = 1.5)
+```
+
+## Graph
+
+```{r 3waves-graph-pcs}
+#| output: true
+graph3waves_diff_pcs <- bind_rows(
+  mi_3cummulative_pcs_marginal |> mutate(`Calculation method` = "Causal marginal mean"),
+  mi_3cummulative_pcs_diff |> filter(intervention != "0-0-0") |> mutate(`Calculation method` = "Mean difference")
+) |>
+  mutate(
+    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
+  ) |>
+  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7)) +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Calculation method`, ncol = 1, scales = "free_x") +
+  labs(x = "Estimate", y = "Intervention strategy")
+
+print(graph3waves_diff_pcs)
+```
+
+```{r 3waves-graph-pcs-save}
+ggsave(
+  filename = here::here("figs", "graph_3waves_pcs.png"),
+  plot = graph3waves_diff_pcs,
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+```
+
+```{r 3waves-graph-pcs-mcs-diff-combined}
+#| output: true
+graph3waves_diff_pcs_mcs <- bind_rows(
+  mi_3cummulative_pcs_diff |> filter(intervention != "0-0-0") |> mutate(`Outcome` = "Physical health (PCS)"),
+  mi_3cummulative_mcs_diff |> filter(intervention != "0-0-0") |> mutate(`Outcome` = "Mental health (MCS)")
+) |>
+  mutate(
+    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
+  ) |>
+  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
+  geom_point(size = 2, position = position_dodge(width = 0.7)) +
+  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  facet_wrap(~`Outcome`, ncol = 2, scales = "free_x") +
+  labs(x = "Mean difference vs always employed", y = "Intervention strategy")
+
+print(graph3waves_diff_pcs_mcs)
+```
+
+```{r 3waves-graph-pcs-mcs-diff-combined-save}
+ggsave(
+  filename = here::here("figs", "graph_3waves_pcs_mcs_diff.png"),
+  plot = graph3waves_diff_pcs_mcs,
+  width = 8,
+  height = 6,
+  dpi = 300
+)
 ```

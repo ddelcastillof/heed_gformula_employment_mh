@@ -1,7 +1,7 @@
 import_data <- function() {
   require(tidyverse)
 
-  final_cache <- here::here("data", "pop_data_new.rds")
+  final_cache <- here::here("data", "pop_data.rds")
   fst_cache   <- here::here("data", "raw", "heed_raw.fst")
   raw_dta     <- here::here("data", "raw", "ukhls_pooled_all_obs_02.dta")
 

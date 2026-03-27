@@ -282,7 +282,7 @@ imps <- gFormulaImpute(
 )
 
 fits <- imps %$%
-  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
+  lm(sf12mcs_dv_3 ~ factor(regime))
 
 mi_4cummulative <- syntheticPool(fits)
 
@@ -313,9 +313,7 @@ mod_4cummulative <- mi_4cummulative |>
             mi_se = sqrt(Total),
             mi_ll = `95% CI L`,
             mi_ul = `95% CI U`) |>
-  bind_cols(regimes_4) |>
-  left_join(regime_obs_n, by = "intervention") |>
-  mutate(n_obs = replace_na(n_obs, 0L))
+  bind_cols(regimes_4)
 
 mod_4cummulative |>
   knitr::kable(digits = 3)
@@ -328,19 +326,18 @@ mod_4cummulative |>
 mod_4cummulative |>
   mutate(
     n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
-    intervention = paste0(intervention, " (n=", n_obs, ")")
-  ) |>
-  select(-n_obs) |>
+    intervention = paste0(intervention
+  )) |>
   pivot_longer(
-    -c(intervention, n_unemp),
+    -intervention,
+    names_to = c("Calculation method", ".value"),
     names_pattern = "(.*)_(.*)"
   ) |>
 ggplot(aes(effect, intervention, shape = `Calculation method`, xmin = ll, xmax = ul,
     colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7))  +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
-  facet_wrap(~`Calculation method`, ncol = 1)
+  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1")
 ```
 
 ## Four periods of intervention - without intermediate outcomes
