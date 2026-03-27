@@ -223,8 +223,8 @@ predictor_matrix_mcs["sf12mcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
 predictor_matrix_mcs["econ_dist_0", "log_income_1"] <- 0
 predictor_matrix_mcs["econ_dist_1", "log_income_2"] <- 0
 
+predictor_matrix_mcs["econ_emp_bin_1", "econ_dist_0"] <- 1
 predictor_matrix_mcs["econ_emp_bin_2", "econ_dist_1"] <- 1
-predictor_matrix_mcs["econ_emp_bin_3", "econ_dist_2"] <- 1
 
 # MCS in wave t predicts employment at time t+1
 predictor_matrix_mcs["econ_emp_bin_1", "sf12mcs_dv_0"] <- 1
@@ -239,12 +239,12 @@ imps <- gFormulaImpute(
 )
 
 fits_mcs_marginal <- imps %$%
-  lm(sf12mcs_dv_3 ~ 0 + factor(regime))
+  lm(sf12mcs_dv_2 ~ 0 + factor(regime))
 
 fits_mcs_diff <- imps %$%
-  lm(sf12mcs_dv_3 ~ factor(regime))
+  lm(sf12mcs_dv_2 ~ factor(regime))
 
-regimes_3 <- tibble(intervention = regimes |>
+regimes_3 <- tibble(intervention = regimes_mcs |>
   map(paste, collapse = "-") |>
   reduce(c)
 )
@@ -788,22 +788,22 @@ wide_data_pcs <- long_data_pcs |>
     lagged_mastat_dv,
     econ_dist,
     static = FALSE,
-    waves = c(1,2,3)
+    waves = c(0,1,2)
   )
 ```
 
 ```{r wide-pcs-data-check}
 # near zero variance predictors in the wide data
-near_zero_var <- caret::nearZeroVar(wide_data, saveMetrics = TRUE) |>
+near_zero_var <- caret::nearZeroVar(wide_data_pcs, saveMetrics = TRUE) |>
   filter(nzv == TRUE)
 
 # checking multicollinearity and perfect prediction issues in the wide data before running MICE
-pm <- mice::quickpred(wide_data, mincor = 0.1)
+pm <- mice::quickpred(wide_data_pcs, mincor = 0.1)
 
 # pm |> as.data.frame() |> openxlsx::write.xlsx(here::here("output", "imputation_predictor.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
 
 # age is a special case of a time-varying confounder so it needs to be handled differently in the predictor 
-meth <- mice::make.method(wide_data)
+meth <- mice::make.method(wide_data_pcs)
 meth[grep("^age_dv_[0-9]", names(meth))] <- ""
 
 # omitting predictors without missingness
@@ -847,46 +847,45 @@ regimes_pcs <- intervention_pattern_3
 predictor_matrix_pcs <- base_predictor_matrix_pcs
 
 # PCS does not predict intermediate outcomes
+predictor_matrix_pcs[,"sf12pcs_dv_0"] <- 0
 predictor_matrix_pcs[,"sf12pcs_dv_1"] <- 0
-predictor_matrix_pcs[,"sf12pcs_dv_2"] <- 0
 
 # PCS is dependent on previous PCS values
+predictor_matrix_pcs["sf12pcs_dv_1","sf12pcs_dv_0"] <- 1
 predictor_matrix_pcs["sf12pcs_dv_2","sf12pcs_dv_1"] <- 1
-predictor_matrix_pcs["sf12pcs_dv_3","sf12pcs_dv_2"] <- 1
 
 # PCS is not predicted by baseline PCS, only by their immediate previous value
+predictor_matrix_pcs["sf12pcs_dv_1","sf12pcs_dv_base"] <- 0
 predictor_matrix_pcs["sf12pcs_dv_2","sf12pcs_dv_base"] <- 0
-predictor_matrix_pcs["sf12pcs_dv_3","sf12pcs_dv_base"] <- 0
 
 # PCS in period t predicts employment and income in the period t+1
+predictor_matrix_pcs["sf12pcs_dv_0",c("econ_emp_bin_1", "log_income_1")] <- 1
 predictor_matrix_pcs["sf12pcs_dv_1",c("econ_emp_bin_2", "log_income_2")] <- 1
-predictor_matrix_pcs["sf12pcs_dv_2",c("econ_emp_bin_3", "log_income_3")] <- 1
 
-# Economic distress does not affect income or employment of the next period
-predictor_matrix_pcs["econ_dist_1",c("econ_emp_bin_2", "log_income_2")] <- 0
-predictor_matrix_pcs["econ_dist_2",c("econ_emp_bin_3", "log_income_3")] <- 0
+# Economic distress does not affect income but affects employment of the next period
+predictor_matrix_pcs["econ_dist_0", "log_income_1"] <- 0
+predictor_matrix_pcs["econ_dist_1", "log_income_2"] <- 0
+
+predictor_matrix_pcs["econ_emp_bin_1", "econ_dist_0"] <- 1
+predictor_matrix_pcs["econ_emp_bin_2", "econ_dist_1"] <- 1
 
 # PCS in wave t predicts employment at time t+1
+predictor_matrix_pcs["econ_emp_bin_1", "sf12pcs_dv_0"] <- 1
 predictor_matrix_pcs["econ_emp_bin_2", "sf12pcs_dv_1"] <- 1
-predictor_matrix_pcs["econ_emp_bin_3", "sf12pcs_dv_2"] <- 1
-
-# financial distress in wave t predicts employment at time t+1
-predictor_matrix_pcs["econ_emp_bin_2", "econ_dist_1"] <- 1
-predictor_matrix_pcs["econ_emp_bin_3", "econ_dist_2"] <- 1 
 
 imps_pcs <- gFormulaImpute(
   wide_mids_pcs,
-  trtVars = c("econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
+  trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
   trtRegimes = regimes_pcs,
   predictorMatrix = predictor_matrix_pcs,
   silent = TRUE
 )
 
 fits_pcs_marginal <- imps_pcs %$%
-  lm(sf12pcs_dv_3 ~ 0 + factor(regime))
+  lm(sf12pcs_dv_2 ~ 0 + factor(regime))
 
 fits_pcs_diff <- imps_pcs %$%
-  lm(sf12pcs_dv_3 ~ factor(regime))
+  lm(sf12pcs_dv_2 ~ factor(regime))
 
 regimes_3_pcs <- tibble(intervention = intervention_pattern_3 |>
   map(paste, collapse = "-") |>
