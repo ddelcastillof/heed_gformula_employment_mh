@@ -161,7 +161,10 @@ pm <- mice::quickpred(wide_data_mcs, mincor = 0.1)
 
 # age is a special case of a time-varying confounder so it needs to be handled differently in the predictor 
 meth <- mice::make.method(wide_data_mcs)
+meth[meth == "pmm"] <- "norm"
+meth[meth %in% c("polr", "polyreg")] <- "pmm"
 meth[grep("^age_dv_[0-9]", names(meth))] <- ""
+
 ```
 
 ```{r setup-wide-mi}
@@ -323,6 +326,7 @@ ggsave(
 # Exploratory analysis: Three periods of intervention - without intermediate outcomes
 
 ```{r model-baseline3-dag}
+#| eval: false
 #| echo: false
 #| output: true
 grViz("digraph {
@@ -368,6 +372,7 @@ grViz("digraph {
 ## Setup wide data for MI
 
 ```{r setup-wide-static}
+#| eval: false
 wide_data <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |> 
   make_wide(
@@ -417,6 +422,7 @@ base_predictor_matrix <- make_predictor_matrix(wide_data)
 ## gFormulaMI - three waves of intervention, without intermediate outcomes
 
 ```{r 3static-mi}
+#| eval: false
 regimes <- intervention_pattern_3
 
 predictor_matrix <- base_predictor_matrix
@@ -473,6 +479,7 @@ regime_obs_n <- wide_data |>
 
 ```{r 3staticmi-tab}
 #| output: true
+#| eval: false
 mod_3static <- mi_3static |>
   as_tibble() |>
   rownames_to_column("Intervention") |>
@@ -490,6 +497,7 @@ mod_3static |>
 
 ```{r 3staticmi-graph}
 #| output: true
+#| eval: false
 mod_3static |>
   pivot_longer(
     -intervention,
@@ -542,6 +550,7 @@ Identified even with the MCS\_t → Empl\_{t+1} feedback present in this DAG. \
 
 ```{r decomposition-setup}
 #| output: false
+#| eval: false
 
 # Identification (Approach 3 from VanderWeele et al. 2014):
 #   (i)   No unmeasured Empl–MCS₃ confounding given C
@@ -743,6 +752,7 @@ rie_decomposition <- rie_pooled |>
 ## Table
 ```{r decomposition-table}
 #| output: true
+#| eval: false
 
 rie_decomposition |>
   knitr::kable(digits = 3)
@@ -800,15 +810,13 @@ near_zero_var <- caret::nearZeroVar(wide_data_pcs, saveMetrics = TRUE) |>
 # checking multicollinearity and perfect prediction issues in the wide data before running MICE
 pm <- mice::quickpred(wide_data_pcs, mincor = 0.1)
 
-# pm |> as.data.frame() |> openxlsx::write.xlsx(here::here("output", "imputation_predictor.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
+pm |> as.data.frame() |> openxlsx::write.xlsx(here::here("output", "imputation_predictor.xlsx"), overwrite = TRUE, rowNames = TRUE, colNames = TRUE)
 
-# age is a special case of a time-varying confounder so it needs to be handled differently in the predictor 
+# age is a special case of a time-varying confounder so it needs to be handled differently in the predictor
 meth <- mice::make.method(wide_data_pcs)
+meth[meth == "pmm"] <- "norm"
+meth[meth %in% c("polr", "polyreg")] <- "pmm"
 meth[grep("^age_dv_[0-9]", names(meth))] <- ""
-
-# omitting predictors without missingness
-meth["econ_dist_3"] <- ""
-meth["sex_dv_base"] <- ""
 ```
 
 ```{r setup-wide-pcs-mids}
@@ -823,7 +831,11 @@ dir.create(here::here("data"))
 message("Directory 'data' did not exist. Creating directory 'data'")
 }
 message("Creating wide_mids_3_waves_pcs_dynamic.rds into 'data'")
-wide_mids_pcs <- mice::mice(wide_data_pcs, defaultMethod = c("norm", "logreg", "pmm", "pmm"), m = 50, maxit = 15, printFlag = TRUE)
+wide_mids_pcs <- mice::mice(wide_data_pcs, 
+                            method = meth, 
+                            m = 35, 
+                            maxit = 10, 
+                            printFlag = TRUE)
 saveRDS(wide_mids_pcs, file = here::here("data", "wide_mids_3_waves_pcs_dynamic.rds"))
 message("Computed wide_mids_pcs and saved to 'data'")
 }
