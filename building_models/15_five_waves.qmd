@@ -128,7 +128,6 @@ grViz("digraph {
 ## Setup
 ```{r data-setup}
 #| output: false
-#| output: false
 
 pop_data <- import_data() |> 
   select(-econ_incquint) 
