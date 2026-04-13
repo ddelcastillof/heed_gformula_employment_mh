@@ -98,6 +98,12 @@ pred_mat <- make.predictorMatrix(wide_data_mcs)
 pred_mat[,c("lagged_age_dv_0", "lagged_age_dv_1", "lagged_age_dv_2", "lagged_age_dv_3", "lagged_age_dv_4", "lagged_age_dv_5", "lagged_age_dv_6", "lagged_age_dv_7")] <- 0 # collinearity
 pred_mat[,c("lagged_gor_dv_fact_0", "lagged_gor_dv_fact_1", "lagged_gor_dv_fact_2", "lagged_gor_dv_fact_3", "lagged_gor_dv_fact_4", "lagged_gor_dv_fact_5", "lagged_gor_dv_fact_6", "lagged_gor_dv_fact_7")] <- 0 # collinearity across levels of the factor
 
+if (file.exists(here::here("output", "wide_mids_mcs_aw.rds"))) {
+  wide_mids_mcs <- readRDS(here::here("output", "wide_mids_mcs_aw.rds"))
+  message("Loading existing observed outcomes for MCS g-formulaMI run...")
+} else {
+  message("No existing observed outcomes found. Running multiple imputation for MCS outcome with all waves of intervention...")
+
 wide_mids_mcs <- mice(
     wide_data_mcs,
     predictorMatrix = pred_mat,
@@ -106,6 +112,8 @@ wide_mids_mcs <- mice(
     maxit = 1,
     seed = seed
     )
+saveRDS(wide_mids_mcs, here::here("output", "wide_mids_mcs_aw.rds"))
+}
 
 base_predictor_matrix_mcs <- make_predictor_matrix(wide_data_mcs) # custom g-formulaMI predictor matrix function
 ```
