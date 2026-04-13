@@ -1,7 +1,7 @@
 import_data <- function() {
   if (file.exists(here::here("data", "output", "raw_data.rds"))) {
     message("raw_data.fst already exists. Loading from cache.")
-    raw_data <- fst::read_fst(here::here("data", "output", "raw_data.rds"), as.data.table = TRUE)
+    raw_data <- readRDS(here::here("data", "output", "raw_data.rds")) |> as.data.table()
   } else {
 
   message("raw_data.rds does not exist. Creating and writing to cache.")
