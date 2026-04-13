@@ -1,10 +1,10 @@
 import_data <- function() {
-  if (file.exists(here::here("data", "output", "raw_data.fst"))) {
+  if (file.exists(here::here("data", "output", "raw_data.rds"))) {
     message("raw_data.fst already exists. Loading from cache.")
-    raw_data <- fst::read_fst(here::here("data", "output", "raw_data.fst"), as.data.table = TRUE)
+    raw_data <- fst::read_fst(here::here("data", "output", "raw_data.rds"), as.data.table = TRUE)
   } else {
 
-  message("raw_data.fst does not exist. Creating and writing to cache.")
+  message("raw_data.rds does not exist. Creating and writing to cache.")
   
   # Defining paths
   ukhls_raw <- here::here("data", "raw", "ukhls")
@@ -128,7 +128,7 @@ import_data <- function() {
   raw_data <- merge(raw_data, benefits_collapsed, by = c("hidp", "wave"), all.x = TRUE)
 
   
-    fst::write_fst(raw_data, here::here("data", "output", "raw_data.fst"))
+   saveRDS(raw_data, here::here("data", "output", "raw_data.rds"))
   }
 
   return(raw_data)
