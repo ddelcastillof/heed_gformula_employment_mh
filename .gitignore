@@ -47,3 +47,8 @@ R/dump_code.R
 # claude files
 CLAUDE.md
 .claude
+
+# STROBE flowchart compiled artifacts
+/checklists/*.aux
+/checklists/*.log
+/checklists/*.png
