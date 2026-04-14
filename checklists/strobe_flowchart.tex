@@ -1,0 +1,125 @@
+\documentclass[border=8pt]{standalone}
+
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, backgrounds}
+\usepackage{xcolor}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+\definecolor{navyblue}{HTML}{1B2F5B}
+
+\tikzset{
+  mainbox/.style={
+    rectangle, draw=black, line width=0.5pt,
+    minimum width=7.5cm, text width=7.1cm,
+    align=center, font=\small, fill=white, inner sep=8pt
+  },
+  sidebox/.style={
+    rectangle, draw=black, line width=0.5pt,
+    minimum width=5.5cm, text width=5.1cm,
+    align=left, font=\small, fill=white, inner sep=8pt
+  },
+  arrow/.style={
+    -{Latex[length=6pt, width=5pt]},
+    line width=0.8pt
+  }
+}
+
+\begin{document}
+\begin{tikzpicture}
+
+% ── Main flow boxes ───────────────────────────────────────────────────────────
+
+\node[mainbox] (A) {%
+  \textbf{Assessed for eligibility}\\[2pt]
+  UKHLS respondents observed at wave~2 (\emph{n}\,=\,XXX)
+};
+
+\node[mainbox, below=1.6cm of A] (B) {%
+  \textbf{Employment-eligible population}\\[2pt]
+  Employed or not-employed at risk, aged 25--64 (\emph{n}\,=\,XXX)
+};
+
+\node[mainbox, below=1.6cm of B] (C) {%
+  \textbf{Pre-baseline observed}\\[2pt]
+  Observed at wave~2 (pre-baseline) and in scope (\emph{n}\,=\,XXX)
+};
+
+\node[mainbox, below=1.6cm of C] (D) {%
+  \textbf{Analysed}\\[2pt]
+  3-wave (\emph{n}\,=\,XXX) \quad
+  4-wave (\emph{n}\,=\,XXX) \quad
+  5-wave (\emph{n}\,=\,XXX)
+};
+
+% ── Gap midpoints (on the vertical connecting arrows) ─────────────────────────
+
+\coordinate (mAB) at ($(A.south)!0.5!(B.north)$);
+\coordinate (mBC) at ($(B.south)!0.5!(C.north)$);
+\coordinate (mCD) at ($(C.south)!0.5!(D.north)$);
+
+% ── Exclusion boxes — anchored at gap midpoints for clean horizontal arrows ───
+
+\node[sidebox, anchor=west] (excl1) at ($(mAB) + (4.8cm, 0)$) {%
+  \textbf{Not assessed for eligibility}\\[2pt]
+  $\bullet$ Not observed at wave~2 (\emph{n}\,=\,XXX)
+};
+
+\node[sidebox, anchor=west] (excl2) at ($(mBC) + (4.8cm, 0)$) {%
+  \textbf{Excluded}\\[2pt]
+  $\bullet$ Age outside 25--64 (\emph{n}\,=\,XXX)\\
+  $\bullet$ Retired / student / long-term sick (\emph{n}\,=\,XXX)
+};
+
+\node[sidebox, anchor=west] (excl3) at ($(mCD) + (4.8cm, 0)$) {%
+  \textbf{Insufficient outcome data}\\[2pt]
+  $\bullet$ Not observed at outcome wave\\
+  \phantom{$\bullet$ }or ${\geq}$2 MCS values missing (\emph{n}\,=\,XXX)
+};
+
+% ── Main vertical arrows ──────────────────────────────────────────────────────
+
+\draw[arrow] (A.south) -- (B.north);
+\draw[arrow] (B.south) -- (C.north);
+\draw[arrow] (C.south) -- (D.north);
+
+% ── Exclusion arrows — purely horizontal from gap midpoints ──────────────────
+
+\draw[arrow] (mAB) -- (excl1.west);
+\draw[arrow] (mBC) -- (excl2.west);
+\draw[arrow] (mCD) -- (excl3.west);
+
+% ── Sidebar: single navy fill + white dividers (no separate label boxes) ──────
+
+% Sidebar geometry: spans from 1.0cm left of A.west to 0.3cm left of A.west
+\coordinate (sideL) at ($(A.west) + (-1.0cm, 0)$);
+\coordinate (sideR) at ($(A.west) + (-0.3cm, 0)$);
+\coordinate (sideC) at ($(A.west) + (-0.65cm, 0)$);
+
+% Section vertical centres (for rotated text placement)
+\coordinate (cID) at ($(A.north)!0.5!(mAB)$);
+\coordinate (cEX) at ($(mAB)!0.5!(mBC)$);
+\coordinate (cIN) at ($(mBC)!0.5!(mCD)$);
+\coordinate (cAN) at ($(mCD)!0.5!(D.south)$);
+
+\begin{scope}[on background layer]
+  % Continuous navy rectangle spanning full height
+  \fill[navyblue]
+    ($(A.north -| sideL) + (0, 0.2cm)$) rectangle
+    ($(D.south -| sideR) + (0, -0.2cm)$);
+
+  % White dividers between sections
+  \draw[white, line width=1pt] (sideL |- mAB) -- (sideR |- mAB);
+  \draw[white, line width=1pt] (sideL |- mBC) -- (sideR |- mBC);
+  \draw[white, line width=1pt] (sideL |- mCD) -- (sideR |- mCD);
+\end{scope}
+
+% Section labels (rotated text, centred in each section)
+\node[text=white, font=\small\bfseries, rotate=90] at (sideC |- cID) {\strut Identification};
+\node[text=white, font=\small\bfseries, rotate=90] at (sideC |- cEX) {\strut Exclusion};
+\node[text=white, font=\small\bfseries, rotate=90] at (sideC |- cIN) {\strut Inclusion};
+\node[text=white, font=\small\bfseries, rotate=90] at (sideC |- cAN) {\strut Analysis};
+
+\end{tikzpicture}
+\end{document}
