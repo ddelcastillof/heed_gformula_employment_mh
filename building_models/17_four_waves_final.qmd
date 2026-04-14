@@ -106,8 +106,8 @@ wide_mids_mcs <- mice(
     wide_data_mcs,
     predictorMatrix = pred_mat,
     defaultMethod = c("norm", "logreg", "pmm", "pmm"),
-    m = 35,
-    maxit = 10,
+    m = 50,
+    maxit = 15,
     seed = seed
 )
 saveRDS(wide_mids_mcs, here::here("output", "wide_mids_mcs_4w.rds"))
@@ -157,28 +157,27 @@ predictor_matrix["econ_emp_bin_3", "sf12mcs_dv_2"] <- 1
 predictor_matrix["regime",] <- 1
 
 if (file.exists(here::here("output", "imps_mcs_4w.rds"))) {
-  imps <- readRDS(here::here("output", "imps_mcs_4w.rds"))
+  imps_mcs <- readRDS(here::here("output", "imps_mcs_4w.rds"))
   message("Loading existing imputations for MCS g-formulaMI run...")
 } else {
 message("No existing synthetic counterfactual imputations found. Running g-formulaMI for MCS outcome with 4 waves of intervention...")
-imps <- gFormulaImpute(
+imps_mcs <- gFormulaImpute(
     wide_mids_mcs,
     trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
     trtRegimes = regimes,
     predictorMatrix = predictor_matrix,
     M = 200,
-    nSim = 2*(nrow(wide_mids_mcs$data)),
     silent = TRUE
-  )
-saveRDS(imps, here::here("output", "imps_mcs_4w.rds"))
+)
+saveRDS(imps_mcs, here::here("output", "imps_mcs_4w.rds"))
 }
 
 rm(wide_mids_mcs) # to save memory
 
-fits_marginal <- imps %$%
+fits_marginal <- imps_mcs %$%
   lm(sf12mcs_dv_3 ~ 0 + factor(regime))
 
-fits_diff <- imps %$%
+fits_diff <- imps_mcs %$%
   lm(sf12mcs_dv_3 ~ factor(regime))
 
 mi_4cummulative_mcs_marginal <- syntheticPool(fits_marginal)
@@ -222,27 +221,11 @@ mod_4cummulative_mcs_diff <- mi_4cummulative_mcs_diff |>
 mod_4cummulative_mcs_diff |>
   knitr::kable(digits = 3)
 
+saveRDS(mod_4cummulative_mcs_marginal, here::here("output", "model_4w_mcs_marginal.rds"))
+saveRDS(mod_4cummulative_mcs_diff, here::here("output", "model_4w_mcs_diff.rds"))
+
 # deleting objects to save memory for the next outcome
-rm(mi_4cummulative_mcs_marginal, mi_4cummulative_mcs_diff)
-```
-
-### Graph for only diff MCS (to be erased after diagnostics)
-```{r 4wavesmi-graph-diff-mcs}
-#| output: true
-
-graph4waves_diff_mcs <- mod_4cummulative_mcs_diff |>
-  filter(intervention != "0-0-0-0") |>
-  mutate(
-    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
-    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
-  ) |>
-  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
-  geom_point(size = 2, position = position_dodge(width = 0.7)) +
-  geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
-  labs(x = "Estimate", y = "Intervention strategy")
-
-print(graph4waves_diff_mcs)
+rm(mi_4cummulative_mcs_marginal, mi_4cummulative_mcs_diff, mod_4cummulative_mcs_marginal, mod_4cummulative_mcs_diff)
 ```
 
 # PCS outcome
@@ -286,6 +269,10 @@ pred_mat_pcs <- make.predictorMatrix(wide_data_pcs)
 pred_mat_pcs[,c("lagged_age_dv_0", "lagged_age_dv_1", "lagged_age_dv_2", "lagged_age_dv_3")] <- 0 # collinearity
 pred_mat_pcs[,c("lagged_gor_dv_fact_0", "lagged_gor_dv_fact_1", "lagged_gor_dv_fact_2", "lagged_gor_dv_fact_3")] <- 0 # collinearity across levels of the factor
 
+if (file.exists(here::here("output", "wide_mids_pcs_4w.rds"))) {
+  wide_mids_mcs <- readRDS(here::here("output", "wide_mids_pcs_4w.rds"))
+  message("Loading existing observed outcomes for PCS g-formulaMI run...")
+} else {
 wide_mids_pcs <- mice(
     wide_data_pcs,
     predictorMatrix = pred_mat_pcs,
@@ -294,6 +281,8 @@ wide_mids_pcs <- mice(
     maxit = 15,
     seed = seed
     )
+saveRDS(wide_mids_pcs, here::here("output", "wide_mids_pcs_4w.rds"))
+}
 
 base_predictor_matrix_pcs <- make_predictor_matrix(wide_data_pcs) # custom g-formulaMI predictor matrix function
 ```
@@ -301,6 +290,7 @@ base_predictor_matrix_pcs <- make_predictor_matrix(wide_data_pcs) # custom g-for
 ```{r gformulaMI-pcs}
 #| include: false
 #| eval: false
+regimes <- intervention_pattern_4
 
 # predictor matrix for PCS g-formulaMI run
 predictor_matrix_pcs <- base_predictor_matrix_pcs
@@ -335,6 +325,11 @@ predictor_matrix_pcs["econ_emp_bin_1", "sf12pcs_dv_0"] <- 1
 predictor_matrix_pcs["econ_emp_bin_2", "sf12pcs_dv_1"] <- 1
 predictor_matrix_pcs["econ_emp_bin_3", "sf12pcs_dv_2"] <- 1
 
+if (file.exists(here::here("output", "imps_pcs_4w.rds"))) {
+  imps <- readRDS(here::here("output", "imps_pcs_4w.rds"))
+  message("Loading existing imputations for PCS g-formulaMI run...")
+} else {
+message("No existing synthetic counterfactual imputations found. Running g-formulaMI for PCS outcome with 4 waves of intervention...")
 imps_pcs <- gFormulaImpute(
     wide_mids_pcs,
     trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3"),
@@ -343,6 +338,8 @@ imps_pcs <- gFormulaImpute(
     M = 200,
     silent = TRUE
   )
+saveRDS(imps_pcs, here::here("output", "imps_pcs_4w.rds"))
+}
 
 rm(wide_mids_pcs) # to save memory
 
@@ -389,7 +386,10 @@ mod_4cummulative_pcs_diff <- mi_4cummulative_pcs_diff |>
 mod_4cummulative_pcs_diff |>
   knitr::kable(digits = 3)
 
-rm(mi_4cummulative_pcs_marginal, mi_4cummulative_pcs_diff) # to save memory
+saveRDS(mod_4cummulative_pcs_marginal, here::here("output", "model_4w_pcs_marginal.rds"))
+saveRDS(mod_4cummulative_pcs_diff, here::here("output", "model_4w_pcs_diff.rds"))
+
+rm(mi_4cummulative_pcs_marginal, mi_4cummulative_pcs_diff, mod_4cummulative_pcs_marginal, mod_4cummulative_pcs_diff) # to save memory
 ```
 
 # Graphs
@@ -400,6 +400,10 @@ rm(mi_4cummulative_pcs_marginal, mi_4cummulative_pcs_diff) # to save memory
 #| output: true
 #| eval: false
 #| include: false
+
+mod_4cummulative_mcs_marginal <- readRDS(here::here("output", "model_4w_mcs_marginal.rds"))
+
+mod_4cummulative_pcs_marginal <- readRDS(here::here("output", "model_4w_pcs_marginal.rds"))
 
 graph4waves_marginal <- bind_rows(
   mod_4cummulative_mcs_marginal |> mutate(outcome = "MCS"),
@@ -427,6 +431,10 @@ ggsave(graph4waves_marginal, file = here::here("figs", "graph4waves_marginal.png
 #| output: true
 #| include: false
 #| eval: false
+
+mod_4cummulative_mcs_diff <- readRDS(here::here("output", "model_4w_mcs_diff.rds"))
+
+mod_4cummulative_pcs_diff <- readRDS(here::here("output", "model_4w_pcs_diff.rds"))
 
 graph4waves_diff <- bind_rows(
   mod_4cummulative_mcs_diff |> filter(intervention != "0-0-0-0") |> mutate(outcome = "MCS"),
