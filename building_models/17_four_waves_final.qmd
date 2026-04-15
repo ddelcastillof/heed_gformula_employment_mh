@@ -325,6 +325,9 @@ predictor_matrix_pcs["econ_emp_bin_1", "sf12pcs_dv_0"] <- 1
 predictor_matrix_pcs["econ_emp_bin_2", "sf12pcs_dv_1"] <- 1
 predictor_matrix_pcs["econ_emp_bin_3", "sf12pcs_dv_2"] <- 1
 
+# regime row always needs to be 1
+predictor_matrix_pcs["regime",] <- 1
+
 if (file.exists(here::here("output", "imps_pcs_4w.rds"))) {
   imps <- readRDS(here::here("output", "imps_pcs_4w.rds"))
   message("Loading existing imputations for PCS g-formulaMI run...")
