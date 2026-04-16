@@ -107,7 +107,7 @@ wide_mids_mcs <- mice(
     wide_data_mcs,
     predictorMatrix = pred_mat,
     defaultMethod = c("norm", "logreg", "pmm", "pmm"),
-    m = 50,
+    m = 60,
     maxit = 15,
     seed = seed
     )
