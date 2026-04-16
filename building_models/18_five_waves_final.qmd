@@ -108,7 +108,7 @@ wide_mids_mcs <- mice(
     predictorMatrix = pred_mat,
     defaultMethod = c("norm", "logreg", "pmm", "pmm"),
     m = 60,
-    maxit = 15,
+    maxit = 20,
     seed = seed
     )
 saveRDS(wide_mids_mcs, here::here("output", "wide_mids_mcs_5w.rds"))
