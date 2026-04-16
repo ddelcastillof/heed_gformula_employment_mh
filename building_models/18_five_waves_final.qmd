@@ -113,7 +113,7 @@ wide_mids_mcs <- mice(
     )
 saveRDS(wide_mids_mcs, here::here("output", "wide_mids_mcs_5w.rds"))
 }
-
+rm(wide_mids_mcs) # to save memory
 base_predictor_matrix_mcs <- make_predictor_matrix(wide_data_mcs) # custom g-formulaMI predictor matrix function
 ```
 
@@ -167,6 +167,8 @@ if (file.exists(here::here("output", "imps_mcs_5w.rds"))) {
   imps_mcs <- readRDS(here::here("output", "imps_mcs_5w.rds"))
   message("Loading existing imputations for MCS g-formulaMI run...")
 } else {
+wide_mids_mcs <- readRDS(here::here("output", "wide_mids_mcs_5w.rds"))
+message(sprintf("wide_mids_mcs loaded: %s", format(object.size(wide_mids_mcs), units = "MB")))
 message("No existing synthetic counterfactual imputations found. Running g-formulaMI for MCS outcome with 5 waves of intervention...")
 imps_mcs <- gFormulaImpute(
     wide_mids_mcs,
@@ -176,10 +178,11 @@ imps_mcs <- gFormulaImpute(
     M = 200,
     silent = TRUE
   )
+message(sprintf("imps_mcs created: %s", format(object.size(imps_mcs), units = "MB")))
 saveRDS(imps_mcs, here::here("output", "imps_mcs_5w.rds"))
+rm(wide_mids_mcs); gc()
+message("wide_mids_mcs removed and GC run")
 }
-
-rm(wide_mids_mcs) # to save memory
 
 fits_marginal_mcs <- imps_mcs %$%
   lm(sf12mcs_dv_4 ~ 0 + factor(regime))
