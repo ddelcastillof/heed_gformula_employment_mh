@@ -456,5 +456,5 @@ graph5waves_diff <- bind_rows(
 
 print(graph5waves_diff)
 
-ggsave(graph5waves_diff, file = here::here("figs", "graph5waves_diff.png"), dpi = 300,width = 16, height = 12)
+ggsave(graph5waves_diff, file = here::here("figs", "graph5waves_diff.png"), dpi = 300, width = 12, height = 10)
 ```
