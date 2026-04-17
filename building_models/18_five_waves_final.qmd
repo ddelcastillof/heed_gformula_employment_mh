@@ -17,7 +17,7 @@ here::i_am("building_models/18_five_waves_final.qmd")
 source(here::here("R", "import_and_clean.R"))
 source(here::here("R", "func_prep_data.R"))
 
-pacman::p_load(data.table, here, mice, gFormulaMI, magrittr, tidyverse, SPHSUgraphs)
+pacman::p_load(data.table, here, mice, gFormulaMI, magrittr, tidyverse, SPHSUgraphs, colorBlindness)
 
 seed <- 20260410
 ```
@@ -420,7 +420,7 @@ graph5waves_marginal <- bind_rows(
   ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7)) +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_sphsu(palette = "mixed", name = "Number of unemployed periods") +
+  scale_colour_manual(values = unname(paletteMartin), name = "Number of unemployed periods") +
   facet_wrap(~outcome, nrow = 1, scales = "free_x") +
   scale_x_continuous(breaks = seq(44, 51, by = 1)) +
   labs(x = "Marginal mean", y = "Intervention strategy")
@@ -449,7 +449,7 @@ graph5waves_diff <- bind_rows(
   ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7)) +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_sphsu(palette = "mixed", name = "Number of unemployed periods") +
+  scale_colour_manual(values = unname(paletteMartin), name = "Number of unemployed periods") +
   facet_wrap(~outcome, nrow = 1, scales = "free_x") +
   scale_x_continuous(breaks = seq(-6, 0, by = 1)) +
   labs(x = "Mean difference", y = "Intervention strategy")
