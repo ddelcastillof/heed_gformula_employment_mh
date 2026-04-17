@@ -188,6 +188,7 @@ imps <- gFormulaImpute(
     trtVars = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2", "econ_emp_bin_3", "econ_emp_bin_4", "econ_emp_bin_5", "econ_emp_bin_6", "econ_emp_bin_7"),
     trtRegimes = regimes,
     predictorMatrix = predictor_matrix,
+    M = 10,
     silent = TRUE
   )
 
