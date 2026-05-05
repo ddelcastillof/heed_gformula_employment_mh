@@ -18,7 +18,7 @@
   sidebox/.style={
     rectangle, draw=black, line width=0.5pt,
     minimum width=5.5cm, text width=5.1cm,
-    align=left, font=\small, fill=white, inner sep=8pt
+    align=center, font=\small, fill=white, inner sep=8pt
   },
   arrow/.style={
     -{Latex[length=6pt, width=5pt]},
@@ -33,23 +33,33 @@
 
 \node[mainbox] (A) {%
   \textbf{Assessed for eligibility}\\[2pt]
-  UKHLS all respondents across waves 2-10 (\emph{n}\,=\,96372)
+  UKHLS all respondents across waves 2-10 (\emph{n}\,=\,96,372)
 };
 
 \node[mainbox, below=1.6cm of A] (B) {%
-  \textbf{Employment-eligible population}\\[2pt]
-  Employed or not-employed at risk, aged 25--65, waves 2-10 (\emph{n}\,=\,75177)
+  \textbf{Eligible population}\\[2pt]
+  Population with response at wave 2 (\emph{n}\,=\,75,445)
 };
 
 \node[mainbox, below=1.6cm of B] (C) {%
   \textbf{Pre-baseline observed}\\[2pt]
-  Observed at wave~2 (pre-baseline) and in scope (\emph{n}\,=\,40660)
+  Working-age population in employment or unemployment, observed at wave 2 (\emph{n}\,=\,40,660)
 };
 
 \node[mainbox, below=1.6cm of C] (D) {%
-  \textbf{Analysed}\\[2pt] 
-  Analytical sample (waves 3-6) \\ 
-  (\emph{n}\,=\,23767)
+  \textbf{Analysed}\\[2pt]
+  Observed outcomes sample (waves 3-6) \\
+  (\emph{n}\,=\,21,104)
+};
+
+\node[mainbox, below=1.6cm of D] (E) {%
+  \textbf{Multiple imputation of observed outcomes}\\[2pt]
+  Observed cases imputed to generate complete datasets (\emph{M}\,=\,50 imputations)
+};
+
+\node[mainbox, below=1.6cm of E] (F) {%
+  \textbf{Multiple imputation of potential outcomes}\\[2pt]
+  Imputed datasets introduced to generate potential outcomes datasets for g-formula estimation (\emph{M}\,=\,200 imputations)
 };
 
 % ── Gap midpoints (on the vertical connecting arrows) ─────────────────────────
@@ -62,19 +72,18 @@
 
 \node[sidebox, anchor=west] (excl1) at ($(mAB) + (4.8cm, 0)$) {%
   \textbf{Not assessed for eligibility}\\[2pt]
-  $\bullet$ Not observed at wave~2 (\emph{n}\,=\,18927)
+  Not observed at wave~2 (\emph{n}\,=\,18,927)
 };
 
 \node[sidebox, anchor=west] (excl2) at ($(mBC) + (4.8cm, 0)$) {%
   \textbf{Excluded}\\[2pt]
-  $\bullet$ Ever retired / student / long-term sick (\emph{n}\,=\,28883)\\
-  $\bullet$ Age outside 25--65 (\emph{n}\,=\,36785)
+  Ever retired / student / long-term sick (\emph{n}\,=\,28,883), age outside 25--65\textsuperscript{a} (\emph{n}\,=\,36,785) or both
 };
 
-\node[sidebox, anchor=west] (excl3) at ($(mCD) + (4.8cm, 0)$) {%
+\node[sidebox, align=left, anchor=west] (excl3) at ($(mCD) + (4.8cm, 0)$) {%
   \textbf{Insufficient outcome data}\\[2pt]
-  $\bullet$ Not observed at outcome wave\\
-  \phantom{$\bullet$ }and ${\geq}$2 MCS values missing (\emph{n}\,=\,2876)
+  $\bullet$ With incomplete information at waves 3-6 (\emph{n}\,=\,37,856)\\
+  $\bullet$ Outcomes with ${\geq}$2 values missing or missing measurement at wave 2 (\emph{n}\,=\,2,663)
 };
 
 % ── Main vertical arrows ──────────────────────────────────────────────────────
@@ -82,6 +91,8 @@
 \draw[arrow] (A.south) -- (B.north);
 \draw[arrow] (B.south) -- (C.north);
 \draw[arrow] (C.south) -- (D.north);
+\draw[arrow] (D.south) -- node[right, font=\small\itshape, xshift=3pt] {mice} (E.north);
+\draw[arrow] (E.south) -- node[right, font=\small\itshape, xshift=3pt] {gFormulaMI} (F.north);
 
 % ── Exclusion arrows — purely horizontal from gap midpoints ──────────────────
 
@@ -100,13 +111,13 @@
 \coordinate (cID) at ($(A.north)!0.5!(mAB)$);
 \coordinate (cEX) at ($(mAB)!0.5!(mBC)$);
 \coordinate (cIN) at ($(mBC)!0.5!(mCD)$);
-\coordinate (cAN) at ($(mCD)!0.5!(D.south)$);
+\coordinate (cAN) at ($(mCD)!0.5!(F.south)$);
 
 \begin{scope}[on background layer]
   % Continuous navy rectangle spanning full height
   \fill[navyblue]
     ($(A.north -| sideL) + (0, 0.2cm)$) rectangle
-    ($(D.south -| sideR) + (0, -0.2cm)$);
+    ($(F.south -| sideR) + (0, -0.2cm)$);
 
   % White dividers between sections
   \draw[white, line width=1pt] (sideL |- mAB) -- (sideR |- mAB);
@@ -119,6 +130,18 @@
 \node[text=white, font=\small\bfseries, rotate=90] at (sideC |- cEX) {\strut Exclusion};
 \node[text=white, font=\small\bfseries, rotate=90] at (sideC |- cIN) {\strut Inclusion};
 \node[text=white, font=\small\bfseries, rotate=90] at (sideC |- cAN) {\strut Analysis};
+
+% ── Footnote ──────────────────────────────────────────────────────────────────
+
+\node[
+  below=0.5cm of F,
+  anchor=north,
+  text width=13cm,
+  align=justify,
+  font=\footnotesize
+] {%
+  \textsuperscript{a}\,Age was imputed by carrying forward the baseline (wave~1) age value and incrementing it by one year per subsequent wave.
+};
 
 \end{tikzpicture}
 \end{document}
