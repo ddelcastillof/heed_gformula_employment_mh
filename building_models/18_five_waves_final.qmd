@@ -17,7 +17,7 @@ here::i_am("building_models/18_five_waves_final.qmd")
 source(here::here("R", "import_and_clean.R"))
 source(here::here("R", "func_prep_data.R"))
 
-pacman::p_load(data.table, here, mice, gFormulaMI, magrittr, tidyverse, SPHSUgraphs, colorBlindness)
+pacman::p_load(data.table, here, mice, gFormulaMI, magrittr, tidyverse, SPHSUgraphs, colorBlindness, patchwork, cowplot)
 
 seed <- 20260410
 ```
@@ -240,6 +240,48 @@ rm(mi_5cummulative_mcs_marginal, mi_5cummulative_mcs_diff, mod_5cummulative_mcs_
 
 # PCS outcome
 
+```{r pcs-prep-data}
+#| message: false
+#| warning: false
+
+pop_data <- clean_data() |> preproc_data()
+
+# keep only people observed at both wave 2 (pre-baseline, for lagged in w3) and wave 7 (outcome)
+eligible_pidp <- intersect(
+  pop_data[wave == 2 & response == 1, pidp],
+  pop_data[wave == 7 & response == 1, pidp]
+)
+
+pop_DT <- pop_data[pidp %in% eligible_pidp]
+
+# long format variable shifting
+long_data <- pop_DT[, `:=`(
+  t0 = t0 - 2L,
+  pcs_lagged = shift(sf12pcs_dv, type = "lag"),
+  mcs_lagged = shift(sf12mcs_dv, type = "lag"),
+  lagged_dnc = shift(dnc, type = "lag"),
+  lagged_home_owner = shift(home_owner, type = "lag"),
+  lagged_econ_benefits = shift(econ_benefits, type = "lag"),
+  lagged_gor_dv_fact = shift(gor_dv_fact, type = "lag"),
+  lagged_age_dv = shift(age_dv, type = "lag"),
+  lagged_mastat_dv = shift(mastat_dv, type = "lag")
+  )][wave %in% 3:7]
+
+# keeping those with at least 2 observed PCS outcomes and no baseline missing
+no_ph_outcomes <- long_data[,
+  .(n_missing = sum(is.na(sf12pcs_dv)), base_missing = all(is.na(sf12pcs_dv_base))),
+  by = pidp
+][n_missing >= 2 & base_missing == TRUE, .(pidp)]
+
+# how many are excluded here
+length(no_ph_outcomes$pidp)
+
+long_data <- long_data[!no_ph_outcomes, on = .(pidp)]
+
+# matrix of possible intervention patterns for 5 time points (0: no intervention, 1: intervention)
+intervention_pattern_5 <- asplit(as.matrix(CJ(0:1, 0:1, 0:1, 0:1, 0:1)), 1)
+```
+
 ```{r prep-data-wide-pcs}
 wide_data_pcs <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |>
@@ -423,11 +465,12 @@ graph5waves_marginal <- bind_rows(
   scale_colour_manual(values = unname(paletteMartin), name = "Number of unemployed periods") +
   facet_wrap(~outcome, nrow = 1, scales = "free_x") +
   scale_x_continuous(breaks = seq(44, 51, by = 1)) +
-  labs(x = "Marginal mean", y = "Intervention strategy")
+  labs(x = "Estimated marginal mean", y = "Intervention strategy") +
+  theme_bw()
 
 print(graph5waves_marginal)
 
-ggsave(graph5waves_marginal, file = here::here("figs", "graph5waves_marginal.png"), dpi = 300, width = 16, height = 12)
+ggsave(graph5waves_marginal, file = here::here("figs", "graph5waves_marginal.png"), dpi = 300, width = 8, height = 12)
 ```
 
 ## Mean difference
@@ -452,9 +495,28 @@ graph5waves_diff <- bind_rows(
   scale_colour_manual(values = unname(paletteMartin), name = "Number of unemployed periods") +
   facet_wrap(~outcome, nrow = 1, scales = "free_x") +
   scale_x_continuous(breaks = seq(-6, 0, by = 1)) +
-  labs(x = "Mean difference", y = "Intervention strategy")
+  labs(x = "Estimated mean difference
+  (reference: always employed, E-E-E-E)", y = "Intervention strategy") +
+  theme_bw()
 
 print(graph5waves_diff)
 
-ggsave(graph5waves_diff, file = here::here("figs", "graph5waves_diff.png"), dpi = 300, width = 12, height = 10)
+ggsave(graph5waves_diff, file = here::here("figs", "graph5waves_diff.png"), dpi = 300, width = 8, height = 12)
+```
+
+## Combined
+
+```{r 5wavesmi-graph-combined}
+#| output: true
+
+library(cowplot)
+
+graph5waves_combined <- plot_grid(
+  graph5waves_marginal, graph5waves_diff,
+  ncol = 1, align = "v", labels = "AUTO"
+)
+
+print(graph5waves_combined)
+
+ggsave(graph5waves_combined, file = here::here("figs", "graph5waves_combined.png"), dpi = 300, width = 10, height = 12)
 ```
