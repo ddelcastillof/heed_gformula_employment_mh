@@ -1,5 +1,5 @@
 .PHONY: all slides flowchart compiling-flowchart converting-flowchart \
-        create-slides clean-strobe-files clean-pass
+        create-slides clean-strobe-files clean-slide-files
 
 all: flowchart slides
 
