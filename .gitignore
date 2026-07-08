@@ -54,6 +54,7 @@ checklists/*.log
 checklists/*.png
 checklists/*.fls
 checklists/*.fdb_latexmk
+checklists/*.synctex.gz
 
 # Ignoring files in slides
 slides/
