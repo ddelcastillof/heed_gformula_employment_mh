@@ -35,11 +35,11 @@ R/dump_code.R
 # ingoring dag until futher notice
 /dag/
 
-# ignoring output tables until further notice
-/output/
+# ignoring output tables
+output/
 
-# ignoring meta-analysis until further notice
-/overall_estimates/
+# legacy files
+legacy/
 
 # settings json vscode
 .vscode/
@@ -49,6 +49,11 @@ CLAUDE.md
 .claude
 
 # STROBE flowchart compiled artifacts
-/checklists/*.aux
-/checklists/*.log
-/checklists/*.png
+checklists/*.aux
+checklists/*.log
+checklists/*.png
+checklists/*.fls
+checklists/*.fdb_latexmk
+
+# Ignoring files in slides
+slides/
