@@ -1,24 +1,31 @@
+# R hidden files
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
-do/
+
+# PDF and Word files
 *.pdf
 *.docx
+
+# Raw data
 data/*
+
+# Reference template
 reports/reference.docx
 
+# Quarto files
 /.quarto/
-graphs/
-
 **/*.quarto_ipynb
-R/dump_code.R
+
+# Output figures
+figs/
 
 # Ignoring files in figs
 /figs/*
 
 # Ignoring manuscript folder
-/manuscript/
+manuscript/
 
 #DS_Store files
 .DS_Store
@@ -26,12 +33,12 @@ R/dump_code.R
 # Git worktrees
 .worktrees/
 
-# ignoring stata build files
-/ukhls/
+# ignoring Stata build files
+ukhls/
 *.dta
 
-# ingoring dag until futher notice
-/dag/
+# ignoring DAG code
+dag/
 
 # ignoring output tables
 output/
@@ -56,5 +63,3 @@ checklists/*.synctex.gz
 
 # Ignoring files in slides
 slides/
-
-# @pending:  improve gitignore file organisation
