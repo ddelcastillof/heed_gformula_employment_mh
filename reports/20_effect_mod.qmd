@@ -19,7 +19,8 @@ source(here::here("R", "func_prep_data.R"))
 source(here::here("R", "helpers.R"))
 
 pacman::p_load(data.table, here, mice, gFormulaMI, magrittr, tidyverse,
-               SPHSUgraphs, colorBlindness, patchwork, cowplot)
+               SPHSUgraphs, colorBlindness, patchwork, cowplot,
+               flextable, kableExtra)
 
 seed <- 20260410
 ```
@@ -73,7 +74,8 @@ long_data[, age_group := factor(
 
 long_data[, edu_group := factor(fcase(
   hiqual_dv_base %in% c(1L, 2L),          "Higher",
-  hiqual_dv_base %in% c(3L, 4L, 5L, 9L), "Lower",
+  hiqual_dv_base %in% c(3L, 4L, 5L),          "Medium",
+  hiqual_dv_base %in% c(9L),          "Lower",
   default = NA_character_
 ))]
 
@@ -136,8 +138,10 @@ for (v in c("age_dv_base", "age_group", "edu_group")) {
   pred_mat_mcs[, v] <- 0
 }
 
-if (file.exists(here::here("output", "wide_mids_mcs_em.rds"))) {
-  wide_mids_mcs <- readRDS(here::here("output", "wide_mids_mcs_em.rds"))
+mids_file_path_mcs <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/wide_mids_mcs_em.rds"
+
+if (file.exists(mids_file_path_mcs)) {
+  wide_mids_mcs <- readRDS(mids_file_path_mcs)
   message("Loading cached MCS MIDS (effect modification)...")
 } else {
   message("Running MICE for MCS effect modification analysis...")
@@ -149,20 +153,19 @@ if (file.exists(here::here("output", "wide_mids_mcs_em.rds"))) {
     maxit           = 15,
     seed            = seed
   )
-  saveRDS(wide_mids_mcs, here::here("output", "wide_mids_mcs_em.rds"))
+  saveRDS(wide_mids_mcs, mids_file_path_mcs)
 }
 ```
 
 ## gFormulaMI predictor matrix
 
-Same DAG structure as `16_three_waves_final.qmd`, plus strata variable columns
-zeroed to prevent collinearity in the sequential imputation.
+Same DAG structure as `16_three_waves_final.qmd`, plus strata variable columns zeroed to prevent collinearity in the sequential imputation.
 
 ```{r pred-matrix-mcs}
 predictor_matrix_mcs <- make_predictor_matrix(wide_data_mcs)
 
 # Zero strata and collinear columns
-predictor_matrix_mcs[, c("age_dv_base", "age_group", "edu_group")] <- 0
+predictor_matrix_mcs[, c("age_group", "edu_group")] <- 0
 
 # MCS intermediate values do not predict other intermediates (block forward contamination)
 predictor_matrix_mcs[, "sf12mcs_dv_0"] <- 0
@@ -204,38 +207,53 @@ strata_spec <- list(
        label = "Sex",
        stratum = "Female",
        cache = "em_mcs_sex_female.rds",
+       imps = "imps_female_mcs.rds",
        datasets = 200),
   list(col = "sex_dv_base",
        val = "Male",            
        label = "Sex",
        stratum = "Male",
        cache = "em_mcs_sex_male.rds",
+       imps = "imps_male_mcs.rds",
        datasets = 200),
   list(col = "age_group",
        val = "Younger (25-40)", 
        label = "Age group",
        stratum = "Younger (25-40)",
        cache = "em_mcs_age_young.rds",
+       imps = "imps_age_young_mcs.rds",
        datasets = 200),
   list(col = "age_group",
        val = "Older (41-65)", 
        label = "Age group",
        stratum = "Older (41-65)",
        cache = "em_mcs_age_older.rds",
+       imps = "imps_age_older_mcs.rds",
        datasets = 200),
   list(col = "edu_group",
        val = "Higher",
        label = "Education",
        stratum = "Higher",
        cache = "em_mcs_edu_higher.rds",
+       imps = "imps_edu_higher_mcs.rds",
+       datasets = 200),
+  list(col = "edu_group",
+       val = "Medium",
+       label = "Education",
+       stratum = "Medium",
+       cache = "em_mcs_edu_medium.rds",
+       imps = "imps_edu_medium_mcs.rds",
        datasets = 200),
   list(col = "edu_group",
        val = "Lower",
        label = "Education",
        stratum = "Lower",
        cache = "em_mcs_edu_lower.rds",
+       imps = "imps_edu_lower_mcs.rds",
        datasets = 200)
 )
+
+onedrive_output <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output"
 
 results_mcs <- map(strata_spec, ~ run_em_stratum(
   mids_full       = wide_mids_mcs,
@@ -248,7 +266,8 @@ results_mcs <- map(strata_spec, ~ run_em_stratum(
   trt_vars        = trt_vars_3,
   regimes         = intervention_pattern_3,
   regime_labels   = regimes_3,
-  cache_path      = here::here("output", .x$cache),
+  cache_path      = file.path(onedrive_output, .x$cache),
+  imps_path       = file.path(onedrive_output, .x$imps),
   datasets        = .x$datasets
 ))
 
@@ -264,8 +283,15 @@ mcs_marginal <- map_df(results_mcs, "marginal") |>
 mcs_diff <- map_df(results_mcs, "diff") |>
   mutate(outcome = "Mental Component Score (MCS)")
 
-saveRDS(mcs_diff,     here::here("output", "em_mcs_diff.rds"))
-saveRDS(mcs_marginal, here::here("output", "em_mcs_marginal.rds"))
+em_mcs_diff_path     <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/em_mcs_diff.rds"
+em_mcs_marginal_path <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/em_mcs_marginal.rds"
+
+if (file.exists(em_mcs_diff_path) & file.exists(em_mcs_marginal_path)) {
+  message("MCS effect modification results already saved. Skipping saving step...")
+} else {
+  saveRDS(mcs_diff,     em_mcs_diff_path)
+  saveRDS(mcs_marginal, em_mcs_marginal_path)
+}
 
 rm(wide_mids_mcs)
 ```
@@ -312,8 +338,10 @@ for (v in c("age_dv_base", "age_group", "edu_group")) {
   pred_mat_pcs[, v] <- 0
 }
 
-if (file.exists(here::here("output", "wide_mids_pcs_em.rds"))) {
-  wide_mids_pcs <- readRDS(here::here("output", "wide_mids_pcs_em.rds"))
+mids_file_path_pcs <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/wide_mids_pcs_em.rds"
+
+if (file.exists(mids_file_path_pcs)) {
+  wide_mids_pcs <- readRDS(mids_file_path_pcs)
   message("Loading cached PCS MIDS (effect modification)...")
 } else {
   message("Running MICE for PCS effect modification analysis...")
@@ -325,14 +353,14 @@ if (file.exists(here::here("output", "wide_mids_pcs_em.rds"))) {
     maxit           = 15,
     seed            = seed
   )
-  saveRDS(wide_mids_pcs, here::here("output", "wide_mids_pcs_em.rds"))
+  saveRDS(wide_mids_pcs, mids_file_path_pcs)
 }
 ```
 
 ```{r pred-matrix-pcs}
 predictor_matrix_pcs <- make_predictor_matrix(wide_data_pcs)
 
-predictor_matrix_pcs[, c("age_dv_base", "age_group", "edu_group")] <- 0
+predictor_matrix_pcs[, c("age_group", "edu_group")] <- 0
 
 # PCS intermediate values do not predict other intermediates
 predictor_matrix_pcs[, "sf12pcs_dv_0"] <- 0
@@ -361,7 +389,8 @@ predictor_matrix_pcs["regime", ] <- 1
 
 ```{r gformula-pcs}
 strata_spec_pcs <- map(strata_spec, ~ modifyList(.x, list(
-  cache = sub("mcs", "pcs", .x$cache)
+  cache = sub("mcs", "pcs", .x$cache),
+  imps  = sub("mcs", "pcs", .x$imps)
 )))
 
 results_pcs <- map(strata_spec_pcs, ~ run_em_stratum(
@@ -375,7 +404,8 @@ results_pcs <- map(strata_spec_pcs, ~ run_em_stratum(
   trt_vars         = trt_vars_3,
   regimes          = intervention_pattern_3,
   regime_labels    = regimes_3,
-  cache_path       = here::here("output", .x$cache),
+  cache_path       = file.path(onedrive_output, .x$cache),
+  imps_path        = file.path(onedrive_output, .x$imps),
   datasets         = .x$datasets
 ))
 
@@ -389,8 +419,15 @@ pcs_marginal <- map_df(results_pcs, "marginal") |>
 pcs_diff <- map_df(results_pcs, "diff") |>
   mutate(outcome = "Physical Component Score (PCS)")
 
-saveRDS(pcs_diff,     here::here("output", "em_pcs_diff.rds"))
-saveRDS(pcs_marginal, here::here("output", "em_pcs_marginal.rds"))
+em_pcs_diff_path     <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/em_pcs_diff.rds"
+em_pcs_marginal_path <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/em_pcs_marginal.rds"
+
+if (file.exists(em_pcs_diff_path) & file.exists(em_pcs_marginal_path)) {
+  message("PCS effect modification results already saved. Skipping saving step...")
+} else {
+  saveRDS(pcs_diff,     em_pcs_diff_path)
+  saveRDS(pcs_marginal, em_pcs_marginal_path)
+}
 
 rm(wide_mids_pcs)
 ```
@@ -399,82 +436,150 @@ rm(wide_mids_pcs)
 
 ## Interaction tests
 
-For each effect modifier and outcome, the interaction is tested on the **difference on causal mean differences** contrast per strata (named $\hat{\delta}$).
-The test statistic is the difference of the stratum-specific effect estimates divided by the pooled standard error, assuming independence between strata (non-overlapping subgroups).
+For each combination of treatment strategy, effect modifier, and outcome, effect modification is tested via **(k−1) df Wald $\chi^2$ test** on the stratum-specific causal mean differences ($\hat{\delta}$), where $k$ is the number of strata for that modifier.
 
-$$
-z = \frac{\hat{\delta}_A - \hat{\delta}_B}{\sqrt{\text{SE}_A^2 + \text{SE}_B^2}}
-$$
+All contrasts are formed against the first (reference) stratum. The covariance matrix $\Sigma$ accounts for the positive dependence between contrasts that share the reference estimate:
 
-Where $\hat{\delta}_A$ and $\hat{\delta}_B$ are the causal mean differences for strata A and B, and $\text{SE}_A$ and $\text{SE}_B$ are their respective standard errors. The p-value for the interaction is calculated as $p_{\text{int}} = 2 \times P(|Z| > |z|)$, where $Z$ follows a standard normal distribution under the null hypothesis of no interaction. As we are conducting multiple interaction tests (6 tests: 3 effect modifiers × 2 outcomes), we will apply a Bonferroni correction to adjust the significance threshold to $\alpha = 0.05 / 21 \approx 0.0024$.
+$$\mathbf{c} = \hat{\boldsymbol\delta}_{\text{ref}} - \hat{\boldsymbol\delta}_{-\text{ref}}, \quad \Sigma_{jj} = SE_{\text{ref}}^2 + SE_j^2, \quad \Sigma_{jl} = SE_{\text{ref}}^2 \; (j \neq l), \quad W = \mathbf{c}^\top \Sigma^{-1} \mathbf{c} \sim \chi^2(k-1)$$
+
+- **Binary modifiers (Sex, Age)**: $k=2$, 1 df — reduces to $z^2$ with $\Sigma = SE_A^2 + SE_B^2$
+- **Education (Higher / Medium / Lower)**: $k=3$, 2 df — the off-diagonal $SE_H^2$ captures the covariance between the two contrasts sharing the Higher reference. Using three separate pairwise tests would treat this as zero, inflating type I error for the global null.
+
+**Multiple comparison adjustment**: MCS and PCS are treated as separate inferential families (distinct constructs), so the BH correction is applied **within each outcome** across 7 non-reference strategies × 3 modifiers = **21 global tests per outcome**. The **Benjamini-Hochberg (BH) procedure** controls the False Discovery Rate at 5% within each family. All 21 p-values per outcome are adjusted simultaneously.
 
 ```{r interaction-test}
 #| output: true
 
+# Returns all pairwise contrast deltas + CIs, plus the global (k-1) df Wald chi2 test
+# repeated on every row within the modifier group.
+# BH is applied separately to the 21 distinct global tests per outcome (not per row).
 compute_interaction_test <- function(diff_df, strata_var_filter, outcome_label) {
 
-  unique_strata <- diff_df |>
-    pull(stratum) |>
-    unique()
+  filtered <- diff_df |>
+    filter(strata_var == strata_var_filter, outcome == outcome_label) |>
+    arrange(stratum)
 
-  diff_df |>
-    filter(strata_var == strata_var_filter, intervention != "0-0-0") |>
-    arrange(stratum) |>
-    reframe(
-      outcome   = outcome_label,
+  strata  <- unique(filtered$stratum)
+  effects <- filtered$mi_effect
+  ses     <- filtered$mi_se
+  lls     <- filtered$mi_ll
+  uls     <- filtered$mi_ul
+  k       <- length(strata)
+
+  # Global (k-1) df Wald chi2 test
+  c_vec   <- effects[1] - effects[-1]
+  Sigma   <- matrix(ses[1]^2, nrow = k - 1, ncol = k - 1)
+  diag(Sigma) <- ses[1]^2 + ses[-1]^2
+  chi2_stat <- as.numeric(t(c_vec) %*% solve(Sigma) %*% c_vec)
+  df_test   <- k - 1L
+  p_int     <- pchisq(chi2_stat, df = df_test, lower.tail = FALSE)
+
+  # All pairwise contrast deltas and 95% CIs (for display)
+  pairs <- combn(seq_len(k), 2, simplify = FALSE)
+  map_df(pairs, function(idx) {
+    i <- idx[1]; j <- idx[2]
+    delta    <- effects[i] - effects[j]
+    se_delta <- sqrt(ses[i]^2 + ses[j]^2)
+    tibble(
+      outcome    = outcome_label,
       strata_var = strata_var_filter,
-      stratum_a  = unique_strata[1],
-      effect_a   = mi_effect[1],
-      se_a       = mi_se[1],
-      stratum_b  = unique_strata[2],
-      effect_b   = mi_effect[2],
-      se_b       = mi_se[2],
-      delta      = effect_a - effect_b,
-      se_delta   = sqrt(se_a^2 + se_b^2),
-      ci_delta_l = delta - 1.96 * se_delta,
-      ci_delta_u = delta + 1.96 * se_delta,
-      z          = delta / se_delta,
-      p_int      = 2 * pnorm(-abs(z)),
-      p_int_adj  = p.adjust(
-        p_int,
-        method = "bonferroni",
-        n = bonferroni_interaction_tests
-      ) # total interaction tests across non-reference strategies, effect modifiers, and outcomes
+      stratum_a  = strata[i],
+      stratum_b  = strata[j],
+      cate_a     = effects[i],
+      cate_a_ll  = lls[i],
+      cate_a_ul  = uls[i],
+      cate_b     = effects[j],
+      cate_b_ll  = lls[j],
+      cate_b_ul  = uls[j],
+      delta      = delta,
+      ci_l       = delta - 1.96 * se_delta,
+      ci_u       = delta + 1.96 * se_delta,
+      df_test    = df_test,
+      chi2_stat  = chi2_stat,
+      p_int      = p_int      # global test — same for all rows within this modifier
     )
+  })
 }
 
 all_diff <- bind_rows(mcs_diff, pcs_diff)
 
-treat_strategies <- all_diff |> pull(intervention) |> unique() |> setdiff("0-0-0")
-effect_modifier_vars <- c("Sex", "Age group", "Education")
-outcome_labels <- c("MCS", "PCS")
-bonferroni_interaction_tests <- length(treat_strategies) * length(effect_modifier_vars)
+treat_strategies  <- setdiff(unique(all_diff$intervention), "0-0-0")
+effect_modifiers  <- c("Sex", "Age group", "Education")
+outcome_labels    <- c("Mental Component Score (MCS)", "Physical Component Score (PCS)")
 
-# testing interaction per each treatment strategy with multiple correction for multiple comparisons (6 tests per outcome)
 interaction_results <- bind_rows(
-  map(
-    treat_strategies,
-    ~ {
-        strategy_diff <- all_diff |> filter(intervention == .x)
-
-        bind_rows(
-          compute_interaction_test(strategy_diff, "Sex",       "MCS"),
-          compute_interaction_test(strategy_diff, "Age group", "MCS"),
-          compute_interaction_test(strategy_diff, "Education", "MCS"),
-          compute_interaction_test(strategy_diff, "Sex",       "PCS"),
-          compute_interaction_test(strategy_diff, "Age group", "PCS"),
-          compute_interaction_test(strategy_diff, "Education", "PCS")
-        )
-      }
-  )
+  map(treat_strategies, function(strat) {
+    strat_diff <- all_diff |> filter(intervention == strat)
+    bind_rows(map(outcome_labels, function(out) {
+      bind_rows(map(effect_modifiers, ~ compute_interaction_test(strat_diff, .x, out)))
+    })) |> mutate(intervention = strat)
+  })
 )
 
+# BH on 21 distinct global tests per outcome (7 strategies × 3 modifiers)
+bh_adj <- interaction_results |>
+  distinct(outcome, intervention, strata_var, p_int) |>
+  group_by(outcome) |>
+  mutate(q_int = p.adjust(p_int, method = "BH")) |>
+  ungroup()
+
+interaction_results <- interaction_results |>
+  left_join(bh_adj, by = c("outcome", "intervention", "strata_var", "p_int"))
+
 interaction_results |>
-  select(outcome, strata_var, stratum_a, effect_a, se_a,
-         stratum_b, effect_b, se_b, delta, se_delta, ci_delta_l, ci_delta_u, z, p_int, p_int_adj) |>
-  arrange(outcome, strata_var) |>
+  mutate(intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))) |>
+  select(outcome, strata_var, stratum_a, stratum_b, intervention,
+         cate_a, cate_a_ll, cate_a_ul,
+         cate_b, cate_b_ll, cate_b_ul,
+         delta, ci_l, ci_u, df_test, chi2_stat, q_int) |>
+  arrange(outcome, strata_var, stratum_a, stratum_b, intervention) |>
   knitr::kable(digits = 3,
-               caption = "Interaction tests across all treatment strategies")
+               col.names = c("Outcome", "Modifier", "Stratum A", "Stratum B",
+                             "Regime",
+                             "CATE A", "95% CI A (lower)", "95% CI A (upper)",
+                             "CATE B", "95% CI B (lower)", "95% CI B (upper)",
+                             "ΔCATE", "95% CI (lower)", "95% CI (upper)",
+                             "df", "Wald χ²", "q (BH)"),
+               caption = "Effect modification: stratum-specific CATEs and their difference (ΔCATE = CATE_A − CATE_B) with 95% CIs and global Wald test, BH-adjusted q-value (FDR 5%)")
+```
+
+```{r tab-em-word}
+interaction_results |>
+  mutate(
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+    cate_a_ci    = sprintf("%.2f [%.2f; %.2f]", cate_a, cate_a_ll, cate_a_ul),
+    cate_b_ci    = sprintf("%.2f [%.2f; %.2f]", cate_b, cate_b_ll, cate_b_ul),
+    dcate_ci     = sprintf("%.2f [%.2f; %.2f]", delta, ci_l, ci_u),
+    chi2_stat    = round(chi2_stat, 2),
+    q_int        = round(q_int, 3)
+  ) |>
+  select(outcome, intervention, strata_var,
+         stratum_a, cate_a_ci, stratum_b, cate_b_ci,
+         dcate_ci, df_test, chi2_stat, q_int) |>
+  arrange(outcome, intervention, strata_var, stratum_a, stratum_b) |>
+  flextable() |>
+  set_header_labels(
+    outcome      = "Outcome",
+    intervention = "Regime",
+    strata_var   = "Modifier",
+    stratum_a    = "Stratum A",
+    cate_a_ci    = "CATE [95% CI]",
+    stratum_b    = "Stratum B",
+    cate_b_ci    = "CATE [95% CI]",
+    dcate_ci     = "\u0394CATE [95% CI]",
+    df_test      = "df",
+    chi2_stat    = "Wald \u03c7\u00b2",
+    q_int        = "q (BH)"
+  ) |>
+  merge_v(j = c("outcome", "intervention", "strata_var", "stratum_a", "stratum_b",
+                "df_test", "chi2_stat", "q_int")) |>
+  set_table_properties(layout = "autofit", width = 1) |>
+  fontsize(size = 9, part = "all") |>
+  add_footer_lines(
+    "q (BH): Benjamini-Hochberg false discovery rate-adjusted q-value, applied within each outcome. Controls the expected proportion of false discoveries among significant findings at 5%."
+  ) |>
+  fontsize(size = 8, part = "footer") |>
+  save_as_docx(path = here::here("manuscript", "table_effect_modification.docx"))
 ```
 
 ## Effect estimates by stratum
@@ -556,7 +661,8 @@ graph_em_full <- all_diff |>
       "Younger (25-40)" = unname(paletteMartin)[3],
       "Older (41-65)"   = unname(paletteMartin)[4],
       "Higher"          = unname(paletteMartin)[5],
-      "Lower"           = unname(paletteMartin)[6]
+      "Medium"          = unname(paletteMartin)[6],
+      "Lower"           = unname(paletteMartin)[7]
     ),
     name = "Stratum"
   ) +
@@ -564,7 +670,7 @@ graph_em_full <- all_diff |>
     values = c(
       "Female"          = 16L, "Male"            = 17L,
       "Younger (25-40)" = 16L, "Older (41-65)"   = 17L,
-      "Higher"          = 16L, "Lower"           = 17L
+      "Higher"          = 16L, "Medium"          = 17L, "Lower"           = 18L
     ),
     name = "Stratum"
   ) +

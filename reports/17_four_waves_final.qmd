@@ -17,7 +17,7 @@ here::i_am("building_models/17_four_waves_final.qmd")
 source(here::here("R", "import_and_clean.R"))
 source(here::here("R", "func_prep_data.R"))
 
-pacman::p_load(data.table, here, mice, gFormulaMI, magrittr, tidyverse)
+pacman::p_load(data.table, here, mice, gFormulaMI, magrittr, tidyverse, colorBlindness, flextable)
 
 seed <- 20260410
 ```
@@ -28,11 +28,16 @@ seed <- 20260410
 
 pop_data <- clean_data() |> preproc_data()
 
+# individuals in processed data
+length(unique(pop_data$pidp)) #61623
+
 # keep only people observed at both wave 2 (pre-baseline, for lagged in w3) and wave 6 (outcome)
 eligible_pidp <- intersect(
   pop_data[wave == 2 & response == 1, pidp],
   pop_data[wave == 6 & response == 1, pidp]
 )
+
+length(eligible_pidp) # 23767
 
 pop_DT <- pop_data[pidp %in% eligible_pidp]
 
@@ -55,6 +60,9 @@ no_mh_outcomes <- long_data[,
   .(n_missing = sum(is.na(sf12mcs_dv)), base_missing = all(is.na(sf12mcs_dv_base))),
   by = pidp
 ][n_missing >= 2 & base_missing == TRUE, .(pidp)]
+
+# how many are excluded here
+length(no_mh_outcomes$pidp) # 2663
 
 long_data <- long_data[!no_mh_outcomes, on = .(pidp)]
 
@@ -97,8 +105,10 @@ pred_mat <- make.predictorMatrix(wide_data_mcs)
 pred_mat[,c("lagged_age_dv_0", "lagged_age_dv_1", "lagged_age_dv_2", "lagged_age_dv_3")] <- 0 # collinearity
 pred_mat[,c("lagged_gor_dv_fact_0", "lagged_gor_dv_fact_1", "lagged_gor_dv_fact_2", "lagged_gor_dv_fact_3")] <- 0 # collinearity across levels of the factor
 
-if (file.exists(here::here("output", "wide_mids_mcs_4w.rds"))) {
-  wide_mids_mcs <- readRDS(here::here("output", "wide_mids_mcs_4w.rds"))
+mids_file_path <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/wide_mids_mcs_4w.rds"
+
+if (file.exists(mids_file_path)) {
+  wide_mids_mcs <- readRDS(mids_file_path)
   message("Loading existing observed outcomes for MCS g-formulaMI run...")
 } else {
   message("No existing observed outcomes found. Running multiple imputation for MCS outcome with 4 waves of intervention...")
@@ -110,7 +120,7 @@ wide_mids_mcs <- mice(
     maxit = 15,
     seed = seed
 )
-saveRDS(wide_mids_mcs, here::here("output", "wide_mids_mcs_4w.rds"))
+saveRDS(wide_mids_mcs, mids_file_path)
 }
 
 base_predictor_matrix_mcs <- make_predictor_matrix(wide_data_mcs) # custom g-formulaMI predictor matrix function
@@ -156,8 +166,10 @@ predictor_matrix["econ_emp_bin_3", "sf12mcs_dv_2"] <- 1
 # regime row always needs to be 1
 predictor_matrix["regime",] <- 1
 
-if (file.exists(here::here("output", "imps_mcs_4w.rds"))) {
-  imps_mcs <- readRDS(here::here("output", "imps_mcs_4w.rds"))
+imps_file_path <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/imps_mcs_4w.rds"
+
+if (file.exists(imps_file_path)) {
+  imps_mcs <- readRDS(imps_file_path)
   message("Loading existing imputations for MCS g-formulaMI run...")
 } else {
 message("No existing synthetic counterfactual imputations found. Running g-formulaMI for MCS outcome with 4 waves of intervention...")
@@ -169,7 +181,7 @@ imps_mcs <- gFormulaImpute(
     M = 200,
     silent = TRUE
 )
-saveRDS(imps_mcs, here::here("output", "imps_mcs_4w.rds"))
+saveRDS(imps_mcs, imps_file_path)
 }
 
 rm(wide_mids_mcs) # to save memory
@@ -183,7 +195,7 @@ fits_diff <- imps_mcs %$%
 mi_4cummulative_mcs_marginal <- syntheticPool(fits_marginal)
 mi_4cummulative_mcs_diff <- syntheticPool(fits_diff)
 
-rm(imps, fits_marginal, fits_diff) # to save memory
+rm(imps_mcs, fits_marginal, fits_diff) # to save memory
 ```
 
 ```{r 4wavesmi-regimes-common}
@@ -221,8 +233,15 @@ mod_4cummulative_mcs_diff <- mi_4cummulative_mcs_diff |>
 mod_4cummulative_mcs_diff |>
   knitr::kable(digits = 3)
 
-saveRDS(mod_4cummulative_mcs_marginal, here::here("output", "model_4w_mcs_marginal.rds"))
-saveRDS(mod_4cummulative_mcs_diff, here::here("output", "model_4w_mcs_diff.rds"))
+file_name_mcs_marginal <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_mcs_marginal.rds"
+file_name_mcs_diff <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_mcs_diff.rds"
+
+if (file.exists(file_name_mcs_marginal) & file.exists(file_name_mcs_diff)) {
+  message("Model results already saved. Skipping saving step...")
+} else {
+saveRDS(mod_4cummulative_mcs_marginal, file_name_mcs_marginal)
+saveRDS(mod_4cummulative_mcs_diff, file_name_mcs_diff)
+}
 
 # deleting objects to save memory for the next outcome
 rm(mi_4cummulative_mcs_marginal, mi_4cummulative_mcs_diff, mod_4cummulative_mcs_marginal, mod_4cummulative_mcs_diff)
@@ -230,10 +249,56 @@ rm(mi_4cummulative_mcs_marginal, mi_4cummulative_mcs_diff, mod_4cummulative_mcs_
 
 # PCS outcome
 
-```{r prep-data-wide-pcs}
-#| include: false
-#| eval: false
+```{r pcs-prep-data}
+#| message: false
+#| warning: false
 
+pop_data <- clean_data() |> preproc_data()
+
+# individuals in processed data
+length(unique(pop_data$pidp)) #61623
+
+# keep only people observed at both wave 2 (pre-baseline, for lagged in w3) and wave 6 (outcome)
+eligible_pidp <- intersect(
+  pop_data[wave == 2 & response == 1, pidp],
+  pop_data[wave == 6 & response == 1, pidp]
+)
+
+length(eligible_pidp) # 23767
+
+pop_DT <- pop_data[pidp %in% eligible_pidp]
+
+# long format variable shifting
+long_data <- pop_DT[, `:=`(
+  t0 = t0 - 2L,
+  pcs_lagged = shift(sf12pcs_dv, type = "lag"),
+  mcs_lagged = shift(sf12mcs_dv, type = "lag"),
+# the other time-varying confounders should also be lagged
+  lagged_dnc = shift(dnc, type = "lag"),
+  lagged_home_owner = shift(home_owner, type = "lag"),
+  lagged_econ_benefits = shift(econ_benefits, type = "lag"),
+  lagged_gor_dv_fact = shift(gor_dv_fact, type = "lag"),
+  lagged_age_dv = shift(age_dv, type = "lag"),
+  lagged_mastat_dv = shift(mastat_dv, type = "lag")
+  )][wave %in% 3:6]
+
+# keeping those with at least 2 observed PCS outcomes and no baseline missing
+no_ph_outcomes <- long_data[,
+  .(n_missing = sum(is.na(sf12pcs_dv)), base_missing = all(is.na(sf12pcs_dv_base))),
+  by = pidp
+][n_missing >= 2 & base_missing == TRUE, .(pidp)]
+
+# how many are excluded here
+length(no_ph_outcomes$pidp) # 2663
+
+long_data <- long_data[!no_ph_outcomes, on = .(pidp)]
+
+# matrix of possible intervention patterns for 4 time points (0: no intervention, 1: intervention)
+intervention_pattern_4 <- asplit(as.matrix(CJ(0:1, 0:1, 0:1, 0:1)), 1)
+```
+
+
+```{r prep-data-wide-pcs}
 wide_data_pcs <- long_data |>
   mutate(econ_emp_bin = as_factor(econ_emp_bin)) |>
   make_wide(
@@ -261,18 +326,18 @@ wide_data_pcs <- long_data |>
 ```
 
 ```{r multiple-imputation-pcs}
-#| include: false
-#| eval: false
-
 pred_mat_pcs <- make.predictorMatrix(wide_data_pcs)
 
 pred_mat_pcs[,c("lagged_age_dv_0", "lagged_age_dv_1", "lagged_age_dv_2", "lagged_age_dv_3")] <- 0 # collinearity
 pred_mat_pcs[,c("lagged_gor_dv_fact_0", "lagged_gor_dv_fact_1", "lagged_gor_dv_fact_2", "lagged_gor_dv_fact_3")] <- 0 # collinearity across levels of the factor
 
-if (file.exists(here::here("output", "wide_mids_pcs_4w.rds"))) {
-  wide_mids_mcs <- readRDS(here::here("output", "wide_mids_pcs_4w.rds"))
+mids_file_path_pcs <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/wide_mids_pcs_4w.rds"
+
+if (file.exists(mids_file_path_pcs)) {
+  wide_mids_pcs <- readRDS(mids_file_path_pcs)
   message("Loading existing observed outcomes for PCS g-formulaMI run...")
 } else {
+  message("No existing observed outcomes found. Running multiple imputation for PCS outcome with 4 waves of intervention...")
 wide_mids_pcs <- mice(
     wide_data_pcs,
     predictorMatrix = pred_mat_pcs,
@@ -281,15 +346,13 @@ wide_mids_pcs <- mice(
     maxit = 15,
     seed = seed
     )
-saveRDS(wide_mids_pcs, here::here("output", "wide_mids_pcs_4w.rds"))
+saveRDS(wide_mids_pcs, mids_file_path_pcs)
 }
 
 base_predictor_matrix_pcs <- make_predictor_matrix(wide_data_pcs) # custom g-formulaMI predictor matrix function
 ```
 
 ```{r gformulaMI-pcs}
-#| include: false
-#| eval: false
 regimes <- intervention_pattern_4
 
 # predictor matrix for PCS g-formulaMI run
@@ -328,8 +391,10 @@ predictor_matrix_pcs["econ_emp_bin_3", "sf12pcs_dv_2"] <- 1
 # regime row always needs to be 1
 predictor_matrix_pcs["regime",] <- 1
 
-if (file.exists(here::here("output", "imps_pcs_4w.rds"))) {
-  imps <- readRDS(here::here("output", "imps_pcs_4w.rds"))
+imps_file_path_pcs <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/imps_pcs_4w.rds"
+
+if (file.exists(imps_file_path_pcs)) {
+  imps_pcs <- readRDS(imps_file_path_pcs)
   message("Loading existing imputations for PCS g-formulaMI run...")
 } else {
 message("No existing synthetic counterfactual imputations found. Running g-formulaMI for PCS outcome with 4 waves of intervention...")
@@ -341,7 +406,7 @@ imps_pcs <- gFormulaImpute(
     M = 200,
     silent = TRUE
   )
-saveRDS(imps_pcs, here::here("output", "imps_pcs_4w.rds"))
+saveRDS(imps_pcs, imps_file_path_pcs)
 }
 
 rm(wide_mids_pcs) # to save memory
@@ -362,8 +427,6 @@ rm(imps_pcs, fits_marginal_pcs, fits_diff_pcs) # to save memory
 
 ```{r 4wavesmi-tab-pcs}
 #| output: true
-#| include: false
-#| eval: false
 
 mod_4cummulative_pcs_marginal <- mi_4cummulative_pcs_marginal |>
   as_tibble() |>
@@ -389,10 +452,83 @@ mod_4cummulative_pcs_diff <- mi_4cummulative_pcs_diff |>
 mod_4cummulative_pcs_diff |>
   knitr::kable(digits = 3)
 
-saveRDS(mod_4cummulative_pcs_marginal, here::here("output", "model_4w_pcs_marginal.rds"))
-saveRDS(mod_4cummulative_pcs_diff, here::here("output", "model_4w_pcs_diff.rds"))
+model_file_path_pcs_marginal <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_pcs_marginal.rds"
+model_file_path_pcs_diff <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_pcs_diff.rds"
+
+if (file.exists(model_file_path_pcs_marginal) & file.exists(model_file_path_pcs_diff)) {
+  message("Model results already saved. Skipping saving step...")
+} else {
+saveRDS(mod_4cummulative_pcs_marginal, model_file_path_pcs_marginal)
+saveRDS(mod_4cummulative_pcs_diff, model_file_path_pcs_diff)
+}
 
 rm(mi_4cummulative_pcs_marginal, mi_4cummulative_pcs_diff, mod_4cummulative_pcs_marginal, mod_4cummulative_pcs_diff) # to save memory
+```
+
+## Word export
+
+```{r tab-4waves-word}
+#| output: true
+
+fmt <- function(est, ll, ul) sprintf("%.2f [%.2f; %.2f]", est, ll, ul)
+
+mcs_tab <- left_join(
+  readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_mcs_marginal.rds") |>
+    mutate(
+      n_unemp      = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))),
+      intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+      mcs_mean     = fmt(mi_effect, mi_ll, mi_ul)
+    ) |>
+    select(intervention, n_unemp, mcs_mean),
+  readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_mcs_diff.rds") |>
+    mutate(
+      intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+      mcs_diff     = fmt(mi_effect, mi_ll, mi_ul)
+    ) |>
+    select(intervention, mcs_diff),
+  by = "intervention"
+)
+
+pcs_tab <- left_join(
+  readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_pcs_marginal.rds") |>
+    mutate(
+      intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+      pcs_mean     = fmt(mi_effect, mi_ll, mi_ul)
+    ) |>
+    select(intervention, pcs_mean),
+  readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_pcs_diff.rds") |>
+    mutate(
+      intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+      pcs_diff     = fmt(mi_effect, mi_ll, mi_ul)
+    ) |>
+    select(intervention, pcs_diff),
+  by = "intervention"
+)
+
+tab_final <- left_join(mcs_tab, pcs_tab, by = "intervention") |>
+  arrange(n_unemp, intervention) |>
+  select(intervention, mcs_mean, mcs_diff, pcs_mean, pcs_diff)
+
+flextable(tab_final) |>
+  set_header_labels(
+    intervention = "Intervention strategy",
+    mcs_mean     = "Causal mean [95% CI]",
+    mcs_diff     = "Mean difference [95% CI]",
+    pcs_mean     = "Causal mean [95% CI]",
+    pcs_diff     = "Mean difference [95% CI]"
+  ) |>
+  add_header_row(
+    values    = c("", "Mental Component Score (MCS)", "Physical Component Score (PCS)"),
+    colwidths = c(1, 2, 2)
+  ) |>
+  theme_booktabs() |>
+  align(align = "center", part = "header") |>
+  align(j = c("mcs_mean", "mcs_diff", "pcs_mean", "pcs_diff"), align = "center", part = "body") |>
+  set_table_properties(layout = "autofit", width = 1) |>
+  fontsize(size = 10, part = "all") |>
+  add_footer_lines("Mean difference: vs always employed (E-E-E-E). Values are pooled estimates from multiple imputation (M = 50) and g-formula imputation (M = 200).") |>
+  fontsize(size = 8, part = "footer") |>
+  save_as_docx(path = here::here("manuscript", "table_4waves_marginal.docx"))
 ```
 
 # Graphs
@@ -400,61 +536,87 @@ rm(mi_4cummulative_pcs_marginal, mi_4cummulative_pcs_diff, mod_4cummulative_pcs_
 ## Marginal estimates
 
 ```{r 4wavesmi-graph-marginal}
-#| output: true
-#| eval: false
 #| include: false
 
-mod_4cummulative_mcs_marginal <- readRDS(here::here("output", "model_4w_mcs_marginal.rds"))
+mod_4cummulative_mcs_marginal <- readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_mcs_marginal.rds")
 
-mod_4cummulative_pcs_marginal <- readRDS(here::here("output", "model_4w_pcs_marginal.rds"))
+mod_4cummulative_pcs_marginal <- readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_pcs_marginal.rds")
 
 graph4waves_marginal <- bind_rows(
-  mod_4cummulative_mcs_marginal |> mutate(outcome = "MCS"),
-  mod_4cummulative_pcs_marginal |> mutate(outcome = "PCS")
+  mod_4cummulative_mcs_marginal |> mutate(outcome = "Mental Component Score (MCS)"),
+  mod_4cummulative_pcs_marginal |> mutate(outcome = "Physical Component Score (PCS)")
 ) |>
   mutate(
-    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
-    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
+    n_unemp    = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+    ends_unemp = str_ends(intervention, "U")
   ) |>
-  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
+  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp, shape = ends_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7)) +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  scale_colour_manual(values = unname(paletteMartin), name = "Number of unemployed periods") +
+  scale_shape_manual(values = c("FALSE" = 16, "TRUE" = 18), guide = "none") +
   facet_wrap(~outcome, nrow = 1, scales = "free_x") +
-  labs(x = "Estimate", y = "Intervention strategy")
+  scale_x_continuous(breaks = seq(45, 52, by = 1)) +
+  expand_limits(x = 51) +
+  labs(x = "Estimated marginal mean", y = "Intervention strategy") +
+  theme_bw() +
+  theme(legend.position = "right")
 
 print(graph4waves_marginal)
 
-ggsave(graph4waves_marginal, file = here::here("figs", "graph4waves_marginal.png"), width = 10, height = 6)
+ggsave(graph4waves_marginal, file = here::here("figs", "graph4waves_marginal.png"), dpi = 300, width = 8, height = 6)
 ```
 
 ## Mean difference
 
 ```{r 4wavesmi-graph-diff}
-#| output: true
 #| include: false
-#| eval: false
 
-mod_4cummulative_mcs_diff <- readRDS(here::here("output", "model_4w_mcs_diff.rds"))
+mod_4cummulative_mcs_diff <- readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_mcs_diff.rds")
 
-mod_4cummulative_pcs_diff <- readRDS(here::here("output", "model_4w_pcs_diff.rds"))
+mod_4cummulative_pcs_diff <- readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_4w_pcs_diff.rds")
 
 graph4waves_diff <- bind_rows(
-  mod_4cummulative_mcs_diff |> filter(intervention != "0-0-0-0") |> mutate(outcome = "MCS"),
-  mod_4cummulative_pcs_diff |> filter(intervention != "0-0-0-0") |> mutate(outcome = "PCS")
+  mod_4cummulative_mcs_diff |> filter(intervention != "0-0-0-0") |> mutate(outcome = "Mental Component Score (MCS)"),
+  mod_4cummulative_pcs_diff |> filter(intervention != "0-0-0-0") |> mutate(outcome = "Physical Component Score (PCS)")
 ) |>
   mutate(
-    n_unemp = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
-    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U"))
+    n_unemp    = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |> factor(),
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+    ends_unemp = str_ends(intervention, "U")
   ) |>
-  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp)) +
+  ggplot(aes(mi_effect, intervention, xmin = mi_ll, xmax = mi_ul, colour = n_unemp, shape = ends_unemp)) +
   geom_point(size = 2, position = position_dodge(width = 0.7)) +
   geom_errorbar(width = 0.3, position = position_dodge(width = 0.7)) +
-  scale_colour_brewer(name = "Number of unemployed periods", palette = "Set1") +
+  scale_colour_manual(values = unname(paletteMartin), name = "Number of unemployed periods") +
+  scale_shape_manual(values = c("FALSE" = 16, "TRUE" = 18), guide = "none") +
   facet_wrap(~outcome, nrow = 1, scales = "free_x") +
-  labs(x = "Estimate", y = "Intervention strategy")
+  scale_x_continuous(breaks = seq(-6, 0, by = 1)) +
+  expand_limits(x = -0) +
+  expand_limits(x = -6) +
+  labs(x = "Estimated mean difference\n(reference: always employed, E-E-E-E)", y = "Intervention strategy") +
+  theme_bw() +
+  theme(legend.position = "right")
 
 print(graph4waves_diff)
 
-ggsave(graph4waves_diff, file = here::here("figs", "graph4waves_diff.png"), width = 10, height = 6)
+ggsave(graph4waves_diff, file = here::here("figs", "graph4waves_diff.png"), dpi = 300, width = 8, height = 6)
+```
+
+## Combined
+
+```{r 4wavesmi-graph-combined}
+#| output: true
+
+library(cowplot)
+
+graph4waves_combined <- plot_grid(
+  graph4waves_marginal, graph4waves_diff,
+  ncol = 1, align = "v", labels = "AUTO"
+)
+
+print(graph4waves_combined)
+
+ggsave(graph4waves_combined, file = here::here("figs", "graph4waves_combined.png"), dpi = 300, width = 10, height = 12)
 ```

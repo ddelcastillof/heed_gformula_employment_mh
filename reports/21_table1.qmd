@@ -1,0 +1,586 @@
+---
+title: "Table 1: Analytic Sample Characteristics"
+author: "Darwin Del Castillo"
+format:
+  html:
+    toc: true
+    fig-format: svg
+execute:
+  output: false
+---
+
+```{r env-setup}
+#| output: false
+#| message: false
+here::i_am("building_models/21_table1.qmd")
+source(here::here("R", "import_and_clean.R"))
+source(here::here("R", "func_prep_data.R"))
+
+pacman::p_load(data.table, here, tidyverse, flextable, mice, dplyr)
+```
+
+```{r prep-data}
+#| message: false
+#| warning: false
+
+pop_data <- clean_data() |> preproc_data()
+
+# keep only people observed at both wave 2 (pre-baseline, for lagged in w3) and wave 6 (outcome)
+eligible_pidp <- intersect(
+  pop_data[wave == 2 & response == 1, pidp],
+  pop_data[wave == 6 & response == 1, pidp]
+)
+
+pop_DT <- pop_data[pidp %in% eligible_pidp]
+
+# long format variable shifting
+long_data <- pop_DT[, `:=`(
+  t0 = t0 - 2L,
+  pcs_lagged = shift(sf12pcs_dv, type = "lag"),
+  mcs_lagged = shift(sf12mcs_dv, type = "lag"),
+  lagged_dnc = shift(dnc, type = "lag"),
+  lagged_home_owner = shift(home_owner, type = "lag"),
+  lagged_econ_benefits = shift(econ_benefits, type = "lag"),
+  lagged_gor_dv_fact = shift(gor_dv_fact, type = "lag"),
+  lagged_age_dv = shift(age_dv, type = "lag"),
+  lagged_mastat_dv = shift(mastat_dv, type = "lag")
+  )][wave %in% 3:6]
+
+# keeping those with at least 2 observed MCS outcomes and no baseline missing
+no_mh_outcomes <- long_data[,
+  .(n_missing = sum(is.na(sf12mcs_dv)), base_missing = all(is.na(sf12mcs_dv_base))),
+  by = pidp
+][n_missing >= 2 & base_missing == TRUE, .(pidp)]
+
+long_data <- long_data[!no_mh_outcomes, on = .(pidp)]
+```
+
+```{r build-objects}
+strat_per_person <- long_data[, .(pidp, t0, econ_emp_bin)] |>
+  dcast(pidp ~ t0, value.var = "econ_emp_bin") |>
+  as_tibble() |>
+  transmute(
+    pidp,
+    strategy = paste(`0`, `1`, `2`, `3`, sep = "-"),
+    strategy = if_else(str_detect(strategy, "NA"), "Missing", strategy),
+    strategy = str_replace_all(strategy, c("0" = "E", "1" = "U"))
+  )
+
+baseline_chars <- long_data[t0 == 0, .(pidp, sex_dv_base, hiqual_dv_base, age_dv,
+                                        sf12mcs_dv, sf12pcs_dv,
+                                        race_base, home_owner, mastat_dv,
+                                        dnc_fact, log_income, econ_benefits, econ_dist)] |>
+  as_tibble() |>
+  rename(mcs_w3 = sf12mcs_dv, pcs_w3 = sf12pcs_dv) |>
+  mutate(
+    female       = sex_dv_base == "Female",
+    hiqual_i     = as.integer(hiqual_dv_base),
+    edu_degree   = hiqual_i == 1L,
+    edu_higher   = hiqual_i == 2L,
+    edu_alevel   = hiqual_i == 3L,
+    edu_gcse     = hiqual_i == 4L,
+    edu_other    = hiqual_i == 5L,
+    edu_none     = hiqual_i == 9L,
+    nonwhite     = race_base == "Non-white",
+    owner        = home_owner == "Owner",
+    partnered    = mastat_dv %in% 1:2,
+    mastat_cat   = factor(
+      case_when(
+        mastat_dv == 1L ~ "Married",
+        mastat_dv == 2L ~ "Living as couple",
+        mastat_dv == 3L ~ "Widowed",
+        mastat_dv == 4L ~ "Divorced",
+        mastat_dv == 5L ~ "Separated",
+        mastat_dv == 6L ~ "Never married"
+      ),
+      levels = c("Married", "Living as couple", "Widowed",
+                 "Divorced", "Separated", "Never married")
+    ),
+    econ_dist_cat = factor(
+      case_when(
+        econ_dist == 1L ~ "Finding it very difficult",
+        econ_dist == 2L ~ "Finding it quite difficult",
+        econ_dist == 3L ~ "Just about getting by",
+        econ_dist == 4L ~ "Doing alright",
+        econ_dist == 5L ~ "Living comfortably"
+      ),
+      levels = c("Finding it very difficult", "Finding it quite difficult",
+                 "Just about getting by", "Doing alright", "Living comfortably")
+    ),
+    benefits     = econ_benefits == 1L
+  )
+
+outcome_chars <- long_data[t0 == 3, .(pidp, sf12mcs_dv, sf12pcs_dv)] |>
+  as_tibble() |>
+  rename(mcs_w6 = sf12mcs_dv, pcs_w6 = sf12pcs_dv)
+```
+
+# Table 1 — overall sample
+
+```{r tab1-long}
+#| output: true
+#| label: tbl-table1
+#| tbl-cap: "Table 1. Baseline characteristics of the analytic sample. Education and sex from wave 1; age at wave 3 (start of intervention period). Employment trajectory coded as wave 3–wave 6 (0 = employed, 1 = not employed)."
+
+indent <- "    "
+N      <- nrow(strat_per_person)
+
+tab1_data <- strat_per_person |>
+  left_join(baseline_chars, by = "pidp") |>
+  left_join(outcome_chars,  by = "pidp")
+
+fmt_pct <- function(x, total = N) paste0(format(x, big.mark = ",", scientific = FALSE), " (", round(x / total * 100, 1), "%)")
+
+na_row <- function(var) {
+  n_na <- sum(is.na(var))
+  if (n_na == 0) return(NULL)
+  tibble(Characteristic = paste0(indent, "Missing"), Summary = fmt_pct(n_na))
+}
+
+rows <- bind_rows(
+  # ── Sex ──────────────────────────────────────────────
+  tibble(Characteristic = "**Sex**", Summary = ""),
+  tab1_data |>
+    count(sex_dv_base) |>
+    filter(!is.na(sex_dv_base)) |>
+    arrange(sex_dv_base) |>
+    transmute(
+      Characteristic = paste0(indent, sex_dv_base),
+      Summary        = fmt_pct(n)
+    ),
+  na_row(tab1_data$sex_dv_base),
+
+  # ── Education ────────────────────────────────────────
+  tibble(Characteristic = "**Education**", Summary = ""),
+  tab1_data |>
+    mutate(edu_cat = factor(
+      case_when(
+        hiqual_i == 1L ~ "Degree",
+        hiqual_i == 2L ~ "Other higher degree",
+        hiqual_i == 3L ~ "A-level etc",
+        hiqual_i == 4L ~ "GCSE etc",
+        hiqual_i == 5L ~ "Other qualification",
+        hiqual_i == 9L ~ "No qualification"
+      ),
+      levels = c("Degree", "Other higher degree", "A-level etc",
+                 "GCSE etc", "Other qualification", "No qualification")
+    )) |>
+    count(edu_cat, .drop = FALSE) |>
+    filter(!is.na(edu_cat)) |>
+    transmute(
+      Characteristic = paste0(indent, edu_cat),
+      Summary        = fmt_pct(n)
+    ),
+  na_row(tab1_data$hiqual_i),
+
+  # ── Age ──────────────────────────────────────────────
+  tab1_data |>
+    summarise(
+      Characteristic = "**Age, mean (SD)**",
+      Summary        = paste0(
+        round(mean(age_dv, na.rm = TRUE), 1),
+        " (", round(sd(age_dv, na.rm = TRUE), 1), ")"
+      )
+    ),
+  na_row(tab1_data$age_dv),
+
+  # ── Ethnicity ─────────────────────────────────────────
+  tibble(Characteristic = "**Ethnicity**", Summary = ""),
+  tab1_data |>
+    count(race_base) |>
+    filter(!is.na(race_base)) |>
+    arrange(race_base) |>
+    transmute(
+      Characteristic = paste0(indent, race_base),
+      Summary        = fmt_pct(n)
+    ),
+  na_row(tab1_data$race_base),
+
+  # ── Marital status ────────────────────────────────────
+  tibble(Characteristic = "**Marital status**", Summary = ""),
+  tab1_data |>
+    count(mastat_cat, .drop = FALSE) |>
+    filter(!is.na(mastat_cat)) |>
+    transmute(
+      Characteristic = paste0(indent, mastat_cat),
+      Summary        = fmt_pct(n)
+    ),
+  na_row(tab1_data$mastat_cat),
+
+  # ── Home ownership ────────────────────────────────────
+  tibble(Characteristic = "**Home ownership**", Summary = ""),
+  tab1_data |>
+    count(home_owner) |>
+    filter(!is.na(home_owner)) |>
+    arrange(home_owner) |>
+    transmute(
+      Characteristic = paste0(indent, home_owner),
+      Summary        = fmt_pct(n)
+    ),
+  na_row(tab1_data$home_owner),
+
+  # ── Dependent children ────────────────────────────────
+  tibble(Characteristic = "**Dependent children**", Summary = ""),
+  tab1_data |>
+    count(dnc_fact, .drop = FALSE) |>
+    filter(!is.na(dnc_fact)) |>
+    transmute(
+      Characteristic = paste0(indent, dnc_fact),
+      Summary        = fmt_pct(n)
+    ),
+  na_row(tab1_data$dnc_fact),
+
+  # ── Log income ────────────────────────────────────────
+  tab1_data |>
+    summarise(
+      Characteristic = "**Log income, mean (SD)**",
+      Summary        = paste0(round(mean(log_income, na.rm = TRUE), 2),
+                              " (", round(sd(log_income, na.rm = TRUE), 2), ")")
+    ),
+  na_row(tab1_data$log_income),
+
+  # ── Economic benefits ─────────────────────────────────
+  tibble(Characteristic = "**Receiving benefits**", Summary = ""),
+  tab1_data |>
+    count(benefits) |>
+    filter(!is.na(benefits)) |>
+    transmute(
+      Characteristic = paste0(indent, if_else(benefits, "Yes", "No")),
+      Summary        = fmt_pct(n)
+    ),
+  na_row(tab1_data$econ_benefits),
+
+  # ── Economic distress ─────────────────────────────────
+  tibble(Characteristic = "**Financial situation**", Summary = ""),
+  tab1_data |>
+    count(econ_dist_cat, .drop = FALSE) |>
+    filter(!is.na(econ_dist_cat)) |>
+    transmute(
+      Characteristic = paste0(indent, econ_dist_cat),
+      Summary        = fmt_pct(n)
+    ),
+  na_row(tab1_data$econ_dist_cat),
+
+  # ── MCS ──────────────────────────────────────────────
+  tibble(Characteristic = "**MCS, mean (SD)**", Summary = ""),
+  tab1_data |>
+    summarise(
+      Characteristic = paste0(indent, "Wave 3"),
+      Summary        = paste0(round(mean(mcs_w3, na.rm = TRUE), 1),
+                              " (", round(sd(mcs_w3, na.rm = TRUE), 1), ")")
+    ),
+  tab1_data |>
+    summarise(
+      Characteristic = paste0(indent, "Wave 6"),
+      Summary        = paste0(round(mean(mcs_w6, na.rm = TRUE), 1),
+                              " (", round(sd(mcs_w6, na.rm = TRUE), 1), ")")
+    ),
+  na_row(tab1_data$mcs_w3),
+
+  # ── PCS ──────────────────────────────────────────────
+  tibble(Characteristic = "**PCS, mean (SD)**", Summary = ""),
+  tab1_data |>
+    summarise(
+      Characteristic = paste0(indent, "Wave 3"),
+      Summary        = paste0(round(mean(pcs_w3, na.rm = TRUE), 1),
+                              " (", round(sd(pcs_w3, na.rm = TRUE), 1), ")")
+    ),
+  tab1_data |>
+    summarise(
+      Characteristic = paste0(indent, "Wave 6"),
+      Summary        = paste0(round(mean(pcs_w6, na.rm = TRUE), 1),
+                              " (", round(sd(pcs_w6, na.rm = TRUE), 1), ")")
+    ),
+  na_row(tab1_data$pcs_w3),
+
+  # ── Employment trajectory ────────────────────────────
+  tibble(Characteristic = "**Employment trajectory**", Summary = ""),
+  tab1_data |>
+    count(strategy) |>
+    arrange(strategy == "Missing", strategy) |>
+    transmute(
+      Characteristic = paste0(indent, strategy),
+      Summary        = fmt_pct(n)
+    ),
+
+  # ── Footnotes ─────────────────────────────────────────
+  tibble(Characteristic = "ᵃ Percentages correspond to the analytic sample at wave 3 (baseline).", Summary = ""),
+  tibble(Characteristic = "ᵇ Summary statistics are presented as n (%) unless otherwise specified.", Summary = "")
+)
+
+rows |>
+  knitr::kable(escape = FALSE, col.names = c("Characteristic", "n (%) or mean (SD)"))
+```
+
+```{r export-word}
+footnote_rows <- rows |>
+  filter(str_detect(Characteristic, "^[ᵃᵇ]"))
+
+rows_clean <- rows |>
+  filter(!str_detect(Characteristic, "^[ᵃᵇ]")) |>
+  mutate(
+    is_header = str_detect(Characteristic, "^\\*\\*"),
+    Characteristic = str_remove_all(Characteristic, "\\*\\*")
+  )
+
+flextable(rows_clean |> select(Characteristic, Summary)) |>
+  set_header_labels(Characteristic = "Characteristic", Summary = "n (%) or mean (SD)") |>
+  bold(i = which(rows_clean$is_header), j = 1) |>
+  add_footer_lines(footnote_rows$Characteristic) |>
+  autofit() |>
+  save_as_docx(path = here::here("manuscript", "table1.docx"))
+```
+
+# Supplementary Table 1  - Complete and imputed samples
+
+```{r tab1-supp}
+#| output: true
+#| label: tbl-table1-supp
+#| tbl-cap: "Supplementary Table 1. Baseline characteristics of the complete case and imputed samples."
+wide_mids_mcs <- readRDS(here::here("output", "wide_mids_mcs_4w.rds"))
+wide_mids_pcs <- readRDS(here::here("output", "wide_mids_pcs_4w.rds"))
+
+# ── Extract data ──────────────────────────────────────────────────────────────
+orig     <- mice::complete(wide_mids_mcs, 0)          # original data (with NAs)
+orig_pcs <- mice::complete(wide_mids_pcs, 0)
+imp_mcs  <- mice::complete(wide_mids_mcs, "long", include = FALSE)  # M datasets stacked
+imp_pcs  <- mice::complete(wide_mids_pcs, "long", include = FALSE)
+M        <- wide_mids_mcs$m
+N_s      <- nrow(orig)
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+obs_pct <- function(x, lv) {
+  n <- sum(x == lv, na.rm = TRUE)
+  paste0(format(n, big.mark = ","), " (", round(n / N_s * 100, 1), "%)")
+}
+obs_cont <- function(x) {
+  paste0(round(mean(x, na.rm = TRUE), 1), " (", round(sd(x, na.rm = TRUE), 1), ")")
+}
+obs_na_row <- function(x) {
+  n <- sum(is.na(x)); if (n == 0) return(NULL)
+  tibble(Characteristic = paste0(indent, "Missing"),
+         Observed = paste0(format(n, big.mark = ","), " (", round(n / N_s * 100, 1), "%)"),
+         Imputed  = "—")
+}
+
+# average per-imputation proportions (= mean over M×N rows)
+imp_pct <- function(x, lv) {
+  p <- mean(x == lv, na.rm = TRUE)
+  paste0(format(round(p * N_s), big.mark = ","), " (", round(p * 100, 1), "%)")
+}
+# pool means and average within-imputation SDs across M
+imp_cont <- function(x, g) {
+  st <- tibble(x = x, g = g) |>
+    group_by(g) |>
+    summarise(m = mean(x, na.rm = TRUE), s = sd(x, na.rm = TRUE), .groups = "drop")
+  paste0(round(mean(st$m), 1), " (", round(mean(st$s), 1), ")")
+}
+
+hdr     <- function(lbl) tibble(Characteristic = lbl, Observed = "", Imputed = "")
+cat_row <- function(o, i, lv, lb = as.character(lv)) {
+  tibble(Characteristic = paste0(indent, lb),
+         Observed = obs_pct(o, lv), Imputed = imp_pct(i, lv))
+}
+
+# ── Recoding helpers (wide data uses numeric codes) ───────────────────────────
+to_edu <- function(x) factor(case_when(
+  x == 1L ~ "Degree",            x == 2L ~ "Other higher degree",
+  x == 3L ~ "A-level etc",       x == 4L ~ "GCSE etc",
+  x == 5L ~ "Other qualification", x == 9L ~ "No qualification"
+), levels = c("Degree", "Other higher degree", "A-level etc",
+              "GCSE etc", "Other qualification", "No qualification"))
+
+to_mastat <- function(x) factor(case_when(
+  x == 1L ~ "Married",          x == 2L ~ "Living as couple",
+  x == 3L ~ "Widowed",          x == 4L ~ "Divorced",
+  x == 5L ~ "Separated",        x == 6L ~ "Never married"
+), levels = c("Married", "Living as couple", "Widowed",
+              "Divorced", "Separated", "Never married"))
+
+to_dnc <- function(x) factor(case_when(
+  x == 0L ~ "zero", x == 1L ~ "one", !is.na(x) & x > 1L ~ "2+"
+), levels = c("zero", "one", "2+"))
+
+to_dist <- function(x) factor(case_when(
+  x == 1L ~ "Finding it very difficult", x == 2L ~ "Finding it quite difficult",
+  x == 3L ~ "Just about getting by",     x == 4L ~ "Doing alright",
+  x == 5L ~ "Living comfortably"
+), levels = c("Finding it very difficult", "Finding it quite difficult",
+              "Just about getting by", "Doing alright", "Living comfortably"))
+
+# precomputed recoded vectors
+obs_edu    <- to_edu(as.integer(orig$hiqual_dv_base))
+obs_mastat <- to_mastat(orig$lagged_mastat_dv_1)
+obs_dnc    <- to_dnc(orig$lagged_dnc_1)
+obs_dist   <- to_dist(orig$econ_dist_0)
+
+imp_edu    <- to_edu(as.integer(imp_mcs$hiqual_dv_base))
+imp_mastat <- to_mastat(imp_mcs$lagged_mastat_dv_1)
+imp_dnc    <- to_dnc(imp_mcs$lagged_dnc_1)
+imp_dist   <- to_dist(imp_mcs$econ_dist_0)
+
+edu_lv    <- levels(obs_edu)
+mastat_lv <- levels(obs_mastat)
+dnc_lv    <- levels(obs_dnc)
+dist_lv   <- levels(obs_dist)
+
+# ── Build rows ────────────────────────────────────────────────────────────────
+supp_rows <- bind_rows(
+
+  # Sex ─────────────────────────────────────────────────────────────────────
+  hdr("**Sex**"),
+  cat_row(orig$sex_dv_base, imp_mcs$sex_dv_base, "Female"),
+  cat_row(orig$sex_dv_base, imp_mcs$sex_dv_base, "Male"),
+  obs_na_row(orig$sex_dv_base),
+
+  # Education ───────────────────────────────────────────────────────────────
+  hdr("**Education**"),
+  map_dfr(edu_lv, \(lv) cat_row(obs_edu, imp_edu, lv)),
+  obs_na_row(obs_edu),
+
+  # Age ─────────────────────────────────────────────────────────────────────
+  # lagged_age_dv_1 = age at t0=0 (wave 3), since lagged[t=1] = current[t=0]
+  tibble(Characteristic = "**Age, mean (SD)**",
+         Observed = obs_cont(orig$lagged_age_dv_1),
+         Imputed  = imp_cont(imp_mcs$lagged_age_dv_1, imp_mcs$.imp)),
+  obs_na_row(orig$lagged_age_dv_1),
+
+  # Ethnicity ───────────────────────────────────────────────────────────────
+  hdr("**Ethnicity**"),
+  cat_row(orig$race_base, imp_mcs$race_base, "Non-white"),
+  cat_row(orig$race_base, imp_mcs$race_base, "White"),
+  obs_na_row(orig$race_base),
+
+  # Marital status ──────────────────────────────────────────────────────────
+  hdr("**Marital status**"),
+  map_dfr(mastat_lv, \(lv) cat_row(obs_mastat, imp_mastat, lv)),
+  obs_na_row(obs_mastat),
+
+  # Home ownership ──────────────────────────────────────────────────────────
+  hdr("**Home ownership**"),
+  cat_row(orig$lagged_home_owner_1, imp_mcs$lagged_home_owner_1, "Owner"),
+  cat_row(orig$lagged_home_owner_1, imp_mcs$lagged_home_owner_1, "Renter"),
+  obs_na_row(orig$lagged_home_owner_1),
+
+  # Dependent children ──────────────────────────────────────────────────────
+  hdr("**Dependent children**"),
+  map_dfr(dnc_lv, \(lv) cat_row(obs_dnc, imp_dnc, lv)),
+  obs_na_row(obs_dnc),
+
+  # Log income ──────────────────────────────────────────────────────────────
+  tibble(Characteristic = "**Log income, mean (SD)**",
+         Observed = obs_cont(orig$log_income_0),
+         Imputed  = imp_cont(imp_mcs$log_income_0, imp_mcs$.imp)),
+  obs_na_row(orig$log_income_0),
+
+  # Receiving benefits ──────────────────────────────────────────────────────
+  hdr("**Receiving benefits**"),
+  cat_row(orig$lagged_econ_benefits_1, imp_mcs$lagged_econ_benefits_1, 1L, "Yes"),
+  cat_row(orig$lagged_econ_benefits_1, imp_mcs$lagged_econ_benefits_1, 0L, "No"),
+  obs_na_row(orig$lagged_econ_benefits_1),
+
+  # Financial situation ─────────────────────────────────────────────────────
+  hdr("**Financial situation**"),
+  map_dfr(dist_lv, \(lv) cat_row(obs_dist, imp_dist, lv)),
+  obs_na_row(obs_dist),
+
+  # MCS — from MCS mids ─────────────────────────────────────────────────────
+  hdr("**MCS, mean (SD)**"),
+  tibble(Characteristic = paste0(indent, "Wave 3"),
+         Observed = obs_cont(orig$sf12mcs_dv_0),
+         Imputed  = imp_cont(imp_mcs$sf12mcs_dv_0, imp_mcs$.imp)),
+  tibble(Characteristic = paste0(indent, "Wave 6"),
+         Observed = obs_cont(orig$sf12mcs_dv_3),
+         Imputed  = imp_cont(imp_mcs$sf12mcs_dv_3, imp_mcs$.imp)),
+  obs_na_row(orig$sf12mcs_dv_0),
+
+  # PCS — from PCS mids ─────────────────────────────────────────────────────
+  hdr("**PCS, mean (SD)**"),
+  tibble(Characteristic = paste0(indent, "Wave 3"),
+         Observed = obs_cont(orig_pcs$sf12pcs_dv_0),
+         Imputed  = imp_cont(imp_pcs$sf12pcs_dv_0, imp_pcs$.imp)),
+  tibble(Characteristic = paste0(indent, "Wave 6"),
+         Observed = obs_cont(orig_pcs$sf12pcs_dv_3),
+         Imputed  = imp_cont(imp_pcs$sf12pcs_dv_3, imp_pcs$.imp)),
+  obs_na_row(orig_pcs$sf12pcs_dv_0),
+
+  # Employment trajectory ───────────────────────────────────────────────────
+  hdr("**Employment trajectory**"),
+  {
+    make_strat <- function(df) transmute(df,
+      strategy = paste(as.character(econ_emp_bin_0), as.character(econ_emp_bin_1),
+                       as.character(econ_emp_bin_2), as.character(econ_emp_bin_3), sep = "-"),
+      strategy = str_replace_all(strategy, c("0" = "E", "1" = "U")),
+      strategy = if_else(str_detect(strategy, "NA"), "Missing", strategy)
+    )
+
+    obs_strat <- make_strat(orig) |> count(strategy) |>
+      arrange(strategy == "Missing", strategy)
+
+    imp_strat <- make_strat(imp_mcs) |>
+      mutate(.imp = imp_mcs$.imp) |>
+      group_by(.imp, strategy) |> summarise(n = n(), .groups = "drop") |>
+      mutate(prop = n / N_s) |>
+      group_by(strategy) |> summarise(prop = mean(prop), .groups = "drop") |>
+      arrange(strategy)
+
+    all_strats <- union(obs_strat$strategy, imp_strat$strategy) |>
+      (\(x) x[order(x == "Missing", x)])()
+
+    map_dfr(all_strats, function(s) {
+      obs_n <- obs_strat$n[obs_strat$strategy == s]
+      obs_n <- if (length(obs_n) == 0) 0L else obs_n
+      imp_p <- imp_strat$prop[imp_strat$strategy == s]
+      imp_p <- if (length(imp_p) == 0) 0 else imp_p
+      tibble(
+        Characteristic = paste0(indent, s),
+        Observed = paste0(format(obs_n, big.mark = ","), " (", round(obs_n / N_s * 100, 1), "%)"),
+        Imputed  = paste0(format(round(imp_p * N_s), big.mark = ","), " (", round(imp_p * 100, 1), "%)")
+      )
+    })
+  },
+
+  # Footnote ────────────────────────────────────────────────────────────────
+  tibble(
+    Characteristic = paste0("ᵃ n (%) unless otherwise specified. ",
+                            "Imputed statistics pooled across M = ", M, " imputations. "),
+    Observed = "", Imputed = ""
+  )
+)
+
+N_fmt <- format(N_s, big.mark = ",")
+
+supp_rows |>
+  knitr::kable(
+    escape = FALSE,
+    col.names = c(
+      "Characteristic",
+      paste0("Observed (n = ", N_fmt, ")"),
+      paste0("Imputed (n = ", N_fmt, ", M = ", M, ")")
+    )
+  )
+```
+
+```{r export-supp-word}
+supp_fn <- supp_rows |> filter(str_detect(Characteristic, "^ᵃ"))
+
+supp_clean <- supp_rows |>
+  filter(!str_detect(Characteristic, "^ᵃ")) |>
+  mutate(
+    is_header    = str_detect(Characteristic, "^\\*\\*"),
+    Characteristic = str_remove_all(Characteristic, "\\*\\*")
+  )
+
+N_fmt <- format(N_s, big.mark = ",")
+
+flextable(supp_clean |> select(Characteristic, Observed, Imputed)) |>
+  set_header_labels(
+    Characteristic = "Characteristic",
+    Observed = paste0("Observed (n = ", N_fmt, ")"),
+    Imputed  = paste0("Imputed (n = ", N_fmt, ", M = ", M, ")")
+  ) |>
+  bold(i = which(supp_clean$is_header), j = 1) |>
+  add_footer_lines(supp_fn$Characteristic) |>
+  autofit() |>
+  save_as_docx(path = here::here("manuscript", "table1_supp.docx"))
+```

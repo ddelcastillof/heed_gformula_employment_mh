@@ -98,8 +98,10 @@ pred_mat <- make.predictorMatrix(wide_data_mcs)
 pred_mat[,c("lagged_age_dv_0", "lagged_age_dv_1", "lagged_age_dv_2", "lagged_age_dv_3", "lagged_age_dv_4")] <- 0 # collinearity
 pred_mat[,c("lagged_gor_dv_fact_0", "lagged_gor_dv_fact_1", "lagged_gor_dv_fact_2", "lagged_gor_dv_fact_3", "lagged_gor_dv_fact_4")] <- 0 # collinearity across levels of the factor
 
-if (file.exists(here::here("output", "wide_mids_mcs_5w.rds"))) {
-  wide_mids_mcs <- readRDS(here::here("output", "wide_mids_mcs_5w.rds"))
+mids_file_path <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/wide_mids_mcs_5w.rds"
+
+if (file.exists(mids_file_path)) {
+  wide_mids_mcs <- readRDS(mids_file_path)
   message("Loading existing observed outcomes for MCS g-formulaMI run...")
 } else {
   message("No existing observed outcomes found. Running multiple imputation for MCS outcome with 5 waves of intervention...")
@@ -111,7 +113,7 @@ wide_mids_mcs <- mice(
     maxit = 20,
     seed = seed
     )
-saveRDS(wide_mids_mcs, here::here("output", "wide_mids_mcs_5w.rds"))
+saveRDS(wide_mids_mcs, mids_file_path)
 }
 rm(wide_mids_mcs) # to save memory
 base_predictor_matrix_mcs <- make_predictor_matrix(wide_data_mcs) # custom g-formulaMI predictor matrix function
@@ -163,11 +165,14 @@ predictor_matrix["econ_emp_bin_4", "sf12mcs_dv_3"] <- 1
 # regime row always needs to be 1
 predictor_matrix["regime",] <- 1
 
-if (file.exists(here::here("output", "imps_mcs_5w.rds"))) {
-  imps_mcs <- readRDS(here::here("output", "imps_mcs_5w.rds"))
+imps_file_path <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/imps_mcs_5w.rds"
+mids_file_path <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/wide_mids_mcs_5w.rds"
+
+if (file.exists(imps_file_path)) {
+  imps_mcs <- readRDS(imps_file_path)
   message("Loading existing imputations for MCS g-formulaMI run...")
 } else {
-wide_mids_mcs <- readRDS(here::here("output", "wide_mids_mcs_5w.rds"))
+wide_mids_mcs <- readRDS(mids_file_path)
 message(sprintf("wide_mids_mcs loaded: %s", format(object.size(wide_mids_mcs), units = "MB")))
 message("No existing synthetic counterfactual imputations found. Running g-formulaMI for MCS outcome with 5 waves of intervention...")
 imps_mcs <- gFormulaImpute(
@@ -179,7 +184,7 @@ imps_mcs <- gFormulaImpute(
     silent = TRUE
   )
 message(sprintf("imps_mcs created: %s", format(object.size(imps_mcs), units = "MB")))
-saveRDS(imps_mcs, here::here("output", "imps_mcs_5w.rds"))
+saveRDS(imps_mcs, imps_file_path)
 rm(wide_mids_mcs); gc()
 message("wide_mids_mcs removed and GC run")
 }
@@ -231,8 +236,15 @@ mod_5cummulative_mcs_diff <- mi_5cummulative_mcs_diff |>
 mod_5cummulative_mcs_diff |>
   knitr::kable(digits = 3)
 
-saveRDS(mod_5cummulative_mcs_marginal, here::here("output", "model_5w_mcs_marginal.rds"))
-saveRDS(mod_5cummulative_mcs_diff, here::here("output", "model_5w_mcs_diff.rds"))
+file_name_mcs_marginal <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_5w_mcs_marginal.rds"
+file_name_mcs_diff <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_5w_mcs_diff.rds"
+
+if (file.exists(file_name_mcs_marginal) & file.exists(file_name_mcs_diff)) {
+  message("Model results already saved. Skipping saving step...")
+} else {
+saveRDS(mod_5cummulative_mcs_marginal, file_name_mcs_marginal)
+saveRDS(mod_5cummulative_mcs_diff, file_name_mcs_diff)
+}
 
 # deleting objects to save memory for the next outcome
 rm(mi_5cummulative_mcs_marginal, mi_5cummulative_mcs_diff, mod_5cummulative_mcs_marginal, mod_5cummulative_mcs_diff)
@@ -315,8 +327,10 @@ pred_mat_pcs <- make.predictorMatrix(wide_data_pcs)
 pred_mat_pcs[,c("lagged_age_dv_0", "lagged_age_dv_1", "lagged_age_dv_2", "lagged_age_dv_3", "lagged_age_dv_4")] <- 0 # collinearity
 pred_mat_pcs[,c("lagged_gor_dv_fact_0", "lagged_gor_dv_fact_1", "lagged_gor_dv_fact_2", "lagged_gor_dv_fact_3", "lagged_gor_dv_fact_4")] <- 0 # collinearity across levels of the factor
 
-if (file.exists(here::here("output", "wide_mids_pcs_5w.rds"))) {
-  wide_mids_pcs <- readRDS(here::here("output", "wide_mids_pcs_5w.rds"))
+mids_file_path_pcs <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/wide_mids_pcs_5w.rds"
+
+if (file.exists(mids_file_path_pcs)) {
+  wide_mids_pcs <- readRDS(mids_file_path_pcs)
   message("Loading existing observed outcomes for PCS g-formulaMI run...")
 } else {
   message("No existing observed outcomes found. Running multiple imputation for PCS outcome with 5 waves of intervention...")
@@ -328,7 +342,7 @@ wide_mids_pcs <- mice(
     maxit = 15,
     seed = seed
     )
-saveRDS(wide_mids_pcs, here::here("output", "wide_mids_pcs_5w.rds"))
+saveRDS(wide_mids_pcs, mids_file_path_pcs)
 }
 
 base_predictor_matrix_pcs <- make_predictor_matrix(wide_data_pcs) # custom g-formulaMI predictor matrix function
@@ -377,8 +391,10 @@ predictor_matrix_pcs["econ_emp_bin_4", "sf12pcs_dv_3"] <- 1
 # regime row always needs to be 1
 predictor_matrix_pcs["regime",] <- 1
 
-if (file.exists(here::here("output", "imps_pcs_5w.rds"))) {
-  imps_pcs <- readRDS(here::here("output", "imps_pcs_5w.rds"))
+imps_file_path_pcs <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/imps_pcs_5w.rds"
+
+if (file.exists(imps_file_path_pcs)) {
+  imps_pcs <- readRDS(imps_file_path_pcs)
   message("Loading existing imputations for PCS g-formulaMI run...")
 } else {
 imps_pcs <- gFormulaImpute(
@@ -389,7 +405,7 @@ imps_pcs <- gFormulaImpute(
     M = 200,
     silent = TRUE
   )
-saveRDS(imps_pcs, here::here("output", "imps_pcs_5w.rds"))
+saveRDS(imps_pcs, imps_file_path_pcs)
 }
 
 rm(wide_mids_pcs) # to save memory
@@ -434,8 +450,15 @@ mod_5cummulative_pcs_diff <- mi_5cummulative_pcs_diff |>
 mod_5cummulative_pcs_diff |>
   knitr::kable(digits = 3)
 
-saveRDS(mod_5cummulative_pcs_marginal, here::here("output", "model_5w_pcs_marginal.rds"))
-saveRDS(mod_5cummulative_pcs_diff, here::here("output", "model_5w_pcs_diff.rds"))
+model_file_path_pcs_marginal <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_5w_pcs_marginal.rds"
+model_file_path_pcs_diff <- "/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_5w_pcs_diff.rds"
+
+if (file.exists(model_file_path_pcs_marginal) & file.exists(model_file_path_pcs_diff)) {
+  message("Model results already saved. Skipping saving step...")
+} else {
+saveRDS(mod_5cummulative_pcs_marginal, model_file_path_pcs_marginal)
+saveRDS(mod_5cummulative_pcs_diff, model_file_path_pcs_diff)
+}
 
 # deleting objects to save memory for the next outcome
 rm(mi_5cummulative_pcs_marginal, mi_5cummulative_pcs_diff, mod_5cummulative_pcs_marginal, mod_5cummulative_pcs_diff)
@@ -447,9 +470,9 @@ rm(mi_5cummulative_pcs_marginal, mi_5cummulative_pcs_diff, mod_5cummulative_pcs_
 
 ```{r 5wavesmi-graph-marginal}
 #| output: true
-mod_5cummulative_mcs_marginal <- readRDS(here::here("output", "model_5w_mcs_marginal.rds"))
+mod_5cummulative_mcs_marginal <- readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_5w_mcs_marginal.rds")
 
-mod_5cummulative_pcs_marginal <- readRDS(here::here("output", "model_5w_pcs_marginal.rds"))
+mod_5cummulative_pcs_marginal <- readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_5w_pcs_marginal.rds")
 
 graph5waves_marginal <- bind_rows(
   mod_5cummulative_mcs_marginal |> mutate(outcome = "Mental Component Score (MCS)"),
@@ -477,9 +500,9 @@ ggsave(graph5waves_marginal, file = here::here("figs", "graph5waves_marginal.png
 
 ```{r 5wavesmi-graph-diff}
 #| output: true
-mod_5cummulative_mcs_diff <- readRDS(here::here("output", "model_5w_mcs_diff.rds"))
+mod_5cummulative_mcs_diff <- readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_5w_mcs_diff.rds")
 
-mod_5cummulative_pcs_diff <- readRDS(here::here("output", "model_5w_pcs_diff.rds"))
+mod_5cummulative_pcs_diff <- readRDS("/Users/darwin.delcastillofernandez/OneDrive - University of Glasgow/output/model_5w_pcs_diff.rds")
 
 graph5waves_diff <- bind_rows(
   mod_5cummulative_mcs_diff |> filter(intervention != "0-0-0-0-0") |> mutate(outcome = "Mental Component Score (MCS)"),

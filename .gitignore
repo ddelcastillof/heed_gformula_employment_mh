@@ -2,16 +2,14 @@
 .Rhistory
 .RData
 .Ruserdata
-model_outputs/
 do/
 *.pdf
 *.docx
 data/*
-!building_models/reference.docx
+reports/reference.docx
 
 /.quarto/
 graphs/
-reports/
 
 **/*.quarto_ipynb
 R/dump_code.R
@@ -58,3 +56,5 @@ checklists/*.synctex.gz
 
 # Ignoring files in slides
 slides/
+
+# @pending:  improve gitignore file organisation
