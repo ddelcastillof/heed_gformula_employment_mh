@@ -63,3 +63,6 @@ checklists/*.synctex.gz
 
 # Ignoring files in slides
 slides/
+
+# Ignoring tests
+tests/
