@@ -1,18 +1,18 @@
-import_data <- function() {
-  if (file.exists(here::here("data", "output", "raw_data.rds"))) {
-    message("raw_data.fst already exists. Loading from cache.")
-    raw_data <- readRDS(here::here("data", "output", "raw_data.rds")) |> as.data.table()
-  } else {
-
-  message("raw_data.rds does not exist. Creating and writing to cache.")
+import_data <- function(force = FALSE) {
+  cache_path <- here::here("data", "cache", "raw_data.fst")
+  if (!force && file.exists(cache_path)) {
+    message("Loading from cache. Use force = TRUE to rebuild.")
+    return(fst::read_fst(cache_path, as.data.table = TRUE))
+  }
+  message("Building raw_data.fst and writing to cache.")
   
   # Defining paths
   ukhls_raw <- here::here("data", "raw", "ukhls")
-  
-  # Load necessary libraries
-  require(data.table)
-  require(haven)
 
+  library(data.table)
+  library(haven)
+  source(here::here("R", "exclusion_diagnostics.R")) # intermediate diagnostics for STROBE checklist, called at each function
+  
   waves <- letters[1:10]
 
   # loading variables from indall
@@ -128,17 +128,18 @@ import_data <- function() {
   raw_data <- merge(raw_data, benefits_collapsed, by = c("hidp", "wave"), all.x = TRUE)
 
   
-   saveRDS(raw_data, here::here("data", "output", "raw_data.rds"))
-  }
-
+  fst::write_fst(raw_data, cache_path)
+  
   return(raw_data)
 }
 
-clean_data <- function() {
-  # libraries
-  require(data.table)
+clean_data <- function(DT) {
+  library(data.table)
+  source(here::here("R", "exclusion_diagnostics.R"))
 
-  raw_data <- import_data()
+  if (!is.data.table(DT)) stop("Input must be a data.table")
+
+  raw_data <- DT
 
   # Defining aliases
   age_responsible <- 18
@@ -178,8 +179,8 @@ clean_data <- function() {
   ## then reconstruct age = constant + wave. handles non-consecutive waves correctly.
   setorder(raw_data, pidp, wave)
   raw_data[, age_adj := age_probe - wave]
-  raw_data[, age_adj := nafill(age_adj, type = "locf"), by = pidp]  # backward fill
-  raw_data[, age_adj := nafill(age_adj, type = "nocb"), by = pidp]  # forward fill
+  raw_data[, age_adj := nafill(age_adj, type = "locf"), by = pidp]  # forward fill
+  raw_data[, age_adj := nafill(age_adj, type = "nocb"), by = pidp]  # backward fill
   raw_data[is.na(age_probe), age_probe := as.integer(age_adj + wave)]
   raw_data[, age_adj := NULL]
 
@@ -220,23 +221,21 @@ clean_data <- function() {
   
   # job status recode: 1 if employed, 0 if unemployed or inactive
   raw_data[, les_c3 := fcase(
-  jbstat %in% c(1,2,5,12,13,14,15), 1L,
-  jbstat == 7,                       2L,
-  jbstat %in% c(3,6,8,10,11,97,9,4), 3L,
+  jbstat < 0,                           NA_integer_,
+  jbstat %in% c(1,2,5,12,13,14,15), 1L, # 1 = employed
+  jbstat == 7,                       2L, # 2 = students
+  jbstat %in% c(3,6,8,10,11,97,9,4), 3L, # 3 = unemployed or inactive
   default = NA_integer_
   )]
-  
-  raw_data[les_c3 < 0, les_c3 := NA_integer_]
 
-  ## people under 16 is student
-  raw_data[age_probe < age_seek_employment, les_c3 := 4L]
   ## people below age to leave home are not at risk of work, so set to not employed
   raw_data[age_probe < age_leave_parents, les_c3 := 3L]
+  ## people under 16 is student
+  raw_data[age_probe < age_seek_employment, les_c3 := 2L]
 
   # les_c4 is cloned but with a retired category
   raw_data[, les_c4 := les_c3]
   raw_data[jbstat == 4, les_c4 := 4L]
-  raw_data[les_c4 < 0, les_c4 := NA_integer_]
 
   # flag for adult children in the household (1 if has adult children, 0 if not)
   ## build parent tables
@@ -303,6 +302,7 @@ clean_data <- function() {
   raw_data[, (sentinel_cols) := lapply(.SD, \(x) fifelse(x < 0, NA_real_, x)), .SDcols = sentinel_cols]
 
   raw_data[, ypnb := rowSums(.SD, na.rm = TRUE), .SDcols = sentinel_cols]
+  raw_data[, ypnb := fifelse(rowSums(!is.na(.SD)) == 0L, NA_real_, ypnb), .SDcols = sentinel_cols]
   raw_data[ypnb < 0, ypnb := 0]
   raw_data[, ypnb := ypnb / cpi]   # deflate to 2015 prices
 
@@ -376,7 +376,15 @@ clean_data <- function() {
   raw_data[econ_benefits_uc == 1L, econ_benefits_lb := 0L]
 
   # ---- FINANCIAL DISTRESS ----
+  raw_data[finnow < 0, finnow := NA_integer_]
   raw_data[, econ_dist := finnow]
+
+  ## Covariable: economic distress dummy (for mediation analyses)
+  raw_data[, econ_dist_bin := fcase(
+    econ_dist %in% 1:3, 0L,
+    econ_dist %in% 4:5, 1L,
+    default = NA_integer_
+  )]
 
   ####### Final modfications and recodes ########
 
@@ -414,6 +422,9 @@ clean_data <- function() {
   
   # convert house ownership to factor
   raw_data[, home_owner := factor(home_owner, levels = c(0L, 1L), labels = c("Renter", "Owner"))]
+
+  # convert benefits receipt to factor (after econ_benefits_* derivations above)
+  raw_data[, econ_benefits := factor(econ_benefits, levels = c(0L, 1L), labels = c("No benefits", "Benefits"))]
   
   # rename gender_probe to sex_dv (overwrite original sex_dv which has 1/2 coding and is less intuitive than 0/1)
   raw_data[, sex_dv := gender_probe]
@@ -427,20 +438,30 @@ clean_data <- function() {
   # rename imputed age_probe to age_dv (overwrite original age_dv which has negative values for missing)
   raw_data[, age_dv := age_probe]
 
-  # recoding gor_dv==-9 to NA and fill gov_dv with last observation carried forward within person, then backward fill to handle leading NAs
+  # recoding gor_dv==-9 to NA and then forward/backward fill within person to impute missing region of residence
   raw_data[gor_dv == -9, gor_dv := NA_integer_]
   setorder(raw_data, pidp, wave)
-  raw_data[, gor_dv := nafill(gor_dv, type = "locf"), by = pidp]  # backward fill
-  raw_data[, gor_dv := nafill(gor_dv, type = "nocb"), by = pidp]  # forward fill
-  
+  raw_data[, gor_dv := nafill(gor_dv, type = "locf"), by = pidp]  # forward fill
+  raw_data[, gor_dv := nafill(gor_dv, type = "nocb"), by = pidp]  # backward fill
+
   # transform gor_dv into factor
   gor_labels <- c("North East", "North West", "Yorkshire and the Humber", "East Midlands", "West Midlands",
                   "East of England", "London", "South East", "South West", "Wales", "Scotland", "Northern Ireland")
   raw_data[, gor_dv_fact := factor(gor_dv, levels = 1:12, labels = gor_labels)]
 
-  # drop missing marital status (mastat_dv)
+  # marital status (mastat_dv): recode to partnered (1) vs not partnered (0)
+  # negatives (-9 missing, -8 inapplicable, -2 refusal, -1 don't know) and
+  # 0 "Child under 16" -> NA (no adult marital status), then dropped.
   raw_data[mastat_dv < 0, mastat_dv := NA_integer_]
+  ## partnered     = Married (2), Same-sex civil partnership (3), Living as couple (10)
+  ## not partnered = Single/never married (1), Separated but legally married (4),
+  ##                 Divorced (5), Widowed (6), Separated from civil partner (7),
+  ##                 Former civil partner (8), Surviving civil partner (9)
+  raw_data[, mastat_dv := fifelse(mastat_dv %in% c(2L, 3L, 10L), 1L,
+                            fifelse(mastat_dv %in% c(1L, 4L, 5L, 6L, 7L, 8L, 9L), 0L, NA_integer_))]
   raw_data <- raw_data[!is.na(mastat_dv)]
+
+  raw_data[, mastat_dv := factor(mastat_dv, levels = c(0L, 1L), labels = c("Not partnered", "Partnered"))]
 
   # scsf1, sf12mcs_dv and sf12pcs_dv recode missing from negative to NA
   raw_data[scsf1 < 0, scsf1 := NA_integer_]
@@ -452,12 +473,15 @@ clean_data <- function() {
   # filling missing hiqual_dv with last observation carried forward within person, then backward fill to handle leading NAs
   setorder(raw_data, pidp, wave)
   raw_data[, hiqual_dv := nafill(hiqual_dv, type = "locf"), by = pidp]  # forward fill
+  
+  # diagnostics for the STROBE checklist
+  diagnose_exclusions(raw_data)
 
   # drop intermediate variables used for cleaning
   raw_data[, c("age_probe", "gender_probe", "has_partner", "age_pension",
                "idmother", "age_mother", "pension_mother", "les_c4mother",
                "idfather", "age_father", "pension_father", "les_c4father",
-               "partnerid", "adultchildflag") := NULL]
+               "partnerid", "adultchildflag", "idhh", "idind") := NULL]
   
   # dropping other variables not needed
   raw_data[, c("jbstat", "unemp", "cpi", "econ_benefits_uc", "econ_benefits_lb", 
@@ -471,7 +495,8 @@ clean_data <- function() {
 }
 
 preproc_data <- function(DT) {
-  require(data.table)
+  library(data.table)
+  source(here::here("R", "exclusion_diagnostics.R"))
 
   if (!is.data.table(DT)) stop("Input must be a data.table")
 
@@ -480,7 +505,7 @@ preproc_data <- function(DT) {
 
   cols_to_keep <- c("pidp", "wave",
                     "sf12mcs_dv", "sf12pcs_dv", "log_income",
-                    "econ_emp_bin", "econ_dist", "econ_benefits", "gor_dv_fact",
+                    "econ_emp_bin", "econ_dist", "econ_dist_bin", "econ_benefits", "gor_dv_fact",
                     "gor_dv", "mastat_dv", "home_owner", "dnc", "age_dv",
                     "race", "sex_dv", "hiqual_dv")
 
@@ -492,16 +517,25 @@ preproc_data <- function(DT) {
   exp_data <- merge(grid, DT, by = c("pidp", "wave"), all.x = TRUE)
   exp_data[is.na(response), response := 0L]
 
+  diagnose_response(exp_data)
+
   setorder(exp_data, pidp, wave)
 
   # impute slow-changing/time-invariant variables for synthetic (response=0) rows
-  exp_data[, sex_dv    := sex_dv[!is.na(sex_dv)][1L], by = pidp]          # time-invariant: broadcast
-  exp_data[, race      := race[!is.na(race)][1L],      by = pidp]          # time-invariant: broadcast
+  exp_data[, sex_dv    := sex_dv[!is.na(sex_dv)][1L], by = pidp]          # time-invariant sex
+  exp_data[, race      := race[!is.na(race)][1L],      by = pidp]          # time-invariant race
   exp_data[, hiqual_dv := nafill(hiqual_dv, type = "locf"), by = pidp]     # education: forward only
+  # collapse UKHLS hiqual_dv codes: 1-2 (degree/other higher degree) = High,
+  # 3-5 (A-level/GCSE/other qualification) = Medium, 9 (no qualification) = Low
+  exp_data[, hiqual_dv_fact := factor(fcase(
+    hiqual_dv %in% 1:2, "High",
+    hiqual_dv %in% 3:5, "Medium",
+    hiqual_dv == 9L,    "Low"
+  ), levels = c("High", "Medium", "Low"))]
 
-  # ---- 3. Wave-1 baseline snapshot ----
+  # ---- 3. Wave-1 baseline variable creation ----
   base_cols <- c("pidp", "age_dv", "sex_dv", "gor_dv", "gor_dv_fact", "mastat_dv",
-                 "home_owner", "dnc", "hiqual_dv", "race",
+                 "home_owner", "dnc", "hiqual_dv_fact", "race",
                  "sf12mcs_dv", "sf12pcs_dv")
 
   base_data <- exp_data[wave == 1L, ..base_cols]
@@ -519,22 +553,32 @@ preproc_data <- function(DT) {
   # ---- 4. Join baseline with time-varying panel ----
   pop_data <- merge(base_data, exp_data, by = c("pidp", "wave"), all.x = TRUE)
 
+  diagnose_analytical_samples(pop_data)
+
   # ---- 5. Recoding dnc to categorical variable ----
-  pop_data[, dnc_fact := fcase(
-  is.na(dnc), NA_character_,
-  dnc == 0L,  "zero",
-  dnc == 1L,  "one",
-  default = "2+"
-  )]
-  pop_data[, dnc_fact := factor(dnc_fact, levels = c("zero", "one", "2+"))]
+  pop_data[, dnc_fact := factor(fcase(
+    is.na(dnc), NA_character_,
+    dnc == 0L,  "Zero",
+    dnc == 1L,  "One",
+    default    = "2+"
+  ), levels = c("Zero", "One", "2+"))]
+
+  #--- Transforming econ_emp_bin into factor variable ----
+  pop_data[, econ_emp_bin_fact := as.factor(econ_emp_bin)]
+
+  #--- econ_dist_bin as factor ----
+  pop_data[, econ_dist_bin_fact := as.factor(econ_dist_bin)]
+
+  #--- Renaming sex_dv as a factor variable ----
+  pop_data[, sex_dv_fact := sex_dv]
 
   # ---- 5. Final column selection ----
   final_cols <- c("pidp", "wave", "response", "t0",
                   "sf12mcs_dv", "sf12pcs_dv", "log_income",
-                  "econ_emp_bin", "econ_dist", "econ_benefits",
-                  "gor_dv", "mastat_dv", "home_owner", "dnc", "dnc_fact", "age_dv",
-                  "age_dv_base", "sex_dv_base", "gor_dv_base", "mastat_dv_base",
-                  "home_owner_base", "dnc_base", "hiqual_dv_base", "race_base",
+                  "econ_emp_bin", "econ_emp_bin_fact", "econ_dist", "econ_dist_bin", 
+                  "econ_dist_bin_fact", "econ_benefits", "gor_dv", "mastat_dv", "home_owner", "dnc", "dnc_fact", "age_dv",
+                  "age_dv_base", "sex_dv_fact", "sex_dv_base", "gor_dv_base", "mastat_dv_base",
+                  "home_owner_base", "dnc_base", "hiqual_dv_fact", "hiqual_dv_fact_base", "race_base",
                   "sf12mcs_dv_base", "sf12pcs_dv_base", "gor_dv_fact_base", "gor_dv_fact")
 
   pop_data[, ..final_cols]
