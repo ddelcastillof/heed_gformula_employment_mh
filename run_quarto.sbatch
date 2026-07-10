@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=96G
 #SBATCH --time=24:00:00
-#SBATCH --output=targets_%j.out
-#SBATCH --error=targets_%j.err
+#SBATCH --output=logs/targets_%j.out
+#SBATCH --error=logs/targets_%j.err
 #SBATCH --mail-type=BEGIN,FAIL,END
 #SBATCH --mail-user=darwin.delcastillofernandez@glasgow.ac.uk
 #SBATCH --account=none
@@ -42,7 +42,7 @@ echo "Allocated CPUs:  ${SLURM_CPUS_PER_TASK}"
 echo "sbatch on PATH:  $(command -v sbatch || echo 'NOT FOUND -> crew falls back to a LOCAL controller!')"
 echo "R: $(which R)"; R --version | head -n 1
 
-Rscript -e 'targets::tar_make()' 2>&1 | tee "targets_make_${SLURM_JOB_ID}.log"
+Rscript -e 'targets::tar_make()' 2>&1 | tee "logs/targets_make_${SLURM_JOB_ID}.log"
 status=${PIPESTATUS[0]}
 echo "tar_make exit status: $status"
 
