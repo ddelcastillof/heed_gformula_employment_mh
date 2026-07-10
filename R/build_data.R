@@ -27,18 +27,22 @@ build_data <- function(data = pop_data, round_start, round_end, step, outcome) {
     dnc_fact_lagged = shift(dnc_fact, type = "lag"),
     home_owner_lagged = shift(home_owner, type = "lag"),
     econ_benefits_lagged = shift(econ_benefits, type = "lag"),
-#    gor_dv_fact_lagged = shift(gor_dv_fact, type = "lag"),
-#    age_dv_lagged = shift(age_dv, type = "lag"),
     mastat_dv_lagged = shift(mastat_dv, type = "lag")
     )][wave %in% round_start:round_end]
 
-# keeping those with at least 2 observed MCS outcomes and no baseline missing
-  no_mh_outcomes <- long_data[,
-   .(n_missing = sum(is.na(sf12mcs_dv)), base_missing = all(is.na(sf12mcs_dv_base))),
-   by = pidp
-  ][n_missing >= 2 & base_missing == TRUE, .(pidp)]
+# drop people who have BOTH >=2 missing outcome scores AND a fully missing
+# baseline, using whichever outcome (MCS or PCS) is being built
+  outcome_col <- if (outcome == "MCS") "sf12mcs_dv" else "sf12pcs_dv"
+  outcome_sym <- rlang::sym(outcome_col)
+  base_sym    <- rlang::sym(paste0(outcome_col, "_base"))
+  no_outcome_ids <- rlang::inject(
+    long_data[,
+     .(n_missing = sum(is.na(!!outcome_sym)), base_missing = all(is.na(!!base_sym))),
+     by = pidp
+    ][n_missing >= 2 & base_missing == TRUE, .(pidp)]
+  )
 
-  long_data <- long_data[!no_mh_outcomes, on = .(pidp)]
+  long_data <- long_data[!no_outcome_ids, on = .(pidp)]
 
 # matrix of possible intervention patterns according to number of waves included (0: no intervention, 1: intervention)
   if (step == "three") {
@@ -80,7 +84,7 @@ build_data <- function(data = pop_data, round_start, round_end, step, outcome) {
                 base_cols = c(sex_dv_base,
                               hiqual_dv_fact_base,
                               race_base,
-                              sf12mcs_dv_base),
+                              sf12pcs_dv_base),
                 outcome = sf12pcs_dv,
                 age_dv,
                 gor_dv_fact,
@@ -99,5 +103,14 @@ build_data <- function(data = pop_data, round_start, round_end, step, outcome) {
     wide_data <- set_exposure(wide_data, 
                               exposure = "econ_emp_bin_fact")
   
-    return(wide_data)
+    return(list(
+      data         = wide_data,
+      intervention = if (step == "three") {
+        intervention_pattern_3
+      } else if (step == "four") {
+        intervention_pattern_4
+      } else {
+        intervention_pattern_5
+      }
+    ))
 }
