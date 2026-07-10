@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=fd_targets
+#SBATCH --job-name=tar_pipe
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
