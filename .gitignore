@@ -61,6 +61,10 @@ checklists/*.fls
 checklists/*.fdb_latexmk
 checklists/*.synctex.gz
 
+# Pipeline run logs (keep the folder, ignore its contents)
+logs/*
+!logs/.gitkeep
+
 # Ignoring files in slides
 slides/
 
