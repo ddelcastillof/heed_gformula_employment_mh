@@ -66,3 +66,6 @@ slides/
 
 # Ignoring tests
 tests/
+
+# Targets files
+_targets/
