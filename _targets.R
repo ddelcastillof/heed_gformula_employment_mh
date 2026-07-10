@@ -6,8 +6,7 @@ pacman::p_load(targets,
                tarchetypes,
                mirai,
                crew,
-               crew.cluster,
-               mori)
+               crew.cluster)
 
 # Detect SLURM at runtime, if not in cluster, run locally
 on_slurm <- nzchar(Sys.getenv("SLURM_JOB_ID")) && nzchar(Sys.which("sbatch"))
@@ -54,14 +53,15 @@ tar_option_set(
                  "gFormulaMI", 
                  "magrittr", 
                  "tidyverse", 
-                 "colorBlindness", 
-                 "flextable"),
+                 "colorBlindness",
+                 "flextable",
+                 "bit64"),
   format     = "rds",
   seed       = 42
 )
 
 # Load all R scripts in the R/ folder
-for (f in list.files("R", "\\.R$", full.names = TRUE)) source(f)
+for (f in list.files("R", "\\.R$", full.names = TRUE)) source(f); rm(f)
 
 # ---- Configuration ---------------------------------------------------------
 ## mice configs
@@ -71,6 +71,7 @@ seed_random <- 42
 ## gFormulaMI configs
 gform_M <- 50
 
+# ---- DAG -------------------------------------------------------------------
 
 # Define the targets pipeline
 list(
@@ -81,9 +82,73 @@ list(
       import_data(force = TRUE) |> clean_data() |> preproc_data()
     }
   ),
-  tar_target(main_wide,
-    build_data(pop_data,
-               step = "four"))
+  # ---- MCS outcome targets --------------------------------------------------
+  tar_target(main_wide_mcs,
+    build_data(data_main,
+               round_start = 3,
+               round_end = 6,
+               step = "four",
+               outcome = "MCS")),
+  tar_target(sensitivity_1_mcs,
+    build_data(data_main,
+               round_start = 3,
+               round_end = 5,
+               step = "three",
+               outcome = "MCS")),
+  tar_target(sensitivity_2_mcs,
+    build_data(data_main,
+               round_start = 3,
+               round_end = 7,
+               step = "five",
+               outcome = "MCS")),
+  tar_target(main_mice_mcs,
+    run_mice(main_wide_mcs$data,
+             m = mice_m, 
+             maxit = mice_maxit, 
+             seed = seed_random)),
+  tar_target(sensitivity_1_mice_mcs,
+    run_mice(sensitivity_1_mcs$data,
+      m = mice_m, 
+      maxit = mice_maxit, 
+      seed = seed_random)),
+  tar_target(sensitivity_2_mice_mcs,
+    run_mice(sensitivity_2_mcs$data,
+      m = mice_m, 
+      maxit = mice_maxit, 
+      seed = seed_random)),
+  # ---- PCS outcome targets --------------------------------------------------
+  tar_target(main_wide_pcs,
+    build_data(data_main,
+               round_start = 3,
+               round_end = 6,
+               step = "four",
+               outcome = "PCS")),
+  tar_target(sensitivity_1_pcs,
+    build_data(data_main,
+               round_start = 3,
+               round_end = 5,
+               step = "three",
+               outcome = "PCS")),
+  tar_target(sensitivity_2_pcs,
+    build_data(data_main,
+               round_start = 3,
+               round_end = 7,
+               step = "five",
+               outcome = "PCS")),
+  tar_target(main_mice_pcs,
+    run_mice(main_wide_pcs$data,
+             m = mice_m,
+             maxit = mice_maxit,
+             seed = seed_random)),
+  tar_target(sensitivity_1_mice_pcs,
+    run_mice(sensitivity_1_pcs$data,
+             m = mice_m,
+             maxit = mice_maxit,
+             seed = seed_random)),
+  tar_target(sensitivity_2_mice_pcs,
+    run_mice(sensitivity_2_pcs$data,
+             m = mice_m,
+             maxit = mice_maxit,
+             seed = seed_random))
 )
 
-# ---- DAG -------------------------------------------------------------------
