@@ -12,11 +12,14 @@
 #SBATCH --account=none
 
 # ---------------------------------------------------------------------------
-# CONTROLLER job. It runs a single R process that calls tar_make(); the
-# crew_controller_slurm defined in _targets.R then submits the 12 worker jobs as
-# SEPARATE sbatch jobs (each using slurm/preamble.sh). This job therefore needs
-# only light CPU but a long walltime (it idles while workers run) and enough
-# memory to gather target results (storage = "main").
+# CONTROLLER job. It runs a single R process that calls tar_make_future(); the
+# future.batchtools plan defined in _targets.R then submits each heavy target
+# (MICE / g-formula, deployment = "worker") as its own transient sbatch job,
+# rendered from slurm/batchtools.slurm.tmpl with that target's per-job
+# ncpus/memory/walltime. Light targets run inside this job (deployment =
+# "main"). This job therefore needs only light CPU but a long walltime (it
+# idles while workers run) and enough memory to gather target results
+# (storage = "main").
 # ---------------------------------------------------------------------------
 
 set -uo pipefail
@@ -39,11 +42,12 @@ mkdir -p logs
 
 echo "Controller job ${SLURM_JOB_ID} on $(hostname)"
 echo "Allocated CPUs:  ${SLURM_CPUS_PER_TASK}"
-echo "sbatch on PATH:  $(command -v sbatch || echo 'NOT FOUND -> crew falls back to a LOCAL controller!')"
+echo "sbatch on PATH:  $(command -v sbatch || echo 'NOT FOUND -> pipeline falls back to LOCAL future.callr workers!')"
 echo "R: $(which R)"; R --version | head -n 1
 
-Rscript -e 'targets::tar_make()' 2>&1 | tee "logs/targets_make_${SLURM_JOB_ID}.log"
+# workers = max concurrent per-target SLURM jobs (parity with the 12 crew workers)
+Rscript -e 'targets::tar_make_future(workers = 12L)' 2>&1 | tee "logs/targets_make_${SLURM_JOB_ID}.log"
 status=${PIPESTATUS[0]}
-echo "tar_make exit status: $status"
+echo "tar_make_future exit status: $status"
 
 exit $status
