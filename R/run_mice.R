@@ -1,6 +1,4 @@
 run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
-# wide_data$pidp <- as.character(wide_data$pidp)
-
   method_list <- mice::make.method(wide_data)
 
   # Method assignment by variable group
@@ -9,12 +7,12 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
     sex_dv               = "logreg",
     hiqual_dv_fact       = "polr",
     race                 = "logreg",
+    gor_dv_fact          = "polr",
+    age_dv               = "norm",
     # SF-12 scores: baseline (_base) and outcome
     sf12mcs_dv           = "rf",
     sf12pcs_dv           = "rf",
     # time-varying confounders / exposure
-    gor_dv_fact          = "polr",
-    age_dv               = "norm",
     econ_dist_bin_fact   = "logreg",
     log_income           = "rf",
     econ_emp_bin_fact    = "logreg",   # exposure
@@ -33,12 +31,12 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
   method_list[matched] <- method_by_group[group[matched]]
 
   pred_mat <- mice::make.predictorMatrix(wide_data)
-#  pred_mat[, "pidp"] <- 0
-#  pred_mat["pidp", ] <- 0
+
+  no_predict <- grep("^(gor_dv_fact|age_dv)_\\d+$", colnames(pred_mat), value = TRUE) # almost collinear with other covariates, not used on observed outcomes imputations
+  pred_mat[, no_predict] <- 0
 
   mids <-  mice::mice(
            data            = wide_data,
-        #  defaultMethod   = c("pmm", "logreg", "polr", "polyreg"),
            m               = m,
            maxit           = maxit,
            seed            = seed,
