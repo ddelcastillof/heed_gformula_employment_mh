@@ -73,3 +73,6 @@ tests/
 
 # Targets files
 _targets/
+
+# future.batchtools per-job registries
+.future/
