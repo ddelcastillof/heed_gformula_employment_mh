@@ -13,12 +13,24 @@ pacman::p_load(targets,
 # Detect SLURM at runtime, if not in cluster, run locally
 on_slurm <- nzchar(Sys.getenv("SLURM_JOB_ID")) && nzchar(Sys.which("sbatch"))
 
+# batchtools plan factory: future.batchtools >= 0.22.0 only honors resources
+# attached to the plan (backend), not per-future ones, so every plan carries
+# its resources. Template conventions (slurm/batchtools.slurm.tmpl): walltime
+# in seconds (rendered as minutes for --time), memory is per CPU
+# (--mem-per-cpu)
+slurm_plan <- function(ncpus, memory, walltime) {
+  future::tweak(future.batchtools::batchtools_slurm,
+                template  = here::here("slurm", "batchtools.slurm.tmpl"),
+                resources = list(ncpus = ncpus, memory = memory,
+                                 walltime = walltime, account = "none"))
+}
+
 # future plan for tar_make_future(): on SLURM, batchtools submits one sbatch
 # job per deployment = "worker" target using the template; locally each
-# target runs in a fresh callr R process
+# target runs in a fresh callr R process. The SLURM default below is a
+# defensive fallback -- every heavy target overrides it with a tier plan
 if (on_slurm) {
-  future::plan(future.batchtools::batchtools_slurm,
-               template = here::here("slurm", "batchtools.slurm.tmpl"))
+  future::plan(slurm_plan(ncpus = 1L, memory = "8G", walltime = 3600L))
 } else {
   future::plan(future.callr::callr, workers = 4L)
 }
@@ -68,14 +80,17 @@ em_mice_m     <- 50
 em_mice_maxit <- 15
 em_seed       <- 20260410
 em_datasets   <- 200
-## per-job SLURM resources, forwarded to slurm/batchtools.slurm.tmpl as
-## resources$ncpus / resources$memory / resources$walltime
-resources_mice  <- targets::tar_resources(
-  future = targets::tar_resources_future(
-    resources = list(ncpus = 2L, memory = "48G", walltime = "12:00:00")))
-resources_gform <- targets::tar_resources(
-  future = targets::tar_resources_future(
-    resources = list(ncpus = 2L, memory = "32G", walltime = "08:00:00")))
+## per-job SLURM resources: each tier is a tweaked batchtools plan that
+## targets swaps in per target at launch (tar_resources_future(plan = ...));
+## locally the tiers collapse to the default (callr ignores resources)
+resources_mice <- if (on_slurm) {
+  targets::tar_resources(future = targets::tar_resources_future(
+    plan = slurm_plan(ncpus = 2L, memory = "24G", walltime = 43200L)))  # 48G total, 12 h
+} else list()
+resources_gform <- if (on_slurm) {
+  targets::tar_resources(future = targets::tar_resources_future(
+    plan = slurm_plan(ncpus = 2L, memory = "16G", walltime = 28800L)))  # 32G total, 8 h
+} else list()
 
 # ---- DAG -------------------------------------------------------------------
 
