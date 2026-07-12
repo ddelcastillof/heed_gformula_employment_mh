@@ -5,19 +5,37 @@ run_gformula <- function(wide_mids, wide_data_mi, intervention_pattern, estimand
 
   regimes <- intervention_pattern # from list created in build_data()
 
+  # treatment and outcome columns tagged by make_wide()/set_exposure(), so
+  # they scale with the number of waves (three/four/five) and the outcome
+  # (MCS/PCS); e.g. four waves -> econ_emp_bin_fact_0..3, sf12mcs_dv_3
+  trt_vars    <- attr(wide_data_mi, "exposure_vars")
+  outcome_var <- attr(wide_data_mi, "outcome_var")
+
+  if (is.null(regimes)) {
+    stop("intervention_pattern is NULL: pass build_data()$intervention")
+  }
+  if (is.null(trt_vars) || is.null(outcome_var)) {
+    stop("wide_data_mi lacks 'exposure_vars'/'outcome_var' attributes: ",
+         "pass build_data()$data")
+  }
+  if (length(regimes[[1]]) != length(trt_vars)) {
+    stop("regime length (", length(regimes[[1]]), ") != number of treatment ",
+         "columns (", length(trt_vars), "): ", paste(trt_vars, collapse = ", "))
+  }
+
   predictor_matrix <- make_counterfactual_matrix(wide_data_mi)
 
   imps <- gFormulaMI::gFormulaImpute(
     data             = wide_mids,
     M                = M,
-    trtVars          = c("econ_dist_bin_0"),
+    trtVars          = trt_vars,
     trtRegimes       = regimes,
     predictorMatrix  = predictor_matrix,
     silent           = TRUE
   )
 
   fits <- imps %$%
-    lm(as.formula(paste("sf12mcs_dv_0 ~", estimand)))
+    lm(as.formula(paste(outcome_var, "~", estimand)))
 
   outvals <- gFormulaMI::syntheticPool(fits)
 
