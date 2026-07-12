@@ -28,9 +28,12 @@ slurm_plan <- function(ncpus, memory, walltime) {
 # future plan for tar_make_future(): on SLURM, batchtools submits one sbatch
 # job per deployment = "worker" target using the template; locally each
 # target runs in a fresh callr R process. The SLURM default below is a
-# defensive fallback -- every heavy target overrides it with a tier plan
+# defensive fallback -- every heavy target overrides it with a tier plan.
+# NB: the strategy must reach plan() as a variable, not a call --
+# plan(f(x)) is NSE sugar for plan(f, x) and would reject slurm_plan
 if (on_slurm) {
-  future::plan(slurm_plan(ncpus = 1L, memory = "8G", walltime = 3600L))
+  default_plan <- slurm_plan(ncpus = 1L, memory = "8G", walltime = 3600L)
+  future::plan(default_plan)
 } else {
   future::plan(future.callr::callr, workers = 4L)
 }
