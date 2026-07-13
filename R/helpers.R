@@ -202,15 +202,12 @@ make_counterfactual_matrix <- function(return_vals) {
   }
 
   # time-varying confounders are predicted by their immediate prior period
-  # same for outcomes, predictors, lagged confounders
+  # same for outcomes (outcome columns are part of intermediate_vars) and
+  # lagged confounders
   for (t in seq_len(time_points - 1)) {
     prev_c <- intermediate_vars[endsWith(intermediate_vars, paste0("_", t))]
     curr_c <- intermediate_vars[endsWith(intermediate_vars, paste0("_", t + 1))]
     p_mat[curr_c, prev_c] <- 1
-    
-    prev_o <- paste0(outcome_var, "_", t)
-    curr_o <- paste0(outcome_var, "_", t + 1)
-    p_mat[curr_o, prev_o] <- 1
 
     prev_lag <- time_lagged[endsWith(time_lagged, paste0("_lagged_", t))]
     curr_lag <- time_lagged[endsWith(time_lagged, paste0("_lagged_", t + 1))]
