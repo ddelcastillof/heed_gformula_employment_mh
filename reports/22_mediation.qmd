@@ -1,0 +1,442 @@
+---
+title: Financial distress as a mediator of the relationship between employment and health outcomes
+author: "Darwin Del Castillo"
+format:
+  html:
+    toc: true
+    fig-format: svg
+execute:
+  output: false
+---
+# Mediation analysis of employment → mental health via income and financial distress
+Randomised Interventional Effect (RIE) mediation via income and financial distress. Decomposes the employment → MCS effect into:
+    - IDE = direct effect not operating through income
+    - IIE = indirect effect through income (including Inc → Dis → MCS)
+    As per the DAGMH in fnct/dags.R:
+```{r DAG}
+source(here::here("fnct", "dags.R"))
+```
+## RIE identification (VanderWeele & Tchetgen 2014; Lin et al. 2017):
+   (i)   No unmeasured Emp–MCS confounding given C
+   (ii*) No unmeasured Inc–MCS confounding given Emp, C, L
+   (iii) No unmeasured Emp–Inc confounding given C
+Does NOT require the cross-world independence assumption.
+Identified with MCS_t → Emp_{t+1} feedback present in this DAG.
+
+```{r setup, include=FALSE}
+pacman::p_load(data.table, here, mice, gFormulaMI, magrittr, tidyverse)
+
+# Source functions
+source(here::here("fnct", "import_and_clean_data.R"))
+source(here::here("fnct", "helpers.R"))
+
+set_seed <- 12345
+
+# ── DATA PIPELINE (identical to 04_with_age.R) ───────────────────────────────
+data_clean <- clean_data() |> preproc_data()
+
+eligible_pidp <- intersect(
+  data_clean[wave == 2 & response == 1, pidp],
+  data_clean[wave == 5 & response == 1, pidp]
+)
+
+pop_DT <- data_clean[pidp %in% eligible_pidp]
+
+cols_keep <- c("pidp", "wave", "t0", "sf12mcs_dv", "econ_emp_bin",
+               "sf12mcs_dv_base", "log_income", "econ_dist", "age_dv")
+long_data <- pop_DT[, ..cols_keep]
+
+long_data <- long_data[, `:=`(t0 = t0 - 2L)][wave %in% 3:5]
+
+no_mh_outcomes <- long_data[,
+  .(n_missing = sum(is.na(sf12mcs_dv)), base_missing = all(is.na(sf12mcs_dv_base))),
+  by = pidp
+][n_missing >= 2 | base_missing == TRUE, .(pidp)]
+
+long_data <- long_data[!no_mh_outcomes, on = .(pidp)]
+
+# matrix of possible intervention patterns for 3 time points (0: employed, 1: unemployed)
+intervention_pattern_3 <- asplit(as.matrix(CJ(0:1, 0:1, 0:1)), 1)
+
+wide_data_mcs <- long_data |>
+  make_wide(
+    id_col    = pidp,
+    time_col  = t0,
+    base_cols = c(sf12mcs_dv_base),
+    outcome   = sf12mcs_dv,
+    econ_emp_bin,
+    log_income,
+    econ_dist,
+    age_dv,
+    waves     = c(0, 1, 2)
+  )
+
+# ── MICE imputation (with caching) ───────────────────────────────────────────
+# age_dv is deterministic (increases by 1 each wave) — zero its predictor columns
+matrix_imp <- mice::make.predictorMatrix(wide_data_mcs)
+matrix_imp[, c("age_dv_0", "age_dv_1", "age_dv_2")] <- 0
+
+mids_path <- here::here("data", "wide_mids_mcs_05.rds")
+
+if (file.exists(mids_path)) {
+  wide_mids_mcs <- readRDS(mids_path)
+  message("Loaded MICE object from cache: ", mids_path)
+} else {
+  wide_mids_mcs <- mice::mice(
+    wide_data_mcs,
+    defaultMethod  = c("norm", "logreg", "pmm", "pmm"),
+    m              = 50,
+    maxit          = 10,
+    seed           = set_seed,
+    predictorMatrix = matrix_imp,
+    printFlag      = TRUE
+  )
+  saveRDS(wide_mids_mcs, mids_path)
+  message("MICE imputation complete, saved to: ", mids_path)
+}
+
+# ── PREDICTOR MATRIX ─────────────────────
+predictor_matrix_mcs <- make_predictor_matrix(wide_data_mcs)
+
+## sf12mcs_dv_base does not predict anything beyond time 0
+predictor_matrix_mcs[, "sf12mcs_dv_base"] <- 0
+predictor_matrix_mcs["regime",         "sf12mcs_dv_base"] <- 1
+predictor_matrix_mcs["sf12mcs_dv_0",   "sf12mcs_dv_base"] <- 1
+predictor_matrix_mcs["log_income_0",   "sf12mcs_dv_base"] <- 1
+predictor_matrix_mcs["econ_dist_0",    "sf12mcs_dv_base"] <- 1
+predictor_matrix_mcs["econ_emp_bin_0", "sf12mcs_dv_base"] <- 1
+
+# MCS: Markov chain — only depends on its immediate predecessor
+predictor_matrix_mcs["sf12mcs_dv_1", "sf12mcs_dv_0"] <- 1
+predictor_matrix_mcs["sf12mcs_dv_2", "sf12mcs_dv_1"] <- 1
+
+# MCS in period t does not predict economic distress in t+1
+predictor_matrix_mcs["sf12mcs_dv_0", "econ_dist_1"] <- 0
+predictor_matrix_mcs["sf12mcs_dv_1", "econ_dist_2"] <- 0
+
+# econ_dist in period t predicts econ_dist in t+1
+predictor_matrix_mcs["econ_dist_1", "econ_dist_0"] <- 1
+predictor_matrix_mcs["econ_dist_2", "econ_dist_1"] <- 1
+
+# time-varying covariates at t predict the same covariate at t+1
+predictor_matrix_mcs["log_income_1",   "log_income_0"]   <- 1
+predictor_matrix_mcs["log_income_2",   "log_income_1"]   <- 1
+predictor_matrix_mcs["econ_emp_bin_1", "econ_emp_bin_0"] <- 1
+predictor_matrix_mcs["econ_emp_bin_2", "econ_emp_bin_1"] <- 1
+
+# age_dv at t predicts mcs, econ distress, log income, and employment at the same t
+predictor_matrix_mcs[, "age_dv_0"] <- 0
+predictor_matrix_mcs[, "age_dv_1"] <- 0
+predictor_matrix_mcs[, "age_dv_2"] <- 0
+predictor_matrix_mcs["regime",         "age_dv_0"] <- 1
+predictor_matrix_mcs["regime",         "age_dv_1"] <- 1
+predictor_matrix_mcs["regime",         "age_dv_2"] <- 1
+predictor_matrix_mcs["sf12mcs_dv_0",   "age_dv_0"] <- 1
+predictor_matrix_mcs["sf12mcs_dv_1",   "age_dv_1"] <- 1
+predictor_matrix_mcs["sf12mcs_dv_2",   "age_dv_2"] <- 1
+predictor_matrix_mcs["econ_dist_0",    "age_dv_0"] <- 1
+predictor_matrix_mcs["econ_dist_1",    "age_dv_1"] <- 1
+predictor_matrix_mcs["econ_dist_2",    "age_dv_2"] <- 1
+predictor_matrix_mcs["log_income_0",   "age_dv_0"] <- 1
+predictor_matrix_mcs["log_income_1",   "age_dv_1"] <- 1
+predictor_matrix_mcs["log_income_2",   "age_dv_2"] <- 1
+predictor_matrix_mcs["econ_emp_bin_0", "age_dv_0"] <- 1
+predictor_matrix_mcs["econ_emp_bin_1", "age_dv_1"] <- 1
+predictor_matrix_mcs["econ_emp_bin_2", "age_dv_2"] <- 1
+
+# age_dv predicts itself across waves
+predictor_matrix_mcs["age_dv_1", "age_dv_0"] <- 1
+predictor_matrix_mcs["age_dv_2", "age_dv_1"] <- 1
+
+regimes_mcs <- intervention_pattern_3
+
+regimes_3 <- tibble(intervention = regimes_mcs |>
+  map(paste, collapse = "-") |>
+  reduce(c))
+
+# ── TOTAL EFFECT ──────────────────────────────────────────────────────────────
+# Standard gFormulaImpute with all variables (including income) free to respond
+# to the employment regime. Gives E[MCS₂(a)] for each regime.
+imps_te <- gFormulaImpute(
+  wide_mids_mcs,
+  trtVars         = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtRegimes      = regimes_mcs,
+  predictorMatrix = predictor_matrix_mcs,
+  silent          = TRUE
+)
+
+fits_te <- imps_te %$%
+  lm(sf12mcs_dv_2 ~ 0 + factor(regime))
+
+te_marginal <- syntheticPool(fits_te) |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(
+    te_effect = Estimate,
+    te_se     = sqrt(Total),
+    te_ll     = `95% CI L`,
+    te_ul     = `95% CI U`
+  ) |>
+  bind_cols(regimes_3)
+
+# ── RIE VIA INCOME: STAGE 1 ─────────────────────────────────────────────────
+# Reference regime (all employed = 0,0,0), income is free to re-impute.
+# The resulting log_income values ARE G_{a*|C}: draws from the income distribution
+# under reference employment, conditional on baseline confounders C.
+ref_imps <- gFormulaImpute(
+  wide_mids_mcs,
+  trtVars         = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtRegimes      = c(0, 0, 0),         # plain vector: reference regime
+  predictorMatrix = predictor_matrix_mcs,
+  silent          = TRUE
+)
+
+# ── RIE VIA INCOME: STAGE 2 ──────────────────────────────────────────────────
+# All 8 employment regimes; income will be frozen post-hoc to Stage 1 draws,
+# breaking the Emp → Inc → MCS pathway while keeping the Emp → MCS direct path.
+rie_imps <- gFormulaImpute(
+  wide_mids_mcs,
+  trtVars         = c("econ_emp_bin_0", "econ_emp_bin_1", "econ_emp_bin_2"),
+  trtRegimes      = regimes_mcs,
+  predictorMatrix = predictor_matrix_mcs,
+  silent          = TRUE
+)
+
+# Sanity check: verify imputation counts
+M             <- wide_mids_mcs$m
+n_ref_per_imp <- nrow(mice::complete(ref_imps, action = 1))
+n_rie_per_imp <- nrow(mice::complete(rie_imps, action = 1))
+n_regimes     <- n_rie_per_imp / n_ref_per_imp
+stopifnot(n_regimes == length(regimes_mcs))  # must equal 8
+
+# ── Outcome model formula (read from predictor matrix) ────────────────────────
+# gFormulaImpute already generated sf12mcs_dv_2 using natural mediator values.
+# To apply the RIE correctly we must RE-PREDICT sf12mcs_dv_2 after freezing the
+# mediator, using the outcome model fitted on each MI-imputed dataset.
+# Predictors of sf12mcs_dv_2 per predictor_matrix_mcs (sliding window + Markov override):
+#   sf12mcs_dv_1, econ_emp_bin_2, log_income_2, econ_dist_2, age_dv_2
+outcome_preds   <- setdiff(names(which(predictor_matrix_mcs["sf12mcs_dv_2", ] == 1)), "regime")
+outcome_formula <- reformulate(outcome_preds, response = "sf12mcs_dv_2")
+
+# For each imputation k:
+#   1. Fit outcome model on the MI-complete dataset (captures natural associations)
+#   2. Freeze income in the synthetic data (tiled across 8 regime blocks)
+#   3. Re-predict sf12mcs_dv_2 using frozen income + Stage 2 other predictors
+#   4. Fit marginal mean model on the counterfactual outcome
+fits_rie_analyses <- lapply(seq_len(M), function(k) {
+  ref_k  <- mice::complete(ref_imps,    action = k)
+  rie_k  <- mice::complete(rie_imps,    action = k)
+  imp_k  <- mice::complete(wide_mids_mcs, action = k)
+  out_mod <- lm(outcome_formula, data = imp_k)
+  rie_k$log_income_0 <- rep(ref_k$log_income_0, times = n_regimes)
+  rie_k$log_income_1 <- rep(ref_k$log_income_1, times = n_regimes)
+  rie_k$log_income_2 <- rep(ref_k$log_income_2, times = n_regimes)
+  rie_k$sf12mcs_dv_2 <- predict(out_mod, newdata = rie_k)   # counterfactual outcome
+  lm(sf12mcs_dv_2 ~ 0 + factor(regime), data = rie_k)
+})
+
+fits_rie <- list(analyses = fits_rie_analyses)
+mi_rie   <- syntheticPool(fits_rie)
+
+rie_pooled <- mi_rie |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(
+    rie_effect = Estimate,
+    rie_se     = sqrt(Total),
+    rie_ll     = `95% CI L`,
+    rie_ul     = `95% CI U`
+  ) |>
+  bind_cols(regimes_3)
+
+# ── DECOMPOSITION: TE, IDE, IIE ──────────────────────────────────────────────
+# All effects contrasted against the reference regime: always employed (0-0-0).
+#
+#   TE  = E[MCS₂(a)] − E[MCS₂(a*)]          : total effect of employment on MCS
+#   IDE = Q(a, a*) − Q(a*, a*)               : direct effect (not through income)
+#   IIE = TE − IDE                           : indirect effect via income
+#                                              (includes Inc→MCS and Inc→Dis→MCS)
+ref_label <- "0-0-0"
+te_ref    <- te_marginal$te_effect[te_marginal$intervention == ref_label]
+rie_ref   <- rie_pooled$rie_effect[rie_pooled$intervention == ref_label]
+
+rie_decomposition <- rie_pooled |>
+  left_join(
+    te_marginal |> select(intervention, te_effect),
+    by = "intervention"
+  ) |>
+  mutate(
+    TE  = te_effect - te_ref,
+    IDE = rie_effect - rie_ref,
+    IIE = TE - IDE
+  ) |>
+  select(intervention, TE, IDE, IIE, rie_effect, rie_se, rie_ll, rie_ul)
+
+# ── TABLE ─────────────────────────────────────────────────────────────────────
+# Display-ready version: exclude reference regime, format strategy labels,
+# add proportion mediated column.
+tab_display <- rie_decomposition |>
+  filter(intervention != ref_label) |>
+  mutate(
+    Intervention   = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+    `% via income` = round(IIE / TE * 100, 1)
+  ) |>
+  select(Intervention, TE, IDE, IIE, `% via income`)
+
+# Print to console
+tab_display |>
+  knitr::kable(
+    digits  = 3,
+    caption = "RIE decomposition: Employment -> MCS via income (E=employed, U=unemployed)"
+  )
+
+# Save to figs/ as PNG for inclusion in slides
+tab_display |>
+  knitr::kable(
+    digits     = 3,
+    col.names  = c("Intervention", "TE", "IDE (not via income)", "IIE (via income)", "% mediated"),
+    caption    = "Decomposition of employment effect on MCS-12 via income (RIE)"
+  ) |>
+  kableExtra::kable_styling(
+    full_width        = FALSE,
+    font_size         = 14,
+    bootstrap_options = c("striped", "hover")
+  ) |>
+  kableExtra::add_footnote(
+    "E = employed, U = unemployed. Reference: E-E-E (always employed).
+     TE = total effect; IDE = interventional direct effect;
+     IIE = interventional indirect effect via income (Inc→MCS and Inc→Dis→MCS).",
+    notation = "none"
+  ) |>
+  kableExtra::save_kable(
+    file = here::here("figs", "table_rie_decomposition.png"),
+    zoom = 2
+  )
+
+# ── GRAPH ─────────────────────────────────────────────────────────────────────
+graph_rie <- rie_decomposition |>
+  filter(intervention != ref_label) |>
+  select(intervention, TE, IDE, IIE) |>
+  pivot_longer(c(TE, IDE, IIE), names_to = "Effect", values_to = "Estimate") |>
+  mutate(
+    n_unemp      = map_int(intervention, ~ length(str_extract_all(.x, "1", simplify = TRUE))) |>
+      factor(),
+    intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+    Effect       = factor(Effect, levels = c("TE", "IDE", "IIE"))
+  ) |>
+  ggplot(aes(Estimate, intervention, colour = Effect, shape = Effect)) +
+  geom_point(size = 2.5, position = position_dodge(width = 0.6)) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.4) +
+  facet_wrap(~ n_unemp, ncol = 1,
+             labeller = labeller(n_unemp = ~ paste("Unemployed periods:", .x))) +
+  scale_colour_brewer(palette = "Set1",
+                      labels  = c("Total (TE)", "Direct — not via income (IDE)",
+                                  "Indirect — via income (IIE)")) +
+  scale_shape_manual(values = c(16, 17, 15),
+                     labels = c("Total (TE)", "Direct — not via income (IDE)",
+                                "Indirect — via income (IIE)")) +
+  labs(
+    x      = "Effect on MCS-12 mental health score",
+    y      = "Intervention strategy (E = employed, U = unemployed)",
+    title  = "Decomposition of employment effect on MCS via income",
+    colour = "Effect type",
+    shape  = "Effect type"
+  )
+
+print(graph_rie)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RIE VIA FINANCIAL DISTRESS
+# ══════════════════════════════════════════════════════════════════════════════
+# Reuses ref_imps and rie_imps from the income section (same gFormulaImpute
+# runs). Only the frozen variable changes: econ_dist instead of log_income.
+#
+# DAG pathway captured by IIE_fd:
+#   Emp_t → Dis_t → MCS_t           (direct distress path)
+#   Emp_t → Inc_t → Dis_t → MCS_t   (income-to-distress path)
+#   Emp_t → Dis_t → Dis_{t+1} → MCS_{t+1}  (distress autocorrelation)
+#
+# IDE_fd captures everything NOT operating through financial distress:
+#   direct Emp → MCS, and Emp → Inc → MCS (income not via distress).
+
+fits_fd_analyses <- lapply(seq_len(M), function(k) {
+  ref_k   <- mice::complete(ref_imps,     action = k)
+  rie_k   <- mice::complete(rie_imps,     action = k)
+  imp_k   <- mice::complete(wide_mids_mcs, action = k)
+  out_mod <- lm(outcome_formula, data = imp_k)
+  # Freeze financial distress at all 3 time points to reference-regime draws
+  rie_k$econ_dist_0 <- rep(ref_k$econ_dist_0, times = n_regimes)
+  rie_k$econ_dist_1 <- rep(ref_k$econ_dist_1, times = n_regimes)
+  rie_k$econ_dist_2 <- rep(ref_k$econ_dist_2, times = n_regimes)
+  rie_k$sf12mcs_dv_2 <- predict(out_mod, newdata = rie_k)   # counterfactual outcome
+  lm(sf12mcs_dv_2 ~ 0 + factor(regime), data = rie_k)
+})
+
+fits_fd <- list(analyses = fits_fd_analyses)
+mi_fd   <- syntheticPool(fits_fd)
+
+fd_pooled <- mi_fd |>
+  as_tibble() |>
+  rownames_to_column("Intervention") |>
+  transmute(
+    fd_effect = Estimate,
+    fd_se     = sqrt(Total),
+    fd_ll     = `95% CI L`,
+    fd_ul     = `95% CI U`
+  ) |>
+  bind_cols(regimes_3)
+
+# ── DECOMPOSITION: TE, IDE_fd, IIE_fd ────────────────────────────────────────
+fd_ref <- fd_pooled$fd_effect[fd_pooled$intervention == ref_label]
+
+fd_decomposition <- fd_pooled |>
+  left_join(
+    te_marginal |> select(intervention, te_effect),
+    by = "intervention"
+  ) |>
+  mutate(
+    TE     = te_effect - te_ref,
+    IDE_fd = fd_effect - fd_ref,
+    IIE_fd = TE - IDE_fd
+  ) |>
+  select(intervention, TE, IDE_fd, IIE_fd, fd_effect, fd_se, fd_ll, fd_ul)
+
+# ── TABLE ─────────────────────────────────────────────────────────────────────
+tab_fd <- fd_decomposition |>
+  filter(intervention != ref_label) |>
+  mutate(
+    Intervention = str_replace_all(intervention, c("0" = "E", "1" = "U")),
+    `% via FD`   = round(IIE_fd / TE * 100, 1)
+  ) |>
+  select(Intervention, TE, IDE_fd, IIE_fd, `% via FD`)
+
+# Print to console
+tab_fd |>
+  knitr::kable(
+    digits  = 3,
+    caption = "RIE decomposition: Employment -> MCS via financial distress (E=employed, U=unemployed)"
+  )
+
+# Save to figs/ as PNG for inclusion in slides
+tab_fd |>
+  knitr::kable(
+    digits    = 3,
+    col.names = c("Intervention", "TE", "IDE (not via FD)", "IIE (via FD)", "% mediated"),
+    caption   = "Decomposition of employment effect on MCS-12 via financial distress (RIE)"
+  ) |>
+  kableExtra::kable_styling(
+    full_width        = FALSE,
+    font_size         = 14,
+    bootstrap_options = c("striped", "hover")
+  ) |>
+  kableExtra::add_footnote(
+    "E = employed, U = unemployed. Reference: E-E-E (always employed).
+     TE = total effect; IDE = interventional direct effect;
+     IIE = interventional indirect effect via financial distress (Emp→Dis→MCS and Emp→Inc→Dis→MCS).",
+    notation = "none"
+  ) |>
+  kableExtra::save_kable(
+    file = here::here("figs", "table_rie_decomposition_fd.png"),
+    zoom = 2
+  )
+```
