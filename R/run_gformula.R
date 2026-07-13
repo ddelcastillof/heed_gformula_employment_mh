@@ -1,6 +1,7 @@
 # g-formula MI predictor matrix and imputation of counterfactual outcomes
 
 run_gformula <- function(wide_mids, wide_data_mi, intervention_pattern, estimand, M = 50) {
+  library(magrittr)
   estimand <- as.character(estimand)
 
   regimes <- intervention_pattern # from list created in build_data()
@@ -65,5 +66,5 @@ run_gformula <- function(wide_mids, wide_data_mi, intervention_pattern, estimand
     message(paste(utils::capture.output(print(le)), collapse = "\n"))
   }
 
-  return(out)
+  return(list(results = out, imputations = imps))
 }

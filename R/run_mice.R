@@ -10,15 +10,15 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
     gor_dv_fact          = "polr",
     age_dv               = "norm",
     # SF-12 scores: baseline (_base) and outcome
-    sf12mcs_dv           = "rf",
-    sf12pcs_dv           = "rf",
+    sf12mcs_dv           = "pmm",
+    sf12pcs_dv           = "pmm",
     # time-varying confounders / exposure
     econ_dist_bin_fact   = "logreg",
-    log_income           = "rf",
+    log_income           = "pmm",
     econ_emp_bin_fact    = "logreg",   # exposure
     # lagged confounders mcs and pcs
-    pcs_lagged           = "rf",
-    mcs_lagged           = "rf",
+    pcs_lagged           = "pmm",
+    mcs_lagged           = "pmm",
     # other lagged confounders
     dnc_fact_lagged      = "polyreg",
     home_owner_lagged    = "logreg",

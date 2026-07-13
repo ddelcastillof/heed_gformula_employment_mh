@@ -54,7 +54,12 @@ build_data <- function(data = pop_data, round_start, round_end, step, outcome) {
   }
 
   wide_data <- long_data
-  
+
+# DAG-role stems for make_counterfactual_matrix(); roles whose columns are
+# baseline-only in a given build are simply unused
+  dag_roles <- list(income   = "log_income",
+                    distress = "econ_dist_bin_fact")
+
   if (outcome == "MCS") {
     wide_data <- wide_data |> 
       make_wide(pidp,
@@ -62,10 +67,10 @@ build_data <- function(data = pop_data, round_start, round_end, step, outcome) {
                 base_cols = c(sex_dv_base,
                               hiqual_dv_fact_base,
                               race_base,
-                              sf12mcs_dv_base),
+                              sf12mcs_dv_base,
+                              age_dv_base,
+                              gor_dv_fact_base),
                 outcome = sf12mcs_dv,
-                age_dv,
-                gor_dv_fact,
                 pcs_lagged,
                 econ_dist_bin_fact,
                 dnc_fact_lagged,
@@ -74,7 +79,8 @@ build_data <- function(data = pop_data, round_start, round_end, step, outcome) {
                 mastat_dv_lagged,
                 econ_emp_bin_fact,
                 log_income,
-                waves = c(0:(round_end - round_start))
+                waves = c(0:(round_end - round_start)),
+                roles = dag_roles
                 ) |>
       data.table::as.data.table()
 } else if (outcome == "PCS") {
@@ -96,11 +102,12 @@ build_data <- function(data = pop_data, round_start, round_end, step, outcome) {
                 mastat_dv_lagged,
                 econ_emp_bin_fact,
                 log_income,
-                waves = c(0:(round_end - round_start))
+                waves = c(0:(round_end - round_start)),
+                roles = dag_roles
                 ) |>
       data.table::as.data.table()
 }
-    wide_data <- set_exposure(wide_data, 
+    wide_data <- set_exposure(wide_data,
                               exposure = "econ_emp_bin_fact")
   
     return(list(
