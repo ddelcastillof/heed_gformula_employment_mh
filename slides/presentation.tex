@@ -1,0 +1,143 @@
+% ---- SSM ECE Conference Slides ----
+\documentclass[aspectratio=169]{beamer}
+\input{preamble/preamble.tex}
+
+%=====================================
+% Metadata
+%=====================================
+
+\title[HEED Employment]{The effect of unemployment trajectories on mental health} 
+\subtitle[SubHEED]{G-formula analyses using the UK Household Longitudinal Study}
+
+\author[Del Castillo et al.]
+{Del Castillo, D.\inst{1,*}; 
+Kopasker, D.\inst{1,*}; 
+Baxter, A.\inst{1}; 
+Kromydas, T.\inst{1}; 
+Rachel, T.\inst{1}; 
+Pearce, A.\inst{1} \and Katikireddi, S.V.\inst{1}}
+
+\institute[Glasgow]
+{ \inst{1} % 
+  School of Health and Wellbeing \\ 
+  University of Glasgow, UK
+  \and
+  \inst{*}
+  Contributed equally to this work
+}
+
+\date[ConferenceDay]{\today}
+%=====================================
+\begin{document}
+%=====================================
+
+\begin{frame}[plain,noframenumbering]
+  \titlepage
+\end{frame}
+% =====================================
+% Introduction
+% =====================================
+\begin{frame}{Background}
+  \begin{itemize}
+    \item Employment is a major determinant of mental health and a key driver of social inequalities\cite{Marmot2005-kx,Nie2020-zw}.
+    \item Re-employment has restorative effects on mental health. However, the duration of the lingering effects of unemployment on mental health is unclear\cite{Luhmann2012-em,Lahelma1989-we}.
+    \item Studying the effect of unemployment trajectories on mental health is complicated dues to the presence of causal structures such as time-varying confounding and treatment-confounder feedback\cite{Bijlsma2019-hc}.
+  \end{itemize}
+\end{frame}
+
+% =====================================
+% Methods
+% =====================================
+\begin{frame}{Methods (i)}
+  \begin{itemize}
+    \item We used data from January 2010 — May 2020 from the UK Household Longitudinal Study (UKHLS)\cite{ukhls6614} to estimate the effect of unemployment trajectories on mental health.
+    \item Analyses were restricted to working-age adults (25 to 65) who were employed at baseline (n = 21,104).
+    \item We excluded individuals who reported student status, early retirement, or long-term sickness within the estimation sample.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Methods (ii)}
+  \begin{itemize}
+    \item \textbf{Exposure:} Employment status trajectories across four waves (employed, unemployed, or out of the labor force).
+    \item \textbf{Outcome:} Mental health status (MCS SF-12) at the end of each wave.
+    \item \textbf{Covariates:} 
+    \item 
+      \begin{itemize}
+        \item Time-invariant: gender, ethnicity, highest educational attainment.
+        \item Time-varying: age, location (GOR), marital status, household income (log), house tenancy, number of dependants, receipt of welfare benefits, physical health status (PCS SF-12).
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+% DAG
+\begin{frame}{Methods (iii)}
+  \centering
+  \includegraphics[width=0.9\textwidth]{HEED_DAG_MH_v2.pdf}\\[0.5em]
+  \includegraphics[width=0.6\textwidth]{HEED_DAG_MH_key.pdf}
+\end{frame}
+
+\begin{frame}{Methods (iv)}
+  \begin{itemize}
+    \item \textbf{Causal estimand:} Marginal mean (mental health score) under different employment trajectories.
+    \item We used the g-formula (\texttt{gFormulaMI}) to estimate the effect of unemployment trajectories on mental health (\texttt{R} 4.5.2)\cite{Bartlett2025-iw}.
+    \begin{itemize}
+      \item We used multiple imputation (\texttt{mice}) to account for missing data (m=50, i=10).
+      \item We simulated potential outcomes under different employment trajectories, e.g. (E-E-E-E vs U-U-U-U).
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+% =====================================
+% Results
+% =====================================
+\begin{frame}{Results (i)}{Sample characteristics}
+  \begin{itemize}
+    \item The mean age of the sample was 44.7 years (SD = 10).
+    \item Women made up 56.4\% of the sample.
+    \item The most frequent trajectory was E-E-E-E (78.7\%), and the least was E-U-E-U (0.25\%).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Results (ii)}{Marginal effects of unemployment trajectories on mental health across four waves (2013 — 2016)}
+  \centering
+  \includegraphics[width=0.75\textwidth]{graph4waves_marginal_conf.png}
+\end{frame}
+
+\begin{frame}{Results (ii)}{Sensitivity analysis: Marginal effects across three waves (2013 — 2015)}
+  \centering
+  \includegraphics[width=0.75\textwidth]{graph3waves_marginal_conf.png}
+\end{frame}
+
+\begin{frame}{Results (iii)}{Sensitivity analysis: Marginal effects across five waves (2013 — 2017)}
+  \centering
+  \includegraphics[width=0.75\textwidth]{graph5waves_marginal_conf.png}
+\end{frame}
+
+% =====================================
+% Conclusions
+% =====================================
+\begin{frame}{Conclusions}
+  \begin{itemize}
+    \item Employment trajectories have substantial adverse mental health effects, with more unemployment episodes having greater effects.
+    \item Unemployment effects are greatest within the first year, they persist long-term and vary across trajectories.
+    \item \textbf{Potential limitations:} potential residual confounding, differential attrition, inability to differentiate detailed employment status categories.
+  \end{itemize}
+\end{frame}
+
+%=====================================
+% References
+%=====================================
+\begin{frame}[allowframebreaks]{References}
+  \printbibliography[heading=none]
+\end{frame}
+
+%=====================================
+% Appendix
+%=====================================
+\begin{frame}{Appendix (i)}{STROBE Flowchart}
+  \centering
+  \includegraphics[width=0.9\textwidth,height=0.9\textheight,keepaspectratio]{strobe_flowchart.png}
+\end{frame}
+%=====================================
+\end{document}
+%=====================================

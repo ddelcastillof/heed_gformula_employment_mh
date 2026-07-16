@@ -1,0 +1,52 @@
+% ---- Packages -----
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+
+% ---- Math ----
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- Figures ----
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{graphicx}
+\graphicspath{{../figs/dag/}{../figs/conference/}{../checklists/}}
+
+% ---- Listings ----
+\usepackage{enumerate}
+
+% ---- Frame numbering ----
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+% Continuation counter (allowframebreaks) matches "Title (i)" style used elsewhere
+\setbeamertemplate{frametitle continuation}{(\MakeLowercase{\insertcontinuationcountroman})}
+
+% ---- Bibliography ----
+\usepackage[style=vancouver, backend=biber, natbib=true, sorting=none]{biblatex}
+\addbibresource{../bibliography/references.bib}
+
+% Make \cite render as Vancouver superscript numbers (mirrors built-in \supercite)
+\DeclareCiteCommand{\cite}[\mkbibsuperscript]
+  {\iffieldundef{prenote}{}{\BibliographyWarning{Ignoring prenote argument}}%
+   \iffieldundef{postnote}{}{\BibliographyWarning{Ignoring postnote argument}}}
+  {\usebibmacro{citeindex}%
+   \usebibmacro{cite}}
+  {\supercitedelim}
+  {}
+
+% ---- Defining Colours ----
+\definecolor{UniversityBlue}{RGB}{1, 20, 81}
+
+\definecolor{DarkPurple}{RGB}{76, 38, 131}
+\definecolor{DarkPink}{RGB}{166, 3, 103}
+\definecolor{DarkGreen}{RGB}{64, 93, 24}
+\definecolor{DarkBlue}{RGB}{0, 83, 152}
+\definecolor{DarkRed}{RGB}{125, 34, 57}
+
+\definecolor{LightPurple}{RGB}{165, 161, 206}
+\definecolor{LightPink}{RGB}{233, 139, 175}
+\definecolor{LightGreen}{RGB}{129, 192, 113}
+\definecolor{LightBlue}{RGB}{77, 187, 198}
+\definecolor{LightRed}{RGB}{242, 210, 92}
