@@ -52,3 +52,22 @@ CLAUDE.md
 /checklists/*.aux
 /checklists/*.log
 /checklists/*.png
+
+# Legacy folder
+legacy/
+
+# latexmk build artifacts
+*.aux
+*.log
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.bbl-SAVE-ERROR
