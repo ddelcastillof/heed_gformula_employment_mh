@@ -1,8 +1,7 @@
 # Exclusion / participant-flow diagnostics for the STROBE flowchart.
-library(data.table)
-
 # From clean_data(): call BEFORE the intermediate-variable drop
 diagnose_exclusions <- function(raw_data) {
+  library(data.table)
   n_all_w2_10   <- raw_data[wave %in% 2:10, uniqueN(pidp)]
   n_not_w2      <- n_all_w2_10 - raw_data[wave == 2L, uniqueN(pidp)]
   n_emp_any     <- raw_data[wave %in% 2:10 & !is.na(econ_emp_bin), uniqueN(pidp)]
@@ -18,12 +17,14 @@ diagnose_exclusions <- function(raw_data) {
 
 # From preproc_data(): call after the balanced-panel expansion (exp_data).
 diagnose_response <- function(exp_data) {
+  library(data.table)
   message(sprintf("  At wave 2 with response == 1:              %d", exp_data[wave == 2L & response == 1L, uniqueN(pidp)]))
   invisible(exp_data)
 }
 
 # From preproc_data(): call after the baseline join (pop_data).
 diagnose_analytical_samples <- function(pop_data) {
+  library(data.table)
   w2_resp <- pop_data[wave == 2L & response == 1L, pidp]
   message(sprintf("  3-wave analytical sample (wave 2 & 5, response==1): %d",
     length(intersect(w2_resp, pop_data[wave == 5L & response == 1L, pidp]))))
