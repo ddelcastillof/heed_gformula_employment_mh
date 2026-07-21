@@ -11,7 +11,7 @@ import_data <- function(force = FALSE) {
 
   library(data.table)
   library(haven)
-  source(here::here("R", "exclusion_diagnostics.R")) # intermediate diagnostics for STROBE checklist, called at each function
+  source(here::here("R", "exclusion_diagnostics.R")) # intermediate diagnostics for STROBE checklist
   
   waves <- letters[1:10]
 
