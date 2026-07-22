@@ -1,68 +1,216 @@
+# --------------
+# Helpers
+# --------------
 
-# Helper: stratified g-formula run
+## Make wide helper for pivoting dataset in a G-formula via MI compatible format
 
-# `run_em_stratum()` filters the full `mids` object to a stratum, runs `gFormulaImpute()`,
-# pools the marginal and difference estimates via `syntheticPool()`, and caches the result.
+# mediators sits after ... so it can only be matched by full name, never positionally
+make_wide <- function(df, id_col, time_col, base_cols, outcome, ..., mediators = NULL, waves = NULL) {
+  
+  library(rlang)
+  library(dplyr)
+  library(tidyr)
+  library(stringr)
 
-# @ pending: add error tracing from mids imputation inside gFormulaMI
-
-run_em_stratum <- function(mids_full, col, val, predictor_matrix,
-                           outcome_var, strata_label, stratum_label,
-                           trt_vars, regimes, regime_labels, cache_path,
-                           datasets) {
-
-  if (file.exists(cache_path)) {
-    message(paste0("Loading cached: ", basename(cache_path)))
-    return(readRDS(cache_path))
+  outcome_name <- as_name(ensym(outcome))
+  
+  t_conf <- enquos(...)
+  
+  if (!is.null(waves)) {
+    df <- df |> dplyr::filter({{time_col}} %in% waves)
   }
 
-  message(paste0("Running gFormulaMI — ", strata_label, " = ", stratum_label))
+  t_max <- max(df |> dplyr::pull({{time_col}}))
+  t_min <- min(df |> dplyr::pull({{time_col}}))
 
-  # Step 1: filter to stratum (50 imputations x stratum n)
-  mids_s <- dplyr::filter(mids_full, .data[[col]] == val)
+  df_out <- df |>
+    dplyr::select({{id_col}}, {{time_col}}, {{base_cols}}, {{mediators}}, !!!t_conf, {{outcome}}) |>
+    tidyr::pivot_wider(
+      id_cols = c({{id_col}}, {{base_cols}}),
+      names_from = {{time_col}},
+      values_from = -c({{id_col}}, {{time_col}}, {{base_cols}})) |>
+    dplyr::select(
+#      {{id_col}},
+      {{base_cols}},
+      ends_with("0"),
+      ends_with("1"),
+      ends_with("2"),
+      ends_with("3"),
+      ends_with("4"),
+      ends_with("5"),
+      ends_with("6"),
+      ends_with("7"),
+      ends_with("8"),
+      ends_with("9")
+    )
 
-  # Step 2: synthetic counterfactuals
-  imps <- gFormulaImpute(
-    mids_s,
-    trtVars         = trt_vars,
-    trtRegimes      = regimes,
-    predictorMatrix = predictor_matrix,
-    M               = datasets,
-    silent          = TRUE
-  )
+  attr(df_out, "baseline_vars") <- names(dplyr::select(df_out, {{base_cols}}))
+  attr(df_out, "time_lagged")   <- names(dplyr::select(df_out, contains("lagged")))
 
-  # filtered mids no longer needed
-  rm(mids_s); gc()
+  # Everything passed through ... that is not a lagged variable: same-wave
+  # time-varying confounders such as age_dv and gor_dv_fact. Without this they
+  # match no node class in make_counterfactual_matrix() and are silently left
+  # with no arrows at all. The exposure also arrives via ... and is separated
+  # out downstream, once set_exposure() has tagged it.
+  tv_names <- setdiff(names(dplyr::select(df, !!!t_conf)),
+                      str_subset(names(dplyr::select(df, !!!t_conf)), "lagged"))
 
-  out_col <- paste0(outcome_var, "_2")
-
-  # Step 3: fit marginal and difference models across synthetic datasets
-  fits_marginal <- imps %$% lm(reformulate("0 + factor(regime)", out_col))
-  fits_diff     <- imps %$% lm(reformulate("factor(regime)",     out_col))
-
-  rm(imps); gc()
-
-  pool_and_label <- function(fits) {
-    syntheticPool(fits) |>
-      as_tibble(rownames = "row") |>
-      transmute(
-        mi_effect = Estimate,
-        mi_se     = sqrt(Total),
-        mi_ll     = `95% CI L`,
-        mi_ul     = `95% CI U`
-      ) |>
-      bind_cols(regime_labels) |>
-      mutate(strata_var = strata_label, stratum = stratum_label)
+  attr(df_out, "time_varying") <- if (length(tv_names)) {
+    str_subset(names(df_out), str_glue("^(", str_flatten(str_escape(tv_names), "|"), ")_\\d+$"))
+  } else {
+    character(0)
   }
 
-  # Step 4: pool results; release fit lists immediately after
-  res <- list(
-    marginal = pool_and_label(fits_marginal),
-    diff     = pool_and_label(fits_diff)
-  )
+  attr(df_out, "outcome_vars") <- str_subset(names(df_out), str_glue("^", str_escape(outcome_name), "_\\d+$"))
+  attr(df_out, "outcome_final") <- as.character(str_glue(outcome_name, "_", t_max))
+  attr(df_out, "outcome_baseline") <- as.character(str_glue(outcome_name, "_base"))
+  attr(df_out, "time_points") <- length(unique(df |> dplyr::pull({{time_col}})))
+  med_names <- names(dplyr::select(df, {{mediators}}))
 
-  rm(fits_marginal, fits_diff); gc()
+  attr(df_out, "mediators") <- if (length(med_names)) {
+    str_subset(names(df_out), str_glue("^(", str_flatten(str_escape(med_names), "|"), ")_\\d+$"))
+  } else {
+    character(0)
+  }
 
-  saveRDS(res, cache_path)
-  res
+  
+  return(df_out)
+}
+
+## Helper to tag the exposure column(s) so downstream code (predictor matrix) knows which nodes are treatment.
+set_exposure <- function(df, exposure) {
+  require(rlang)
+  require(stringr)
+  exposure <- as_name(ensym(exposure))
+  exposure_vars <- str_subset(names(df), str_glue("^", str_escape(exposure), "_\\d+$"))
+  if (length(exposure_vars) == 0L) stop("no exposure columns matched '", exposure, "_<wave>'")
+  attr(df, "exposure_vars") <- exposure_vars
+  return(df)
+}
+
+## function to replicate DAG arrows (counterfactual imputation for gFormulaMI):
+## expands a node-level arrows table across however many waves the data carries
+
+make_counterfactual_matrix <- function(return_vals, arrows = NULL) {
+  library(stringr)
+
+  ## DAG arrows
+  if (is.null(arrows)) {
+    arrows <- tibble::tribble(
+      ~from,                ~to,                  ~lag,
+      "inv",                "var",                0,
+      "inv",                "exp",                0,
+      "inv",                "log_income",         0,
+      "inv",                "econ_dist_bin_fact", 0,
+      "inv",                "outcome",            0,
+      "tv",                 "var",                0,
+      "tv",                 "exp",                0,
+      "tv",                 "log_income",         0,
+      "tv",                 "econ_dist_bin_fact", 0,
+      "tv",                 "outcome",            0,
+      "var",                "exp",                0,
+      "var",                "log_income",         0,
+      "var",                "econ_dist_bin_fact", 0,
+      "var",                "outcome",            0,
+      "exp",                "log_income",         0,
+      "exp",                "econ_dist_bin_fact", 0,
+      "exp",                "outcome",            0,
+      "log_income",         "econ_dist_bin_fact", 0,
+      "log_income",         "outcome",            0,
+      "econ_dist_bin_fact", "outcome",            0,
+      "tv",                 "tv",                 1,
+      "var",                "var",                1,
+      "exp",                "var",                1,
+      "log_income",         "var",                1,
+      "econ_dist_bin_fact", "var",                1,
+      "outcome",            "var",                1,
+      "exp",                "exp",                1,
+      "log_income",         "exp",                1,
+      "econ_dist_bin_fact", "exp",                1,
+      "outcome",            "exp",                1,
+      "log_income",         "log_income",         1,
+      "econ_dist_bin_fact", "econ_dist_bin_fact", 1,
+      "outcome",            "outcome",            1,
+      "outcome",            "log_income",         1,
+    )
+  }
+
+  baseline_vars <- attr(return_vals, "baseline_vars")
+  time_lagged <- attr(return_vals, "time_lagged")
+  outcome_vars <- attr(return_vals, "outcome_vars")
+  outcome_baseline <- attr(return_vals, "outcome_baseline")
+  time_points <- attr(return_vals, "time_points")
+  mediators <- attr(return_vals, "mediators")
+  exposure <- attr(return_vals, "exposure_vars")
+
+  # same-wave time-varying confounders (age_dv, gor_dv_fact): tagged by
+  # make_wide() from ..., minus the exposure, which arrives the same way but is
+  # its own node. NULL for wide data built before this attribute existed.
+  time_varying <- setdiff(attr(return_vals, "time_varying"), exposure)
+
+  n_vars <- length(return_vals) + 1
+
+  p_mat <- matrix(0, ncol = n_vars, nrow = n_vars)
+
+  nodes <- c(colnames(return_vals), "regime")
+  dimnames(p_mat) <- list(nodes, nodes)
+
+  med_stems <- unique(str_remove(mediators, "_\\d+$"))
+  unresolved <- setdiff(unique(c(arrows$from, arrows$to)),
+                        c("inv", "tv", "var", "exp", "outcome", med_stems))
+  if (length(unresolved)) {
+    stop("arrow nodes not resolvable from attributes: ", toString(unresolved),
+         " (mediator stems available: ", toString(med_stems), ")")
+  }
+
+  inv <- setdiff(baseline_vars, outcome_baseline)
+
+  # columns of a DAG node at wave t
+  cols_of <- function(node, t) {
+    switch(node,
+      inv     = inv,
+      tv      = str_subset(time_varying, str_glue("_", t, "$")),
+      var     = str_subset(time_lagged,  str_glue("_", t, "$")),
+      exp     = str_subset(exposure,     str_glue("_", t, "$")),
+      outcome = str_subset(outcome_vars, str_glue("_", t, "$")),
+      str_subset(mediators, str_glue("^", str_escape(node), "_", t, "$"))
+    )
+  }
+
+  # the T0 outcome node is predicted by the time-invariant confounders
+  p_mat[outcome_baseline, inv] <- 1
+
+  # expand each arrow across waves
+  for (t in 0:(time_points - 1)) {
+    for (i in seq_len(nrow(arrows))) {
+      self_lag <- arrows$from[i] == arrows$to[i] && arrows$lag[i] == 1
+      if (self_lag && t > 0) {
+        # autoregressive arrows connect corresponding stems only, never cross-stem
+        stems <- intersect(
+          str_remove(cols_of(arrows$to[i], t),       str_glue("_", t, "$")),
+          str_remove(cols_of(arrows$from[i], t - 1), str_glue("_", t - 1, "$"))
+        )
+        # a node class absent from the data resolves to no stems, and a
+        # zero-row character index is not a valid matrix subscript
+        if (length(stems)) {
+          p_mat[cbind(paste0(stems, "_", t), paste0(stems, "_", t - 1))] <- 1
+        }
+      } else {
+        parents <- if (arrows$lag[i] == 0 || arrows$from[i] == "inv") {
+          cols_of(arrows$from[i], t)
+        } else if (t == 0) {
+          if (arrows$from[i] == "outcome") outcome_baseline else character(0)
+        } else {
+          cols_of(arrows$from[i], t - 1)
+        }
+        p_mat[cols_of(arrows$to[i], t), parents] <- 1
+      }
+    }
+  }
+
+  # regime node is predicted by all other variables (i.e., all confounders and the outcome)
+  p_mat["regime", 1:(n_vars - 1)] <- 1
+  p_mat["regime", "regime"] <- 1
+
+  return(p_mat)
 }
