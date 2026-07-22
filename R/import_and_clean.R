@@ -175,17 +175,12 @@ clean_data <- function(DT) {
   # create age_probe variable for composite variables (e.g., employment status, partnership status, etc.)
   raw_data[, age_probe := fifelse(age_dv < 0, NA_integer_, as.integer(age_dv))]
 
-  ## impute missing ages: (age - wave) is a person-constant, so nafill on that
-  ## then reconstruct age = constant + wave. handles non-consecutive waves correctly.
-  setorder(raw_data, pidp, wave)
-  raw_data[, age_adj := age_probe - wave]
-  raw_data[, age_adj := nafill(age_adj, type = "locf"), by = pidp]  # forward fill
-  raw_data[, age_adj := nafill(age_adj, type = "nocb"), by = pidp]  # backward fill
-  raw_data[is.na(age_probe), age_probe := as.integer(age_adj + wave)]
-  raw_data[, age_adj := NULL]
-
   # create gender probe variable and recoding sex (2 -> 0 for female)
-  raw_data[, gender_probe := fifelse(sex_dv == 2, 0, sex_dv)]
+  raw_data[, gender_probe := fcase(
+    sex_dv == 2L, 0L,
+    sex_dv == 1L, 1L,
+    default = NA_integer_
+  )]
 
   # partner dummy variable (1 if has partner, 0 if not)
   raw_data[, has_partner := fifelse(partnerid > 0 & !is.na(partnerid), 1L, 0L)]
@@ -198,6 +193,8 @@ clean_data <- function(DT) {
 
   # flag for being at or above state pension age (1 if at/above SPA, 0 if below)
   raw_data[, age_pension := fcase(
+  # missing age/sex/interview year -> NA, not the default 0L ("below SPA")
+  is.na(age_probe) | is.na(gender_probe) | intdaty_dv < 0, NA_integer_,
   # Men
   gender_probe == 1 & age_probe >= 66 & intdaty_dv >= 2020,             1L,
   gender_probe == 1 & age_probe >= 65 & intdaty_dv >= 2009 & intdaty_dv < 2020, 1L,
@@ -316,10 +313,23 @@ clean_data <- function(DT) {
   # ypnbsp is already in 2015 prices (copy of ypnb) - no second CPI division
 
   # ---- OECD modified equivalence scale (moecd_eq) ----
-  raw_data[, depChild_013  := fifelse(age_probe >= 0  & age_probe <= 13 & (pns1pid > 0 | pns2pid > 0) & depchl_dv == 1, 1L, 0L)]
-  raw_data[, depChild_1418 := fifelse(age_probe >= 14 & age_probe <= 18 & (pns1pid > 0 | pns2pid > 0) & depchl_dv == 1, 1L, 0L)]
-  raw_data[, dnc013  := sum(depChild_013,  na.rm = TRUE), by = .(wave, idhh)]
-  raw_data[, dnc1418 := sum(depChild_1418, na.rm = TRUE), by = .(wave, idhh)]
+  ## unknown age -> NA, not silently 0L (which would read as "not a dependent child")
+  raw_data[, depChild_013  := fcase(
+    is.na(age_probe), NA_integer_,
+    age_probe >= 0  & age_probe <= 13 & (pns1pid > 0 | pns2pid > 0) & depchl_dv == 1, 1L,
+    default = 0L
+  )]
+  raw_data[, depChild_1418 := fcase(
+    is.na(age_probe), NA_integer_,
+    age_probe >= 14 & age_probe <= 18 & (pns1pid > 0 | pns2pid > 0) & depchl_dv == 1, 1L,
+    default = 0L
+  )]
+  ## na.rm = TRUE keeps the household count usable, but undercounts when a member's
+  ## age is unknown. dnc_unknown carries that forward so it can be audited/excluded
+  ## rather than disappearing into the sum.
+  raw_data[, dnc013      := sum(depChild_013,  na.rm = TRUE), by = .(wave, idhh)]
+  raw_data[, dnc1418     := sum(depChild_1418, na.rm = TRUE), by = .(wave, idhh)]
+  raw_data[, dnc_unknown := sum(is.na(depChild_013)),         by = .(wave, idhh)]
   raw_data[, c("depChild_013", "depChild_1418") := NULL]
 
   raw_data[, moecd_eq := fcase(
@@ -428,14 +438,13 @@ clean_data <- function(DT) {
   
   # rename gender_probe to sex_dv (overwrite original sex_dv which has 1/2 coding and is less intuitive than 0/1)
   raw_data[, sex_dv := gender_probe]
-  ## changing sex_dv == -9 to NA (missing) to match original coding
-  raw_data[sex_dv == -9, sex_dv := NA_integer_]
   ## keeping only no missing values of sex
   raw_data <- raw_data[!is.na(sex_dv)]
   ## convert sex_dv to factor
   raw_data[, sex_dv := factor(sex_dv, levels = c(0, 1), labels = c("Female", "Male"))]
 
-  # rename imputed age_probe to age_dv (overwrite original age_dv which has negative values for missing)
+  # write age_probe back to age_dv (overwrite original age_dv, whose negative codes are now NA).
+  # age_dv is reported age only — no forward/backward fill is applied to it.
   raw_data[, age_dv := age_probe]
 
   # recoding gor_dv==-9 to NA and then forward/backward fill within person to impute missing region of residence
@@ -450,16 +459,13 @@ clean_data <- function(DT) {
   raw_data[, gor_dv_fact := factor(gor_dv, levels = 1:12, labels = gor_labels)]
 
   # marital status (mastat_dv): recode to partnered (1) vs not partnered (0)
-  # negatives (-9 missing, -8 inapplicable, -2 refusal, -1 don't know) and
-  # 0 "Child under 16" -> NA (no adult marital status), then dropped.
+  # negatives to NA
   raw_data[mastat_dv < 0, mastat_dv := NA_integer_]
-  ## partnered     = Married (2), Same-sex civil partnership (3), Living as couple (10)
-  ## not partnered = Single/never married (1), Separated but legally married (4),
-  ##                 Divorced (5), Widowed (6), Separated from civil partner (7),
-  ##                 Former civil partner (8), Surviving civil partner (9)
+  ## partnered     = 2,3,10
+  ## not partnered = 1,4,5,6,7,8,9
   raw_data[, mastat_dv := fifelse(mastat_dv %in% c(2L, 3L, 10L), 1L,
                             fifelse(mastat_dv %in% c(1L, 4L, 5L, 6L, 7L, 8L, 9L), 0L, NA_integer_))]
-  raw_data <- raw_data[!is.na(mastat_dv)]
+  # raw_data <- raw_data[!is.na(mastat_dv)] it can be imputed later
 
   raw_data[, mastat_dv := factor(mastat_dv, levels = c(0L, 1L), labels = c("Not partnered", "Partnered"))]
 
