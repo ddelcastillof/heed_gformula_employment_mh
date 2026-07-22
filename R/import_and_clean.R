@@ -507,7 +507,7 @@ preproc_data <- function(DT) {
   if (!is.data.table(DT)) stop("Input must be a data.table")
 
   # ---- 1. Filter to working-age and select analysis columns ----
-  DT <- DT[age_dv >= 25 & age_dv <= 65]
+  DT <- DT[!is.na(age_dv) & age_dv >= 25 & age_dv <= 65]
 
   cols_to_keep <- c("pidp", "wave",
                     "sf12mcs_dv", "sf12pcs_dv", "log_income",
