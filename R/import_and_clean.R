@@ -507,6 +507,10 @@ preproc_data <- function(DT) {
   if (!is.data.table(DT)) stop("Input must be a data.table")
 
   # ---- 1. Filter to working-age and select analysis columns ----
+  
+  age_status <- DT[, .(pidp, wave,
+                       age_eligible = !is.na(age_dv) & age_dv >= 25 & age_dv <= 65)]
+
   DT <- DT[!is.na(age_dv) & age_dv >= 25 & age_dv <= 65]
 
   cols_to_keep <- c("pidp", "wave",
@@ -522,6 +526,15 @@ preproc_data <- function(DT) {
   grid     <- CJ(pidp = unique(DT$pidp), wave = 1:10)
   exp_data <- merge(grid, DT, by = c("pidp", "wave"), all.x = TRUE)
   exp_data[is.na(response), response := 0L]
+
+  # diagnosing non-response (response ==0) rows
+  exp_data[age_status, on = .(pidp, wave), age_eligible := i.age_eligible]
+  exp_data[, nonresponse_reason := fcase(
+    response == 1L,                                "in_sample",
+    !is.na(age_eligible) & age_eligible == FALSE,  "age_out_of_range",
+    default                                        = "not_interviewed"
+  )]
+  exp_data[, age_eligible := NULL]
 
   diagnose_response(exp_data)
 
@@ -545,6 +558,9 @@ preproc_data <- function(DT) {
                  "sf12mcs_dv", "sf12pcs_dv")
 
   base_data <- exp_data[wave == 1L, ..base_cols]
+  
+  # drop rows with missing age or region of residence at baseline
+  base_data <- base_data[!is.na(age_dv) & !is.na(gor_dv_fact)]
 
   # rename all except pidp with _base suffix
   setnames(base_data, setdiff(names(base_data), "pidp"),
