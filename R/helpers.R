@@ -24,13 +24,12 @@ make_wide <- function(df, id_col, time_col, base_cols, outcome, ..., mediators =
   t_min <- min(df |> dplyr::pull({{time_col}}))
 
   df_out <- df |>
-    dplyr::select({{id_col}}, {{time_col}}, {{base_cols}}, {{mediators}}, !!!t_conf, {{outcome}}) |>
+    dplyr::select({{id_col}}, {{time_col}}, {{base_cols}}, !!!t_conf, {{mediators}}, {{outcome}}) |>
     tidyr::pivot_wider(
       id_cols = c({{id_col}}, {{base_cols}}),
       names_from = {{time_col}},
       values_from = -c({{id_col}}, {{time_col}}, {{base_cols}})) |>
     dplyr::select(
-#      {{id_col}},
       {{base_cols}},
       ends_with("0"),
       ends_with("1"),
@@ -103,7 +102,6 @@ make_counterfactual_matrix <- function(return_vals, arrows = NULL) {
       "inv",                "log_income",         0,
       "inv",                "econ_dist_bin_fact", 0,
       "inv",                "outcome",            0,
-      "tv",                 "var",                0,
       "tv",                 "exp",                0,
       "tv",                 "log_income",         0,
       "tv",                 "econ_dist_bin_fact", 0,
@@ -163,7 +161,12 @@ make_counterfactual_matrix <- function(return_vals, arrows = NULL) {
          " (mediator stems available: ", toString(med_stems), ")")
   }
 
-  inv <- setdiff(baseline_vars, outcome_baseline)
+  # baseline columns that are the wave-0 value of a time-varying confounder
+  # (age_dv_base, gor_dv_fact_base).
+  tv_stems <- unique(str_remove(time_varying, "_\\d+$"))
+  tv_base  <- intersect(paste0(tv_stems, "_base"), baseline_vars)
+
+  inv <- setdiff(baseline_vars, c(outcome_baseline, tv_base))
 
   # columns of a DAG node at wave t
   cols_of <- function(node, t) {
@@ -177,21 +180,22 @@ make_counterfactual_matrix <- function(return_vals, arrows = NULL) {
     )
   }
 
-  # the T0 outcome node is predicted by the time-invariant confounders
-  p_mat[outcome_baseline, inv] <- 1
+  # gFormulaMI draws counterfactuals using Monte-Carlo like drawing instead of FCS
+  # (maxit = 1 harcoded inside the package), so a lower-triangular predictor matrix
+  # across baseline vars allows gFormulaImpute to impute time-invariant vars by the rule
+  # of chain probabilities.
+  tinv <- baseline_vars[order(match(baseline_vars, colnames(return_vals)))]
+  for (i in seq_along(tinv)[-1]) p_mat[tinv[i], tinv[seq_len(i - 1)]] <- 1
 
   # expand each arrow across waves
   for (t in 0:(time_points - 1)) {
     for (i in seq_len(nrow(arrows))) {
       self_lag <- arrows$from[i] == arrows$to[i] && arrows$lag[i] == 1
       if (self_lag && t > 0) {
-        # autoregressive arrows connect corresponding stems only, never cross-stem
         stems <- intersect(
           str_remove(cols_of(arrows$to[i], t),       str_glue("_", t, "$")),
           str_remove(cols_of(arrows$from[i], t - 1), str_glue("_", t - 1, "$"))
         )
-        # a node class absent from the data resolves to no stems, and a
-        # zero-row character index is not a valid matrix subscript
         if (length(stems)) {
           p_mat[cbind(paste0(stems, "_", t), paste0(stems, "_", t - 1))] <- 1
         }
@@ -207,10 +211,38 @@ make_counterfactual_matrix <- function(return_vals, arrows = NULL) {
       }
     }
   }
+ 
+  if (length(tv_base)) {
+    t_first <- 0
+    for (stem in tv_stems) {
+      base_col <- paste0(stem, "_base")
+      first_col <- str_subset(time_varying, str_glue("^", str_escape(stem), "_", t_first, "$"))
+      if (base_col %in% tv_base && length(first_col)) p_mat[first_col, base_col] <- 1
+    }
+    for (t in 0:(time_points - 1)) {
+      var_t <- cols_of("var", t)
+      if (length(var_t)) p_mat[var_t, tv_base] <- 1
+    }
+  }
 
   # regime node is predicted by all other variables (i.e., all confounders and the outcome)
   p_mat["regime", 1:(n_vars - 1)] <- 1
-  p_mat["regime", "regime"] <- 1
 
   return(p_mat)
+}
+
+## imputation methods for the gFormuaMI imputation. Derived from the methods used in observed data.
+
+make_counterfactual_method <- function(return_vals) {
+  probe <- rbind(as.data.frame(return_vals), NA)
+
+  method <- mice::make.method(probe,
+                              defaultMethod = c("pmm", "logreg", "polyreg", "polr"))
+
+  # treatment columns are assigned from the regime rather than imputed, and are
+  # complete in the observed block, so gFormulaMI expects them blank
+  exposure <- attr(return_vals, "exposure_vars")
+  if (!is.null(exposure)) method[exposure] <- ""
+
+  return(method)
 }
