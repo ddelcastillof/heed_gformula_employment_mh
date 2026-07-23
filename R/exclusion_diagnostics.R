@@ -19,6 +19,13 @@ diagnose_exclusions <- function(raw_data) {
 diagnose_response <- function(exp_data) {
   library(data.table)
   message(sprintf("  At wave 2 with response == 1:              %d", exp_data[wave == 2L & response == 1L, uniqueN(pidp)]))
+  # response == 0 mixes two things; report them separately for the flowchart
+  if ("nonresponse_reason" %in% names(exp_data)) {
+    message(sprintf("  At wave 2, interviewed but age outside 25-65: %d",
+      exp_data[wave == 2L & nonresponse_reason == "age_out_of_range", uniqueN(pidp)]))
+    message(sprintf("  At wave 2, not interviewed:                %d",
+      exp_data[wave == 2L & nonresponse_reason == "not_interviewed", uniqueN(pidp)]))
+  }
   invisible(exp_data)
 }
 
