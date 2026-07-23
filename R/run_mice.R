@@ -7,9 +7,9 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
     sex_dv               = "logreg",
     hiqual_dv_fact       = "pmm",
     race                 = "logreg",
-    # time-varying confounders (NOT lagged)
-    gor_dv_fact          = "pmm",
     age_dv               = "norm",
+    # time-varying confounders (NOT lagged), also time-invariant
+    gor_dv_fact          = "pmm",
     # SF-12 scores: baseline (_base) and outcome
     sf12mcs_dv           = "pmm",
     sf12pcs_dv           = "pmm",
@@ -30,6 +30,23 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
   group   <- sub("_(\\d+|base)$", "", names(method_list))
   matched <- group %in% names(method_by_group)
   method_list[matched] <- method_by_group[group[matched]]
+
+  # gor_dv_fact has low variability in the sample. 
+  # So a LOCF approach via passive imputation will be used for missing intermediate waves 
+  # (respondents that return in posterior waves).
+
+  gor_cols <- grep("^gor_dv_fact_\\d+$", names(method_list), value = TRUE)
+  gor_cols <- gor_cols[order(as.integer(sub("^gor_dv_fact_", "", gor_cols)))]
+
+  if (length(gor_cols) > 2L) {
+    interior <- seq.int(2L, length(gor_cols) - 1L)
+    if (anyNA(wide_data[[gor_cols[1L]]])) {
+      warning("run_mice: ", gor_cols[1L], " has missing values, so the interior ",
+              "gor_dv_fact waves keep their '", method_by_group[["gor_dv_fact"]], "' method")
+    } else {
+      method_list[gor_cols[interior]] <- paste0("~ I(", gor_cols[interior - 1L], ")")
+    }
+  }
 
   pred_mat <- mice::make.predictorMatrix(wide_data)
 
