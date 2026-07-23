@@ -11,10 +11,15 @@ build_data <- function(data = pop_data, round_start, round_end, how_many, outcom
   } 
 
   # verify how_many (number of rounds) is valid
-  if (how_many %in% c("three", "four", "five")) {
-    how_many <- rlang::arg_match(how_many, values = c("three", "four", "five"))
+  if (how_many %in% c("three", "four", "five", "six")) {
+    how_many <- rlang::arg_match(how_many, values = c("three", 
+                                                      "four", 
+                                                      "five", 
+                                                      "six",
+                                                      "seven",
+                                                      "eight"))
   } else {
-    stop("Function can only evaluate three, four or five waves. Please specify the how_many argument")
+    stop("Function can only evaluate three to eight waves. Please specify the how_many argument")
   }
 
   # verify which outcome is being used
@@ -60,13 +65,8 @@ build_data <- function(data = pop_data, round_start, round_end, how_many, outcom
   long_data <- long_data[!no_mh_outcomes, on = .(pidp)]
 
 # matrix of possible intervention patterns according to number of waves included (0: no intervention, 1: intervention)
-  if (how_many == "three") {
-   intervention_pattern <- asplit(as.matrix(CJ(0:1, 0:1, 0:1)), 1)
-  } else if (how_many == "four") {
-   intervention_pattern <- asplit(as.matrix(CJ(0:1, 0:1, 0:1, 0:1)), 1)
-  } else if (how_many == "five") {
-   intervention_pattern <- asplit(as.matrix(CJ(0:1, 0:1, 0:1, 0:1, 0:1)), 1)
-  }
+  n_intervention <- match(how_many, c("three", "four", "five", "six", "seven", "eight")) + 2L
+  intervention_pattern <- asplit(as.matrix(do.call(CJ, rep(list(0:1), n_intervention))), 1)
 
   wide_data <- long_data
   
@@ -74,21 +74,22 @@ build_data <- function(data = pop_data, round_start, round_end, how_many, outcom
     wide_data <- wide_data |> 
       make_wide(pidp,
                 t0,
-                base_cols = c(sex_dv_base,
-                              hiqual_dv_fact_base,
+                base_cols = c(gor_dv_fact_base,
+                              sex_dv_base,
                               race_base,
+                              hiqual_dv_fact_base,
+                              age_dv_base,
                               sf12mcs_dv_base),
                 outcome = sf12mcs_dv,
                 mediators = c(log_income,
                               econ_dist_bin_fact),
-                age_dv,
                 gor_dv_fact,
-                econ_emp_bin_fact, #exposure
                 pcs_lagged,
                 dnc_fact_lagged,
                 home_owner_lagged,
                 econ_benefits_lagged,
                 mastat_dv_lagged,
+                econ_emp_bin_fact,
                 waves = c(0:(round_end - round_start))
                 ) |>
       data.table::as.data.table()
@@ -96,21 +97,22 @@ build_data <- function(data = pop_data, round_start, round_end, how_many, outcom
     wide_data <- wide_data |>
       make_wide(pidp,
                 t0,
-                base_cols = c(sex_dv_base,
-                              hiqual_dv_fact_base,
+                base_cols = c(gor_dv_fact_base,
+                              sex_dv_base,
                               race_base,
+                              hiqual_dv_fact_base,
+                              age_dv_base,
                               sf12pcs_dv_base),
                 outcome = sf12pcs_dv,
                 mediators = c(log_income,
                               econ_dist_bin_fact),
-                age_dv,
                 gor_dv_fact,
-                econ_emp_bin_fact, #exposure
                 mcs_lagged,
                 dnc_fact_lagged,
                 home_owner_lagged,
                 econ_benefits_lagged,
                 mastat_dv_lagged,
+                econ_emp_bin_fact,
                 waves = c(0:(round_end - round_start))
                 ) |>
       data.table::as.data.table()
