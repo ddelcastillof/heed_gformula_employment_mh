@@ -1,16 +1,22 @@
 # _targets.R — pipeline orchestration for the employment and health outcomes
 # from the HEED project, using gFormula via multiple imputation
 
-pacman::p_load(targets,
-               tarchetypes,
-               future,
-               future.batchtools,
-               future.callr)
+library(targets)
+library(tarchetypes)
+library(future)
+library(future.batchtools)
+library(future.callr)
 
 # Detect SLURM at runtime, if not in cluster, run locally with future.callr (in a separate r process)
 on_slurm <- nzchar(Sys.getenv("SLURM_JOB_ID")) && nzchar(Sys.which("sbatch"))
 
 if (on_slurm) {
+  # Route batchtools worker registries under logs/ (default is ./.future). Each worker's
+  # SLURM --output/--error is batchtools' log.file, which lives inside its registry, so
+  # moving the registry root moves the worker logs too. getLog() still resolves — it reads
+  # back the same path batchtools wrote as --output.
+  options(future.cache.path = here::here("logs", ".future"))
+
   # future.batchtools 0.22.0 reads `resources` from the backend (the plan), NEVER
   # from per-target tar_resources_future(resources = ...). So each memory tier is a
   # separate tweaked plan, and targets swaps future::plan() per target via
@@ -29,7 +35,7 @@ if (on_slurm) {
       )
     )
   }
-  plan_light <- slurm_tier(memory_gb = 24, walltime_h = 2)  # pop_data, build_data, graphs, res_*
+  plan_light <- slurm_tier(memory_gb = 24, walltime_h = 2)  # pop_data, build_data, graphs
   plan_mice  <- slurm_tier(memory_gb = 48, walltime_h = 4)  # run_mice (m = 100)
   plan_gform <- slurm_tier(memory_gb = 96, walltime_h = 8)  # gFormulaImpute (2^n_waves regimes)
   future::plan(plan_light)                                  # default for untagged targets
