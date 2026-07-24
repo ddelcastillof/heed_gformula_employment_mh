@@ -105,5 +105,5 @@ run_gform <- function(wide_mids, wide_data_mi, intervention_pattern, estimand, M
     ) |>
     dplyr::bind_cols(regimes_x)
 
-  return(list(results = out, imputations = imps))
+  return(list(results = out))
 }
