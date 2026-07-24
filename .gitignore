@@ -76,3 +76,7 @@ legacy/
 *.synctex.gz
 *.toc
 *.bbl-SAVE-ERROR
+
+# logs from SLURM jobs and future batchtools workers
+logs/*.err
+logs/.future/
