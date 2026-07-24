@@ -3,8 +3,8 @@
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=64G   # controller only orchestrates; heavy objects live on workers (storage="worker")
-#SBATCH --output=targets_%j.out
-#SBATCH --error=targets_%j.err
+#SBATCH --output=logs/targets_%j.out
+#SBATCH --error=logs/targets_%j.err
 #SBATCH --account=none
 #SBATCH --mail-type=BEGIN,FAIL,END
 #SBATCH --mail-user=darwin.delcastillofernandez@glasgow.ac.uk
@@ -31,7 +31,7 @@ echo "Quarto: $(which quarto)"; quarto --version
 
 cd "${SLURM_SUBMIT_DIR}"
 
-Rscript -e 'targets::tar_make_future(workers = 8L)' 2>&1 | tee "targets_make_${SLURM_JOB_ID}.log"
+Rscript -e 'targets::tar_make_future(workers = 8L)' 2>&1 | tee "logs/targets_make_${SLURM_JOB_ID}.log"
 status=${PIPESTATUS[0]}
 echo "tar_make_future exit status: $status"
 
