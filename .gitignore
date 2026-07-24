@@ -1,20 +1,22 @@
+# R Files
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
-model_outputs/
-do/
+
+# PDF and docx files
 *.pdf
 *.docx
+
+# Datasets
 data/*
-!building_models/reference.docx
 
+# Quarto files
 /.quarto/
-graphs/
-reports/
-
 **/*.quarto_ipynb
-R/dump_code.R
+
+# Rendered reports
+reports/
 
 # Ignoring files in figs
 /figs/*
@@ -47,6 +49,9 @@ R/dump_code.R
 # claude files
 CLAUDE.md
 .claude
+
+# targets output
+_targets/
 
 # STROBE flowchart compiled artifacts
 /checklists/*.aux
