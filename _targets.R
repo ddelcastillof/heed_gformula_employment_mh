@@ -35,9 +35,9 @@ if (on_slurm) {
       )
     )
   }
-  plan_light <- slurm_tier(memory_gb = 24, walltime_h = 2)  # pop_data, build_data, graphs
-  plan_mice  <- slurm_tier(memory_gb = 48, walltime_h = 4)  # run_mice (m = 100)
-  plan_gform <- slurm_tier(memory_gb = 96, walltime_h = 8)  # gFormulaImpute (2^n_waves regimes)
+  plan_light <- slurm_tier(memory_gb = 24, walltime_h = 2)   # pop_data, build_data, graphs (m-independent)
+  plan_mice  <- slurm_tier(memory_gb = 48, walltime_h = 8)   # run_mice (m = 200; ~linear in m)
+  plan_gform <- slurm_tier(memory_gb = 160, walltime_h = 16)  # gFormulaImpute: imps = m x 2^n_waves stacked (m=200 doubles vs 100), + lm model frame
   future::plan(plan_light)                                  # default for untagged targets
 } else {
   # Off-cluster: one local plan; the plan_* names below just alias it so the

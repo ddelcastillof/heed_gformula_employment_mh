@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=heed_tar
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00   # >= critical path light(2h)+mice(8h)+gform(16h)=26h at m=200, with headroom
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=64G   # controller only orchestrates; heavy objects live on workers (storage="worker")
 #SBATCH --output=logs/targets_%j.out
