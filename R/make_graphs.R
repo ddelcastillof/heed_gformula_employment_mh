@@ -32,7 +32,8 @@ make_graphs <- function(gform_mcs, gform_pcs,
                         gform_mcs_ate, gform_pcs_ate,
                         mcs_label = "Mental Component Score (MCS)",
                         pcs_label = "Physical Component Score (PCS)",
-                        save_dir  = NULL) {
+                        save_dir  = NULL,
+                        wave_label = NULL) {
   library(dplyr)
   library(stringr)
   library(ggplot2)
@@ -56,9 +57,12 @@ make_graphs <- function(gform_mcs, gform_pcs,
   )
 
   if (!is.null(save_dir)) {
-    ggsave(file.path(save_dir, "graph_marginal.png"), marginal,
+    suffix        <- if (!is.null(wave_label)) paste0("_", wave_label) else ""
+    marginal_file <- paste0("graph_marginal", suffix, ".png")
+    diff_file     <- paste0("graph_diff", suffix, ".png")
+    ggsave(file.path(save_dir, marginal_file), marginal,
            dpi = 300, width = 8, height = 12)
-    ggsave(file.path(save_dir, "graph_diff.png"), diff,
+    ggsave(file.path(save_dir, diff_file), diff,
            dpi = 300, width = 8, height = 12)
   }
 
