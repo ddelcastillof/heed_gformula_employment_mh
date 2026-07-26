@@ -88,11 +88,11 @@ for (f in list.files(here::here("R"), pattern = "\\.R$", full.names = TRUE)) sou
 
 # ---- Configuration for each function ----
 ## mice configs
-mice_m      <- 200
+mice_m      <- 300
 mice_maxit  <- 10
 seed_random <- 42
 ## gFormulaMI configs
-gform_M <- 200
+gform_M <- 300
 
 # ---- Wave-set spec: one row per analysis, tar_map stamps the chain below per row ----
 # how_many drives build_data's 2^n_intervention regimes; round_end = round_start + n_waves - 1.
