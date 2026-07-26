@@ -40,13 +40,16 @@ if (on_slurm) {
   # Rerun is m=300, maxit=10 (unchanged) => mice ~linear in m only => x1.5. maxit affects runtime, never mem.
   # gform imps = m x 2^n_waves (unaffected by mice maxit; gform's internal mice is maxit=1) => x1.5 for m=300.
   plan_mice  <- slurm_tier(memory_gb = 24, walltime_h = 14)   # run_mice: peak 1.6G@m=200 -> ~2.4G; five-wave 6.8h x1.5 -> ~10.3h
-  plan_gform <- slurm_tier(memory_gb = 224, walltime_h = 24)  # gFormulaImpute five-wave measured 112.9G/11.8h @m=200 -> ~169G/17.7h @m=300
+  # gform mem is the binding constraint and scales steeply with wave count (imps = m x 2^n_waves).
+  # Split into two tiers so only the five-wave gform pays for the big node (override applied below).
+  plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 24)  # three/four gform: four measured 50.7G@m=200 -> ~76G@m=300
+  plan_gform_big <- slurm_tier(memory_gb = 224, walltime_h = 24)  # five-wave gform only: measured 112.9G@m=200 -> ~169G@m=300
   future::plan(plan_light)                                  # default for untagged targets
 } else {
   # Off-cluster: one local plan; the plan_* names below just alias it so the
   # per-target tar_resources_future(plan = ...) tags are harmless locally.
   local_plan <- future::tweak(future.callr::callr, workers = 4L)
-  plan_light <- plan_mice <- plan_gform <- local_plan
+  plan_light <- plan_mice <- plan_gform <- plan_gform_big <- local_plan
   future::plan(local_plan)
 }
 
@@ -165,6 +168,15 @@ mapped <- tar_map(
       wave_label = how_many
     ))
 )
+
+# tar_map stamps ONE resources object onto every branch of a stem (resources is evaluated
+# eagerly, so unlike `command` it is NOT substituted per wave_spec row). To give the five-wave
+# gform its own big-memory tier, override the resources of just those four branches after the
+# map is built; three/four keep plan_gform (96G). Verified on targets 1.12.0 / tarchetypes 0.14.1.
+gform_big_res <- tar_resources(future = tar_resources_future(plan = plan_gform_big))
+for (stem in c("gform_mcs", "gform_pcs", "gform_mcs_ate", "gform_pcs_ate")) {
+  mapped[[stem]][[paste0(stem, "_five")]]$settings$resources <- gform_big_res
+}
 
 # ---- Pipeline: shared import + the mapped per-wave-set chains ----
 list(
