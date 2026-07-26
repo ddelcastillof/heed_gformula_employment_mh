@@ -36,8 +36,11 @@ if (on_slurm) {
     )
   }
   plan_light <- slurm_tier(memory_gb = 24, walltime_h = 2)   # pop_data, build_data, graphs (m-independent)
-  plan_mice  <- slurm_tier(memory_gb = 48, walltime_h = 8)   # run_mice (m = 200; ~linear in m)
-  plan_gform <- slurm_tier(memory_gb = 160, walltime_h = 16)  # gFormulaImpute: imps = m x 2^n_waves stacked (m=200 doubles vs 100), + lm model frame
+  # Sizing from sacct MaxRSS/Elapsed of the m=200/maxit=10 run (job 2326426), five-wave = worst case.
+  # Rerun is m=300, maxit=10 (unchanged) => mice ~linear in m only => x1.5. maxit affects runtime, never mem.
+  # gform imps = m x 2^n_waves (unaffected by mice maxit; gform's internal mice is maxit=1) => x1.5 for m=300.
+  plan_mice  <- slurm_tier(memory_gb = 24, walltime_h = 14)   # run_mice: peak 1.6G@m=200 -> ~2.4G; five-wave 6.8h x1.5 -> ~10.3h
+  plan_gform <- slurm_tier(memory_gb = 224, walltime_h = 24)  # gFormulaImpute five-wave measured 112.9G/11.8h @m=200 -> ~169G/17.7h @m=300
   future::plan(plan_light)                                  # default for untagged targets
 } else {
   # Off-cluster: one local plan; the plan_* names below just alias it so the
