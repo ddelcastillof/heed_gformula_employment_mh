@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=heed_tar
-#SBATCH --time=60:00:00   # critical path at m=300/maxit=10: build + mice_five(~10.3h) + gform_five(~17.7h) + worker-contention queueing; m=200 run alone hit 22.4h incomplete. 60h << 7d partition cap.
+#SBATCH --time=72:00:00   # MEASURED at m=300 (job 2326516): mice_five 10.2h, then gform_five needs ~30-36h (timed out at the old 24h wall) => plan_gform_big raised to 48h. Controller must outlive its workers: 10.2 + 48 = 58.2h critical path + queueing, so 60h was too tight. 72h << 7d partition cap.
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=64G   # controller only orchestrates; heavy objects live on workers (storage="worker")
 #SBATCH --output=logs/targets_%j.out

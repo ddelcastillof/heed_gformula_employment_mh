@@ -43,7 +43,11 @@ if (on_slurm) {
   # gform mem is the binding constraint and scales steeply with wave count (imps = m x 2^n_waves).
   # Split into two tiers so only the five-wave gform pays for the big node (override applied below).
   plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 24)  # three/four gform: four measured 50.7G@m=200 -> ~76G@m=300
-  plan_gform_big <- slurm_tier(memory_gb = 224, walltime_h = 24)  # five-wave gform only: measured 112.9G@m=200 -> ~169G@m=300
+  # five-wave gform only. m=300 run (job 2326516) MEASURED: 153-160G RSS (224G req is right,
+  # the ~169G projection held) but all four branches TIMED OUT at the old 24h wall. Runtime
+  # scales x2.2 per added wave at m=300 (three 4.4h -> four 8.8h -> five >24h), so five-wave
+  # needs ~30-36h; 48h leaves headroom without approaching the 7d partition cap.
+  plan_gform_big <- slurm_tier(memory_gb = 224, walltime_h = 48)
   future::plan(plan_light)                                  # default for untagged targets
 } else {
   # Off-cluster: one local plan; the plan_* names below just alias it so the
