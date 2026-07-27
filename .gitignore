@@ -49,6 +49,7 @@ reports/
 # claude files
 CLAUDE.md
 .claude
+docs/superpowers/
 
 # targets output
 _targets/
