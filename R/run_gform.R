@@ -1,6 +1,6 @@
 # g-formula MI predictor matrix and imputation of counterfactual outcomes
 
-run_gform <- function(wide_mids, wide_data_mi, intervention_pattern, estimand, M = 50) {
+run_gform <- function(wide_mids, wide_data_mi, intervention_pattern, estimand, M = 50, nSim = NULL) {
   library(magrittr)
   estimand <- as.character(estimand)
 
@@ -51,6 +51,7 @@ run_gform <- function(wide_mids, wide_data_mi, intervention_pattern, estimand, M
       M                = M,
       trtVars          = trt_vars,
       trtRegimes       = regimes,
+      nSim             = nSim,
       method           = method_vector,
       predictorMatrix  = predictor_matrix,
       silent           = TRUE

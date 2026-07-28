@@ -9,20 +9,9 @@ library(future.callr)
 
 # Detect SLURM at runtime, if not in cluster, run locally with future.callr (in a separate r process)
 on_slurm <- nzchar(Sys.getenv("SLURM_JOB_ID")) && nzchar(Sys.which("sbatch"))
-
+# Assigning tiers for resources and walltime
 if (on_slurm) {
-  # Route batchtools worker registries under logs/ (default is ./.future). Each worker's
-  # SLURM --output/--error is batchtools' log.file, which lives inside its registry, so
-  # moving the registry root moves the worker logs too. getLog() still resolves — it reads
-  # back the same path batchtools wrote as --output.
   options(future.cache.path = here::here("logs", ".future"))
-
-  # future.batchtools 0.22.0 reads `resources` from the backend (the plan), NEVER
-  # from per-target tar_resources_future(resources = ...). So each memory tier is a
-  # separate tweaked plan, and targets swaps future::plan() per target via
-  # tar_resources_future(plan = ...). slurm.tmpl uses whole-job --mem, so memory is
-  # independent of ncpus. Tiers sized from local 3-wave timings (gform ~45 min,
-  # mice ~23 min/outcome) with headroom for the 2^n_waves regime blow-up at 4/5 waves.
   slurm_tier <- function(memory_gb, walltime_h, ncpus = 2L) {
     future::tweak(
       future.batchtools::batchtools_slurm,
@@ -35,23 +24,17 @@ if (on_slurm) {
       )
     )
   }
-  plan_light <- slurm_tier(memory_gb = 24, walltime_h = 2)   # pop_data, build_data, graphs (m-independent)
-  # Sizing from sacct MaxRSS/Elapsed of the m=200/maxit=10 run (job 2326426), five-wave = worst case.
-  # Rerun is m=300, maxit=10 (unchanged) => mice ~linear in m only => x1.5. maxit affects runtime, never mem.
-  # gform imps = m x 2^n_waves (unaffected by mice maxit; gform's internal mice is maxit=1) => x1.5 for m=300.
-  plan_mice  <- slurm_tier(memory_gb = 24, walltime_h = 14)   # run_mice: peak 1.6G@m=200 -> ~2.4G; five-wave 6.8h x1.5 -> ~10.3h
-  # gform mem is the binding constraint and scales steeply with wave count (imps = m x 2^n_waves).
-  # Split into two tiers so only the five-wave gform pays for the big node (override applied below).
-  plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 24)  # three/four gform: four measured 50.7G@m=200 -> ~76G@m=300
-  # five-wave gform only. m=300 run (job 2326516) MEASURED: 153-160G RSS (224G req is right,
-  # the ~169G projection held) but all four branches TIMED OUT at the old 24h wall. Runtime
-  # scales x2.2 per added wave at m=300 (three 4.4h -> four 8.8h -> five >24h), so five-wave
-  # needs ~30-36h; 48h leaves headroom without approaching the 7d partition cap.
-  plan_gform_big <- slurm_tier(memory_gb = 224, walltime_h = 48)
+  # pop_data, build_data, graphs plan
+  plan_light <- slurm_tier(memory_gb = 8, walltime_h = 2)   
+  # run_mice plan
+  plan_mice  <- slurm_tier(memory_gb = 16, walltime_h = 16)   
+  # three/four gform
+  plan_gform     <- slurm_tier(memory_gb = 128,  walltime_h = 24)  
+  # five gform plan
+  plan_gform_big <- slurm_tier(memory_gb = 256, walltime_h = 48)
   future::plan(plan_light)                                  # default for untagged targets
 } else {
-  # Off-cluster: one local plan; the plan_* names below just alias it so the
-  # per-target tar_resources_future(plan = ...) tags are harmless locally.
+  # Off-cluster: one local plan for all targets, not recommended as it eats RAM as crazy
   local_plan <- future::tweak(future.callr::callr, workers = 4L)
   plan_light <- plan_mice <- plan_gform <- plan_gform_big <- local_plan
   future::plan(local_plan)
@@ -88,8 +71,8 @@ tar_option_set(
   ),
   format = "rds",
   repository = "local",
-  storage   = "worker",   # workers read/write the shared _targets/ store directly, so
-  retrieval = "worker",   # multi-GB gFormulaImpute objects never transit the controller
+  storage   = "worker",   # workers read/write the shared _targets/ store directly, so multi-GB gFormulaImpute objects never transit the controller
+  retrieval = "worker",   
   seed   = 42
 )
 
@@ -98,16 +81,14 @@ for (f in list.files(here::here("R"), pattern = "\\.R$", full.names = TRUE)) sou
 
 # ---- Configuration for each function ----
 ## mice configs
-mice_m      <- 300
-mice_maxit  <- 10
-seed_random <- 42
+mice_m      <- 50
+mice_maxit  <- 15
+seed_random <- 20260728
 ## gFormulaMI configs
-gform_M <- 300
+gform_M <- 50
 
 # ---- Wave-set spec: one row per analysis, tar_map stamps the chain below per row ----
-# how_many drives build_data's 2^n_intervention regimes; round_end = round_start + n_waves - 1.
-# Add a wave-set here -> a full build->mice->gFormulaMI->results->plot chain appears in the DAG,
-# target names suffixed by how_many (e.g. gform_mcs_three / _four / _five). Tier tags flow to all.
+
 wave_spec <- tibble::tibble(
   how_many    = c("three", "four", "five"),
   round_start = c(3L, 3L, 3L),
@@ -121,45 +102,67 @@ mapped <- tar_map(
 
   # Build wide datasets (MCS / PCS) -- light tier (default plan)
   tar_target(wide_data_mcs,
-    build_data(data = pop_data, how_many = how_many, outcome = "MCS",
-               round_start = round_start, round_end = round_end)),
+    build_data(data = pop_data, 
+               how_many = how_many, 
+               outcome = "MCS",
+               round_start = round_start, 
+               round_end = round_end)),
   tar_target(wide_data_pcs,
-    build_data(data = pop_data, how_many = how_many, outcome = "PCS",
-               round_start = round_start, round_end = round_end)),
+    build_data(data = pop_data, 
+               how_many = how_many, 
+               outcome = "PCS",
+               round_start = round_start, 
+               round_end = round_end)),
 
   # mice imputation (m = 100) -- mice tier
   tar_target(wide_mids_mcs,
-    run_mice(wide_data = wide_data_mcs$data, m = mice_m, maxit = mice_maxit, seed = seed_random),
+    run_mice(wide_data = wide_data_mcs$data, 
+            m = mice_m, 
+            maxit = mice_maxit, 
+            seed = seed_random),
     resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
   tar_target(wide_mids_pcs,
-    run_mice(wide_data = wide_data_pcs$data, m = mice_m, maxit = mice_maxit, seed = seed_random),
+    run_mice(wide_data = wide_data_pcs$data, 
+      m = mice_m, 
+      maxit = mice_maxit, 
+      seed = seed_random),
     resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
 
   # gFormulaMI: marginal + ATE, both outcomes -- gform tier
   tar_target(gform_mcs,
-    run_gform(wide_mids = wide_mids_mcs, wide_data_mi = wide_data_mcs$data,
+    run_gform(wide_mids = wide_mids_mcs, 
+              wide_data_mi = wide_data_mcs$data,
               intervention_pattern = wide_data_mcs$intervention_pattern,
-              estimand = "factor(regime) + 0", M = gform_M),
+              estimand = "factor(regime) + 0", 
+              M = gform_M,
+              nSim = 2*nrow(wide_data_mcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
   tar_target(gform_pcs,
-    run_gform(wide_mids = wide_mids_pcs, wide_data_mi = wide_data_pcs$data,
+    run_gform(wide_mids = wide_mids_pcs, 
+              wide_data_mi = wide_data_pcs$data,
               intervention_pattern = wide_data_pcs$intervention_pattern,
-              estimand = "factor(regime) + 0", M = gform_M),
+              estimand = "factor(regime) + 0", 
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_pcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
   tar_target(gform_mcs_ate,
-    run_gform(wide_mids = wide_mids_mcs, wide_data_mi = wide_data_mcs$data,
+    run_gform(wide_mids = wide_mids_mcs, 
+              wide_data_mi = wide_data_mcs$data,
               intervention_pattern = wide_data_mcs$intervention_pattern,
-              estimand = "factor(regime)", M = gform_M),
+              estimand = "factor(regime)", 
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_mcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
   tar_target(gform_pcs_ate,
-    run_gform(wide_mids = wide_mids_pcs, wide_data_mi = wide_data_pcs$data,
+    run_gform(wide_mids = wide_mids_pcs, 
+              wide_data_mi = wide_data_pcs$data,
               intervention_pattern = wide_data_pcs$intervention_pattern,
-              estimand = "factor(regime)", M = gform_M),
+              estimand = "factor(regime)", 
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_pcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
 
-  # Plots: run_gform returns only the small results tibble (imps never persist), so
-  # gform_* objects are light -> plot reads them directly on the light tier, no
-  # extraction layer needed. Stays light at any wave count.
+  # Plots
   tar_target(graphs,
     make_graphs(
       gform_mcs     = gform_mcs,
@@ -173,10 +176,7 @@ mapped <- tar_map(
     ))
 )
 
-# tar_map stamps ONE resources object onto every branch of a stem (resources is evaluated
-# eagerly, so unlike `command` it is NOT substituted per wave_spec row). To give the five-wave
-# gform its own big-memory tier, override the resources of just those four branches after the
-# map is built; three/four keep plan_gform (96G). Verified on targets 1.12.0 / tarchetypes 0.14.1.
+# Only 5-waves objects will have their own plan 
 gform_big_res <- tar_resources(future = tar_resources_future(plan = plan_gform_big))
 for (stem in c("gform_mcs", "gform_pcs", "gform_mcs_ate", "gform_pcs_ate")) {
   mapped[[stem]][[paste0(stem, "_five")]]$settings$resources <- gform_big_res

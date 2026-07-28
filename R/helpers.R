@@ -162,7 +162,7 @@ make_counterfactual_matrix <- function(return_vals, arrows = NULL) {
   }
 
   # baseline columns that are the wave-0 value of a time-varying confounder
-  # (age_dv_base, gor_dv_fact_base).
+  # (age_dv_base, gor_dv_fact_base, age_dv_sq_base).
   tv_stems <- unique(str_remove(time_varying, "_\\d+$"))
   tv_base  <- intersect(paste0(tv_stems, "_base"), baseline_vars)
 
@@ -237,7 +237,7 @@ make_counterfactual_method <- function(return_vals) {
   probe <- rbind(as.data.frame(return_vals), NA)
 
   method <- mice::make.method(probe,
-                              defaultMethod = c("pmm", "logreg", "polyreg", "polr"))
+                              defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
 
   # treatment columns are assigned from the regime rather than imputed, and are
   # complete in the observed block, so gFormulaMI expects them blank

@@ -126,7 +126,6 @@ import_data <- function(force = FALSE) {
   raw_data <- merge(raw_data, hhrep, by = c("hidp", "wave"), all.x = TRUE)
   raw_data <- merge(raw_data, income_collapsed, by = c("pidp", "hidp", "wave"), all.x = TRUE)
   raw_data <- merge(raw_data, benefits_collapsed, by = c("hidp", "wave"), all.x = TRUE)
-
   
   fst::write_fst(raw_data, cache_path)
   
@@ -186,7 +185,7 @@ clean_data <- function(DT) {
   raw_data[, has_partner := fifelse(partnerid > 0 & !is.na(partnerid), 1L, 0L)]
 
   # dependent children dummy variable (1 if has dependent children, 0 if not)
-  raw_data[, depChild := fifelse(age_dv >= 0 & age_dv < age_max_dependent & (pns1pid > 0 | pns2pid > 0) & depchl_dv == 1, 1L, 0L)]
+  raw_data[, depChild := fifelse(age_probe >= 0 & age_probe < age_max_dependent & (pns1pid > 0 | pns2pid > 0) & depchl_dv == 1, 1L, 0L)]
   raw_data[, dnc := sum(depChild, na.rm = TRUE), by = .(wave, idhh)]
   ## drop temporary depChild
   raw_data[, depChild := NULL]
@@ -348,8 +347,7 @@ clean_data <- function(DT) {
     default = NA_real_
   )]
   raw_data[, yhhnb := yhhnb / moecd_eq]
-  # ypnb is already in 2015 prices - no additional CPI division here
-  # (do-file line 391 divides yhhnb by CPI again: double-deflation bug)
+  # ypnb in 2015 prices
   raw_data[, yhhnb_asinh := asinh(yhhnb)]
   raw_data[, log_income  := yhhnb_asinh]
 
@@ -414,10 +412,17 @@ clean_data <- function(DT) {
     default = NA_character_
   )]
 
-  # binary employment: 0 = employed, 1 = not employed (at risk of work only)
+  # binary employment: 0 = employed, 1 = not employed
   raw_data[, econ_emp_bin := fcase(
-    econ_emp == "Employed or self-employed",      0L,
-    econ_emp == "Not employed (at risk of work)", 1L,
+    econ_emp == "Employed or self-employed", 0L,
+    !is.na(econ_emp),                        1L,
+    default = NA_integer_
+  )]
+
+  #sensitivity exposure: binary, labour-force. Students and retired are not at risk of work.
+  raw_data[, econ_emp_bin_narrow := fcase(
+    econ_emp == "Employed or self-employed",                             0L,
+    econ_emp %in% c("Not employed (at risk of work)", "Long-term sick"), 1L,
     default = NA_integer_
   )]
 
@@ -443,8 +448,7 @@ clean_data <- function(DT) {
   ## convert sex_dv to factor
   raw_data[, sex_dv := factor(sex_dv, levels = c(0, 1), labels = c("Female", "Male"))]
 
-  # write age_probe back to age_dv (overwrite original age_dv, whose negative codes are now NA).
-  # age_dv is reported age only — no forward/backward fill is applied to it.
+  # write age_probe back to age_dv 
   raw_data[, age_dv := age_probe]
 
   # recoding gor_dv==-9 to NA and then forward/backward fill within person to impute missing region of residence
@@ -476,9 +480,6 @@ clean_data <- function(DT) {
 
   # recoding hiqual_dv missings to NA
   raw_data[hiqual_dv < 0, hiqual_dv := NA_integer_]
-  # filling missing hiqual_dv with last observation carried forward within person, then backward fill to handle leading NAs
-  setorder(raw_data, pidp, wave)
-  raw_data[, hiqual_dv := nafill(hiqual_dv, type = "locf"), by = pidp]  # forward fill
   
   # diagnostics for the STROBE checklist
   diagnose_exclusions(raw_data)
@@ -496,7 +497,7 @@ clean_data <- function(DT) {
               "intdaty_dv", "intdatm_dv", "intdatd_dv", "sclfsato", "finnow", 
               "fimnpen_dv", "fimnlabgrs_dv", "scsf1", "inc_pp", "inc_tu", "inc_ma", 
               "inc_fm", "inc_oth", "benefits_uc", "benefits_lb", "fihhmnsben_dv", "ethn_dv",
-              "econ_ltsick", "econ_student", "econ_retire", "econ_emp") := NULL]
+              "econ_ltsick", "econ_student", "econ_retire") := NULL]
   return(raw_data)
 }
 
@@ -505,19 +506,29 @@ preproc_data <- function(DT) {
   source(here::here("R", "exclusion_diagnostics.R"))
 
   if (!is.data.table(DT)) stop("Input must be a data.table")
-
-  # ---- 1. Filter to working-age and select analysis columns ----
   
-  age_status <- DT[, .(pidp, wave,
-                       age_eligible = !is.na(age_dv) & age_dv >= 25 & age_dv <= 65)]
+  # ---- 1. Filter to working-age and select analysis columns ----
 
-  DT <- DT[!is.na(age_dv) & age_dv >= 25 & age_dv <= 65]
+  age_status <- DT[, .(pidp, wave,
+                       age_eligible = !is.na(age_dv) & age_dv >= 25 & age_dv <= 64)]
+
+  DT <- DT[!is.na(age_dv) & age_dv >= 25 & age_dv <= 64]
+
+  # ---- 1.1. Non-linear age term, centered ----
+  DT[, age_dv_sq := (age_dv - mean(age_dv, na.rm = TRUE))^2]
+
+  # filling missing hiqual_dv with last observation carried forward within person, then backward fill to handle leading NAs, 
+  # allowed since 25-64 is a stable period for education attainment
+  # moved here since it only applies to working-age population
+  setorder(DT, pidp, wave)
+  DT[, hiqual_dv := nafill(hiqual_dv, type = "locf"), by = pidp]  # forward fill
+  DT[, hiqual_dv := nafill(hiqual_dv, type = "nocb"), by = pidp]  # backward fill
 
   cols_to_keep <- c("pidp", "wave",
                     "sf12mcs_dv", "sf12pcs_dv", "log_income",
                     "econ_emp_bin", "econ_dist", "econ_dist_bin", "econ_benefits", "gor_dv_fact",
-                    "gor_dv", "mastat_dv", "home_owner", "dnc", "age_dv",
-                    "race", "sex_dv", "hiqual_dv")
+                    "gor_dv", "mastat_dv", "home_owner", "dnc", "age_dv", "age_dv_sq",
+                    "race", "sex_dv", "hiqual_dv", "econ_emp", "econ_emp_bin_narrow")
 
   DT <- DT[, ..cols_to_keep]
   DT[, response := 1L]
@@ -543,7 +554,7 @@ preproc_data <- function(DT) {
   # impute slow-changing/time-invariant variables for synthetic (response=0) rows
   exp_data[, sex_dv    := sex_dv[!is.na(sex_dv)][1L], by = pidp]          # time-invariant sex
   exp_data[, race      := race[!is.na(race)][1L],      by = pidp]          # time-invariant race
-  exp_data[, hiqual_dv := nafill(hiqual_dv, type = "locf"), by = pidp]     # education: forward only
+  exp_data[, hiqual_dv := hiqual_dv[!is.na(hiqual_dv)][1L], by = pidp]     # time-invariant highest qualification
   # collapse UKHLS hiqual_dv codes: 1-2 (degree/other higher degree) = High,
   # 3-5 (A-level/GCSE/other qualification) = Medium, 9 (no qualification) = Low
   exp_data[, hiqual_dv_fact := factor(fcase(
@@ -552,14 +563,13 @@ preproc_data <- function(DT) {
     hiqual_dv == 9L,    "Low"
   ), levels = c("High", "Medium", "Low"))]
 
-  # ---- 3. Wave-1 baseline variable creation ----
-  base_cols <- c("pidp", "age_dv", "sex_dv", "gor_dv", "gor_dv_fact", "mastat_dv",
+# ---- 3. Baseline variable creation: first eligible responding wave ----
+  base_cols <- c("pidp", "wave", "age_dv", "age_dv_sq", "sex_dv", "gor_dv", "gor_dv_fact", "mastat_dv",
                  "home_owner", "dnc", "hiqual_dv_fact", "race",
                  "sf12mcs_dv", "sf12pcs_dv")
 
-  base_data <- exp_data[wave == 1L, ..base_cols]
-  
-  # drop rows with missing age or region of residence at baseline
+  base_data <- exp_data[response == 1L][order(pidp, wave)][, .SD[1L], by = pidp, .SDcols = setdiff(base_cols, "pidp")]
+  base_data[, wave := NULL]
   base_data <- base_data[!is.na(age_dv) & !is.na(gor_dv_fact)]
 
   # rename all except pidp with _base suffix
@@ -594,14 +604,14 @@ preproc_data <- function(DT) {
   #--- Renaming sex_dv as a factor variable ----
   pop_data[, sex_dv_fact := sex_dv]
 
-  # ---- 5. Final column selection ----
+  # ---- 6. Final column selection ----
   final_cols <- c("pidp", "wave", "response", "t0",
                   "sf12mcs_dv", "sf12pcs_dv", "log_income",
                   "econ_emp_bin", "econ_emp_bin_fact", "econ_dist", "econ_dist_bin", 
                   "econ_dist_bin_fact", "econ_benefits", "gor_dv", "mastat_dv", "home_owner", "dnc", "dnc_fact", "age_dv",
-                  "age_dv_base", "sex_dv_fact", "sex_dv_base", "gor_dv_base", "mastat_dv_base",
+                  "age_dv_base", "age_dv_sq_base", "sex_dv_fact", "sex_dv_base", "gor_dv_base", "mastat_dv_base",
                   "home_owner_base", "dnc_base", "hiqual_dv_fact", "hiqual_dv_fact_base", "race_base",
-                  "sf12mcs_dv_base", "sf12pcs_dv_base", "gor_dv_fact_base", "gor_dv_fact")
+                  "sf12mcs_dv_base", "sf12pcs_dv_base", "gor_dv_fact_base", "gor_dv_fact", "econ_emp_bin_narrow")
 
   pop_data[, ..final_cols]
 }
