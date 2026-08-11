@@ -81,3 +81,12 @@ legacy/
 # logs from SLURM jobs and future batchtools workers
 logs/*.err
 logs/.future/
+
+# test files
+tests/*.R
+tests/*.xlsx
+!tests/testthat/tests.R
+!tests/test_crew_slurm.R
+
+# sh script for uploading data
+upload_data.sh
