@@ -30,9 +30,7 @@ if (on_slurm) {
   plan_mice  <- slurm_tier(memory_gb = 16, walltime_h = 8)   
   # three/four gform
   plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 12)  
-  # ltmle plan: one branch = one imputation x every regime. Far lighter than
-  # gform (no M x 2^n_waves stacked datasets, just one imputed frame plus the
-  # SuperLearner fits), so it gets its own tier instead of queueing behind 96G.
+  # ltmle plan
   plan_ltmle <- slurm_tier(memory_gb = 24, walltime_h = 8)
   future::plan(plan_light)                                  # default for untagged targets
 } else {
@@ -257,6 +255,21 @@ map <- tar_map(
       gform_pcs_ate = gform_pcs_ate,
       mcs_label = "Mental Component Score (MCS)",
       pcs_label = "Physical Component Score (PCS)",
+      save_dir  = here::here("figs"),
+      wave_label = how_many
+    )),
+
+  # LTMLE plots, the sensitivity analysis counterpart to `graphs` above: same
+  # employment regimes, different estimator. Takes the per-imputation summaries
+  # rather than the pooled tables because the contrasts against the always-
+  # employed reference are formed within each imputation, then pooled.
+  tar_target(ltmle_graphs,
+    make_ltmle_graphs(
+      ltmle_sum_mcs = ltmle_sum_mcs,
+      ltmle_sum_pcs = ltmle_sum_pcs,
+      mcs_label = "Mental Component Score (MCS)",
+      pcs_label = "Physical Component Score (PCS)",
+      exposure_label = "unemployed",
       save_dir  = here::here("figs"),
       wave_label = how_many
     ))
