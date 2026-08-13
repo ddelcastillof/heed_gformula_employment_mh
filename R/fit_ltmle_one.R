@@ -1,15 +1,13 @@
 # One ltmle fit: one regime x one imputed dataset.
-#
-# Qform and gform are left to ltmle. Its defaults regress every node on all the
-# columns that precede it, and prepare_ltmle_data() already hands it the columns
-# in ltmle_nodes() order, so the defaults are the fully adjusted models.
-
 fit_ltmle_one <- function(regime_label, imp_idx, ltmle_data_list,
                           regimes, sl_libs,
                           outcome, n_waves,
                           gbounds = c(0.01, 1),
-                          Yrange  = c(0, 1)) {
+                          Yrange  = c(0, 1),
+                          SL.cvControl = list(v = 5L)) {
 
+  register_sl_wrappers()
+  
   nodes <- ltmle_nodes(outcome, n_waves)
 
   if (!regime_label %in% names(regimes)) {
@@ -34,6 +32,7 @@ fit_ltmle_one <- function(regime_label, imp_idx, ltmle_data_list,
     gbounds         = gbounds,
     abar            = abar,
     SL.library      = sl_libs,
+    SL.cvControl    = SL.cvControl,
     estimate.time   = FALSE,
     variance.method = "ic",
     Yrange          = Yrange

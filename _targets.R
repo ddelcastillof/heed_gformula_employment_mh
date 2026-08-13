@@ -31,7 +31,7 @@ if (on_slurm) {
   # three/four gform
   plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 12)  
   # ltmle plan
-  plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 4)
+  plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 8)
   future::plan(plan_light)                                  # default for untagged targets
 } else {
   # Off-cluster: one local plan for all targets, not recommended as it eats RAM as crazy
@@ -70,7 +70,10 @@ tar_option_set(
     "ggplot2",
     "ltmle",
     "SuperLearner",
-    "xgboost"
+    "xgboost",
+    "gam",
+    "nnet",
+    "ranger"
   ),
   format = "rds",
   repository = "local",
@@ -91,7 +94,8 @@ seed_random <- 20260728
 gform_M <- 50
 
 ## ltmle configs
-sl_libs <- c("SL.mean", "SL.glm", "SL.gam", "SL.xgboost.ltmle")
+sl_libs <- c("SL.mean", "SL.glm", "SL.gam.ltmle2", "SL.gam.ltmle3", "SL.gam.ltmle4", "SL.gam.ltmle5",
+             "SL.xgboost2.ltmle", "SL.xgboost4.ltmle", "SL.rf.ltmle", "SL.nnet10", "SL.nnet20", "SL.poly2", "SL.poly3")
 
 regimes <- list(
   "0-0-0-0" = c(0, 0, 0, 0),
