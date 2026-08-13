@@ -43,12 +43,19 @@ run_mice <- function(wide_data, m = 5,
   # so the modifier terms scale with the wave-set instead of pinning wave 0
   a_cols <- attr(wide_data, "exposure_vars")
 
-  if (!length(y_cols) || !length(a_cols)) {
-    stop("wide_data lacks the make_wide()/set_exposure() attributes ",
-         "('outcome_baseline'/'outcome_vars'/'exposure_vars'): pass the data ",
-         "element of the build_data() list, not a subset of it")
+  # the passive age_dv/gor_dv_fact machinery below works on any wide frame, so a
+  # frame without these attributes still imputes -- it just gets no interactions
+  congenial <- length(y_cols) > 0L && length(a_cols) > 0L
+
+  if (!congenial) {
+    warning("run_mice: wide_data lacks the make_wide()/set_exposure() attributes ",
+            "('outcome_baseline'/'outcome_vars'/'exposure_vars'), so the outcome ",
+            "models keep their default formulas and carry no exposure ",
+            "interactions. Pass the data element of the build_data() list, ",
+            "not a subset of it")
+  } else {
+    stopifnot(all(c(y_cols, a_cols) %in% names(wide_data)))
   }
-  stopifnot(all(c(y_cols, a_cols) %in% names(wide_data)))
 
   S <- "sex_dv_base * race_base * hiqual_dv_fact_base"
 
@@ -145,16 +152,18 @@ run_mice <- function(wide_data, m = 5,
   # wave t gets the treatment waves up to and including t: that is the exposure
   # history the second-stage gFormulaMI model sees for that node, so the
   # imputation model and the analysis model carry the same interactions.
-  wave_of  <- function(x) as.integer(sub("^.*_(\\d+)$", "\\1", x))
-  out_cols <- attr(wide_data, "outcome_vars")
-  a_waves  <- wave_of(a_cols)
+  if (congenial) {
+    wave_of  <- function(x) as.integer(sub("^.*_(\\d+)$", "\\1", x))
+    out_cols <- attr(wide_data, "outcome_vars")
+    a_waves  <- wave_of(a_cols)
 
-  for (y in out_cols) {
-    prior <- a_cols[a_waves <= wave_of(y)]
-    if (!length(prior)) next
-    form_list[[y]] <- stats::update.formula(
-      form_list[[y]], stats::reformulate(c(".", paste(prior, "*", S)))
-    )
+    for (y in out_cols) {
+      prior <- a_cols[a_waves <= wave_of(y)]
+      if (!length(prior)) next
+      form_list[[y]] <- stats::update.formula(
+        form_list[[y]], stats::reformulate(c(".", paste(prior, "*", S)))
+      )
+    }
   }
 
   mids <-  mice::mice(
