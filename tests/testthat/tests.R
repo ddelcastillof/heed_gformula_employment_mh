@@ -353,11 +353,6 @@ test_that("TMLE functions run without errors", {
                          \(y) all(y >= 0 & y <= 1), logical(1))))
   expect_false(anyNA(ltmle_data[[1]]))
 
-  # errors if any formula reads a variable that does not precede its node
-  forms <- pick_gform_qform(outcome, n_waves = n_waves, data = ltmle_data[[1]])
-  expect_length(forms$gform, n_waves)
-  expect_length(forms$Qform, n_waves)
-
   # test flight grid: the two extreme regimes x two imputations. The full run is
   # names(regimes) x seq_len(mice_m), i.e. 2^n_waves * m fits.
   tmle_imp_idx <- seq_len(2L)
@@ -376,8 +371,6 @@ test_that("TMLE functions run without errors", {
                   imp_idx         = imp_idx,
                   ltmle_data_list = ltmle_data,
                   regimes         = regimes,
-                  Qform           = forms$Qform,
-                  gform           = forms$gform,
                   sl_libs         = sl_libs,
                   outcome         = outcome,
                   n_waves         = n_waves)
@@ -409,7 +402,6 @@ test_that("TMLE functions run without errors", {
   imp_summary <- fit_ltmle_imp(imp_idx         = 1L,
                                ltmle_data_list = ltmle_data,
                                regimes         = regimes[1:2],
-                               forms           = forms,
                                sl_libs         = sl_libs,
                                outcome         = outcome,
                                n_waves         = n_waves)
@@ -422,7 +414,7 @@ test_that("TMLE functions run without errors", {
   # a regime whose length does not match the A nodes must fail loudly
   expect_error(
     fit_ltmle_one("bad", 1L, ltmle_data, list(bad = rep(0, n_waves + 1L)),
-                  forms$Qform, forms$gform, sl_libs, outcome, n_waves),
+                  sl_libs, outcome, n_waves),
     "A node"
   )
 })
