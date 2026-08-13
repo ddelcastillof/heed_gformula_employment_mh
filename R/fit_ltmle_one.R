@@ -40,10 +40,7 @@ fit_ltmle_one <- function(regime_label, imp_idx, ltmle_data_list,
 }
 
 # One targets branch: every regime against a single imputed dataset.
-#
-# Branching over imputations rather than over regime x imputation keeps the job
-# count at m per outcome instead of m * 2^n_waves, and the fits are summarised
-# here so only a 2^n_waves-row tibble crosses back to the targets store.
+
 fit_ltmle_imp <- function(imp_idx, ltmle_data_list, regimes, sl_libs,
                           outcome, n_waves) {
 
