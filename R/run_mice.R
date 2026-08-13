@@ -1,4 +1,8 @@
-run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
+run_mice <- function(wide_data, m = 5, 
+                     maxit = 10, 
+                     seed = 20260522,
+                     outcome = c("MCS", "PCS")) {
+  outcome <- match.arg(outcome)
   method_list <- mice::make.method(wide_data)
 
   # Method assignment by variable group
@@ -30,6 +34,23 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
   group   <- sub("_(\\d+|base)$", "", names(method_list))
   matched <- group %in% names(method_by_group)
   method_list[matched] <- method_by_group[group[matched]]
+
+  # Congenial multiple imputation (effect modification)
+  # Introducing this assumption into the imputation model
+  y_cols <- c(attr(wide_data, "outcome_baseline"),
+              attr(wide_data, "outcome_vars"))
+  # every treatment wave, tagged by set_exposure() and already ordered by wave,
+  # so the modifier terms scale with the wave-set instead of pinning wave 0
+  a_cols <- attr(wide_data, "exposure_vars")
+
+  if (!length(y_cols) || !length(a_cols)) {
+    stop("wide_data lacks the make_wide()/set_exposure() attributes ",
+         "('outcome_baseline'/'outcome_vars'/'exposure_vars'): pass the data ",
+         "element of the build_data() list, not a subset of it")
+  }
+  stopifnot(all(c(y_cols, a_cols) %in% names(wide_data)))
+
+  S <- "sex_dv_base * race_base * hiqual_dv_fact_base"
 
   # gor_dv_fact has low variability in the sample. 
   # So a LOCF approach via passive imputation will be used for missing intermediate waves 
@@ -104,12 +125,6 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
   }
 
   pred_mat <- mice::make.predictorMatrix(wide_data)
-
-  # A passive column is computed, never modelled, so mice ignores its predictor row --
-  # blank it so the matrix reads the way the imputation actually runs. More important,
-  # drop the derived column from the model for its OWN source: mice's default matrix
-  # would impute age_dv_base from age_dv_sq_base (and gor wave t-1 from wave t), i.e.
-  # from last iteration's copy of itself. No information, just a feedback loop.
   if (length(passive_src)) {
     pred_mat[names(passive_src), ] <- 0
     pred_mat[cbind(unname(passive_src), names(passive_src))] <- 0
@@ -117,6 +132,30 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
 
   collinear <- grep("^(age_dv|gor_dv_fact|age_dv_sq)(_\\d+|_base)$", colnames(pred_mat), value = TRUE)
   pred_mat[, collinear] <- 0
+
+  # make.formulas reads pred_mat, so it has to run after the passive/collinear
+  # repairs above -- built earlier it would carry the arrows those edits removed
+  form_list <- mice::make.formulas(wide_data, predictorMatrix = pred_mat)
+
+  # Y model: one formula per outcome wave, not one for the whole vector.
+  # `y_cols` holds the baseline plus every wave, so `form_list[[y_cols]]` would
+  # index recursively (form_list[["..._base"]][["..._0"]]) and error.
+  #
+  # The baseline outcome is pre-exposure, so it gets no treatment terms. Outcome
+  # wave t gets the treatment waves up to and including t: that is the exposure
+  # history the second-stage gFormulaMI model sees for that node, so the
+  # imputation model and the analysis model carry the same interactions.
+  wave_of  <- function(x) as.integer(sub("^.*_(\\d+)$", "\\1", x))
+  out_cols <- attr(wide_data, "outcome_vars")
+  a_waves  <- wave_of(a_cols)
+
+  for (y in out_cols) {
+    prior <- a_cols[a_waves <= wave_of(y)]
+    if (!length(prior)) next
+    form_list[[y]] <- stats::update.formula(
+      form_list[[y]], stats::reformulate(c(".", paste(prior, "*", S)))
+    )
+  }
 
   mids <-  mice::mice(
            data            = wide_data,
