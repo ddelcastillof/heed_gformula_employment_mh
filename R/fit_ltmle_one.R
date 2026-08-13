@@ -1,7 +1,7 @@
 # One ltmle fit: one regime x one imputed dataset.
 
 fit_ltmle_one <- function(regime_label, imp_idx, ltmle_data_list,
-                          regimes, Qform, gform, sl_libs,
+                          regimes, Qform = NULL, gform = NULL, sl_libs,
                           outcome, n_waves,
                           gbounds = c(0.01, 1),
                           Yrange  = c(0, 1)) {
@@ -43,7 +43,7 @@ fit_ltmle_one <- function(regime_label, imp_idx, ltmle_data_list,
 # Branching over imputations rather than over regime x imputation keeps the job
 # count at m per outcome instead of m * 2^n_waves, and the fits are summarised
 # here so only a 2^n_waves-row tibble crosses back to the targets store.
-fit_ltmle_imp <- function(imp_idx, ltmle_data_list, regimes, forms, sl_libs,
+fit_ltmle_imp <- function(imp_idx, ltmle_data_list, regimes, sl_libs,
                           outcome, n_waves) {
 
   regime_labels <- names(regimes)
@@ -53,8 +53,8 @@ fit_ltmle_imp <- function(imp_idx, ltmle_data_list, regimes, forms, sl_libs,
                   imp_idx         = imp_idx,
                   ltmle_data_list = ltmle_data_list,
                   regimes         = regimes,
-                  Qform           = forms$Qform,
-                  gform           = forms$gform,
+                  Qform           = Qform,
+                  gform           = gform,
                   sl_libs         = sl_libs,
                   outcome         = outcome,
                   n_waves         = n_waves)
