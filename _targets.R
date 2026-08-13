@@ -197,10 +197,6 @@ map <- tar_map(
               M = gform_M, 
               nSim = 2*nrow(wide_data_pcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
-
-  # LTMLE: prepared per-imputation data + the Q/g formulas -- light tier
-  # prepare_ltmle_data() returns m data frames, so this is the one LTMLE target
-  # whose size scales with mice_m.
   tar_target(ltmle_data_mcs,
     prepare_ltmle_data(wide_mids = wide_mids_mcs,
                        outcome   = "MCS",
@@ -211,16 +207,6 @@ map <- tar_map(
                        outcome   = "PCS",
                        n_waves   = n_waves),
     resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
-
-  # passing data = errors here if any formula reads a variable that does not
-  # precede its node, rather than inside a scheduled ltmle branch
-  tar_target(ltmle_forms_mcs,
-    pick_gform_qform(outcome = "MCS", n_waves = n_waves, data = ltmle_data_mcs[[1]])),
-  tar_target(ltmle_forms_pcs,
-    pick_gform_qform(outcome = "PCS", n_waves = n_waves, data = ltmle_data_pcs[[1]])),
-
-  # One branch per imputation, each fitting all 2^n_waves regimes and returning
-  # only the estimate/variance tibble -- ltmle tier
   tar_target(ltmle_sum_mcs,
     fit_ltmle_imp(imp_idx         = tmle_imp_idx,
                   ltmle_data_list = ltmle_data_mcs,
@@ -258,11 +244,6 @@ map <- tar_map(
       save_dir  = here::here("figs"),
       wave_label = how_many
     )),
-
-  # LTMLE plots, the sensitivity analysis counterpart to `graphs` above: same
-  # employment regimes, different estimator. Takes the per-imputation summaries
-  # rather than the pooled tables because the contrasts against the always-
-  # employed reference are formed within each imputation, then pooled.
   tar_target(ltmle_graphs,
     make_ltmle_graphs(
       ltmle_sum_mcs = ltmle_sum_mcs,
