@@ -31,7 +31,7 @@ if (on_slurm) {
   # three/four gform
   plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 12)  
   # ltmle plan
-  plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 8)
+  plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 16)
   future::plan(plan_light)                                  # default for untagged targets
 } else {
   # Off-cluster: one local plan for all targets, not recommended as it eats RAM as crazy
