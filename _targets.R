@@ -78,8 +78,14 @@ tar_option_set(
   format = "rds",
   repository = "local",
   storage   = "worker",   # workers read/write the shared _targets/ store directly, so multi-GB gFormulaImpute objects never transit the controller
-  retrieval = "worker",   
-  seed   = 42
+  retrieval = "worker",
+  seed   = 42,
+  # Each future.batchtools future owns a registry, and every poll of an
+  # unresolved one shells out to squeue. At the default backoff (0.001-0.1s)
+  # dozens of concurrent workers flood slurmctld until a listing RPC times out,
+  # which batchtools does not retry -- it aborts the whole run. Jobs here take
+  # hours, so a 5-30s polling interval costs nothing.
+  backoff = tar_backoff(min = 5, max = 30, rate = 1.5)
 )
 
 # ---- Source extracted functions (R/) ----
