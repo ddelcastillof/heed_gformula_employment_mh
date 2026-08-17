@@ -353,68 +353,74 @@ test_that("TMLE functions run without errors", {
                          \(y) all(y >= 0 & y <= 1), logical(1))))
   expect_false(anyNA(ltmle_data[[1]]))
 
-  # test flight grid: the two extreme regimes x two imputations. The full run is
-  # names(regimes) x seq_len(mice_m), i.e. 2^n_waves * m fits.
-  tmle_imp_idx <- seq_len(2L)
-  grid <- expand.grid(
-    regime_label = c(paste(rep(0, n_waves), collapse = "-"),
-                     paste(rep(1, n_waves), collapse = "-")),
-    imp_idx      = tmle_imp_idx,
-    stringsAsFactors = FALSE
-  )
+  # Test flight: two extreme regimes, two imputations. The full run is every regime in
+  # `regimes` x seq_len(mice_m), i.e. m branches of one ltmleMSM fit each.
+  flight <- regimes[c(paste(rep(0, n_waves), collapse = "-"),
+                      paste(rep(1, n_waves), collapse = "-"))]
 
-  message("Fitting ", nrow(grid), " ltmle models (", n_waves, " waves, ",
-          length(nodes$Anodes), " A nodes)")
+  message("Fitting 2 ltmleMSM models (", n_waves, " waves, ",
+          length(nodes$Anodes), " A nodes, ", length(flight), " regimes)")
 
-  ltmle_one <- purrr::pmap(grid, function(regime_label, imp_idx) {
-    fit_ltmle_one(regime_label    = regime_label,
-                  imp_idx         = imp_idx,
+  fits <- lapply(seq_len(2L), function(i) {
+    fit_ltmle_imp(imp_idx         = i,
                   ltmle_data_list = ltmle_data,
-                  regimes         = regimes,
+                  regimes         = flight,
                   sl_libs         = sl_libs,
                   outcome         = outcome,
                   n_waves         = n_waves)
   })
 
-  expect_length(ltmle_one, nrow(grid))
-  expect_true(all(vapply(ltmle_one, inherits, logical(1), "ltmle")))
+  # one fit per imputation, carrying estimates AND their covariance
+  for (f in fits) {
+    expect_setequal(f$intervention, names(flight))
+    expect_length(f$estimate, length(flight))
+    expect_equal(dim(f$cov), c(length(flight), length(flight)))
+    expect_equal(f$cov, t(f$cov))                       # symmetric
+    expect_true(all(diag(f$cov) > 0))
+    expect_true(all(f$estimate > 0 & f$estimate < 1))    # Y is on the /100 scale here
+  }
 
-  # fits are summarised before pooling, so targets never stores the ltmle objects
-  ltmle_sum <- summarise_ltmle_fits(ltmle_one, grid$regime_label, grid$imp_idx)
+  pooled <- pool_ltmle(fits)
 
-  expect_equal(nrow(ltmle_sum), nrow(grid))
-  expect_true(all(ltmle_sum$variance > 0))
-
-  pooled <- pool_ltmle(ltmle_sum)
-
-  expect_setequal(pooled$intervention, unique(grid$regime_label))
-  expect_true(all(is.finite(pooled$ltmle_effect)))
-  expect_true(all(pooled$ltmle_se > 0))
-  expect_true(all(pooled$ltmle_ll <= pooled$ltmle_effect &
-                    pooled$ltmle_effect <= pooled$ltmle_ul))
+  expect_setequal(pooled$estimates$intervention, names(flight))
+  expect_equal(dim(pooled$T), c(length(flight), length(flight)))
+  expect_true(all(is.finite(pooled$estimates$ltmle_effect)))
+  expect_true(all(pooled$estimates$ltmle_se > 0))
+  expect_true(all(pooled$estimates$ltmle_ll <= pooled$estimates$ltmle_effect &
+                    pooled$estimates$ltmle_effect <= pooled$estimates$ltmle_ul))
   # pool_ltmle rescales by 100, so estimates are back on the SF-12 scale
-  expect_true(all(pooled$ltmle_effect > 0 & pooled$ltmle_effect < 100))
+  expect_true(all(pooled$estimates$ltmle_effect > 0 &
+                    pooled$estimates$ltmle_effect < 100))
 
-  print(pooled)
+  print(pooled$estimates)
 
-  # the shape _targets.R actually branches on: one imputation, every regime in
-  # the list, summarised in-branch. Two regimes here only to keep the flight short.
-  imp_summary <- fit_ltmle_imp(imp_idx         = 1L,
-                               ltmle_data_list = ltmle_data,
-                               regimes         = regimes[1:2],
-                               sl_libs         = sl_libs,
-                               outcome         = outcome,
-                               n_waves         = n_waves)
+  # contrasts come from the pooled covariance, so one row per non-reference regime
+  contr <- ltmle_contrasts(pooled)
+  expect_equal(nrow(contr), length(flight) - 1L)
+  expect_true(all(contr$ltmle_se > 0))
 
-  expect_equal(nrow(imp_summary), 2L)
-  expect_setequal(imp_summary$intervention, names(regimes)[1:2])
-  expect_true(all(imp_summary$imp_idx == 1L))
-  expect_error(pool_ltmle(imp_summary), NA)
+  # A saturated MSM must reproduce separate ltmle() calls exactly -- that identity is
+  # the whole justification for the refactor, so assert it rather than trust it.
+  sep <- vapply(names(flight), function(lab) {
+    fit <- ltmle::ltmle(
+      data = ltmle_data[[1]], Anodes = nodes$Anodes, Lnodes = nodes$Lnodes,
+      Ynodes = nodes$Ynodes, survivalOutcome = FALSE, gbounds = c(1e-6, 1),
+      abar = as.vector(flight[[lab]]), SL.library = sl_libs, SL.cvControl = list(V = 3L),
+      estimate.time = FALSE, variance.method = "ic", Yrange = c(0, 1))
+    s <- summary(fit, estimator = "tmle")$treatment
+    c(est = unname(s$estimate), se = unname(s$std.dev))
+  }, numeric(2))
+
+  expect_equal(as.vector(fits[[1]]$estimate[names(flight)]),
+               unname(sep["est", ]), tolerance = 1e-8)
+  expect_equal(sqrt(diag(fits[[1]]$cov))[names(flight)] |> unname(),
+               unname(sep["se", ]), tolerance = 1e-8)
 
   # a regime whose length does not match the A nodes must fail loudly
   expect_error(
-    fit_ltmle_one("bad", 1L, ltmle_data, list(bad = rep(0, n_waves + 1L)),
+    fit_ltmle_imp(1L, ltmle_data,
+                  c(flight, list(bad = rep(0, n_waves + 1L))),
                   sl_libs, outcome, n_waves),
-    "A node"
+    "element"
   )
 })

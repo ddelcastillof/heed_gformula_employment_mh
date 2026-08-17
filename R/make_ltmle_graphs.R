@@ -38,36 +38,10 @@ ltmle_strategy_plot <- function(df, x_lab, legend_lab) {
 }
 
 
-ltmle_contrasts <- function(ltmle_summaries, reference = NULL) {
-  library(dplyr)
-
-  if (is.null(reference)) {
-    n_nodes   <- length(strsplit(ltmle_summaries$intervention[1], "-", fixed = TRUE)[[1]])
-    reference <- paste(rep(0, n_nodes), collapse = "-")
-  }
-  if (!reference %in% ltmle_summaries$intervention) {
-    stop("ltmle_contrasts(): reference regime '", reference,
-         "' is not among the fitted regimes", call. = FALSE)
-  }
-
-  ref <- ltmle_summaries |>
-    filter(intervention == reference) |>
-    select(imp_idx, ref_estimate = estimate, ref_variance = variance)
-
-  ltmle_summaries |>
-    filter(intervention != reference) |>
-    inner_join(ref, by = "imp_idx") |>
-    mutate(
-      estimate = estimate - ref_estimate,
-      variance = variance + ref_variance
-    ) |>
-    select(intervention, imp_idx, estimate, variance)
-}
-
-
-# ltmle_sum_* are the per-imputation summary tibbles produced by fit_ltmle_imp(),
-# not the pooled tables: the contrasts have to be formed before pooling.
-make_ltmle_graphs <- function(ltmle_sum_mcs, ltmle_sum_pcs,
+# ltmle_contrasts() now lives in R/pool_ltmle.R: with one ltmleMSM fit per imputation the
+# pooled covariance is available, so contrasts are formed after pooling rather than
+# within each imputation. Algebraically identical, and it keeps Cov(regime, reference).
+make_ltmle_graphs <- function(ltmle_pooled_mcs, ltmle_pooled_pcs,
                               mcs_label = "Mental Component Score (MCS)",
                               pcs_label = "Physical Component Score (PCS)",
                               exposure_label = "unemployed",
@@ -80,13 +54,13 @@ make_ltmle_graphs <- function(ltmle_sum_mcs, ltmle_sum_pcs,
   legend_lab <- paste0("Number of ", exposure_label, " periods")
 
   marginal_df <- bind_rows(
-    prep_ltmle_results(pool_ltmle(ltmle_sum_mcs), mcs_label),
-    prep_ltmle_results(pool_ltmle(ltmle_sum_pcs), pcs_label)
+    prep_ltmle_results(ltmle_pooled_mcs$estimates, mcs_label),
+    prep_ltmle_results(ltmle_pooled_pcs$estimates, pcs_label)
   )
 
   diff_df <- bind_rows(
-    prep_ltmle_results(pool_ltmle(ltmle_contrasts(ltmle_sum_mcs, reference)), mcs_label),
-    prep_ltmle_results(pool_ltmle(ltmle_contrasts(ltmle_sum_pcs, reference)), pcs_label)
+    prep_ltmle_results(ltmle_contrasts(ltmle_pooled_mcs, reference), mcs_label),
+    prep_ltmle_results(ltmle_contrasts(ltmle_pooled_pcs, reference), pcs_label)
   )
 
   marginal <- ltmle_strategy_plot(marginal_df, "Estimated marginal mean (TMLE)", legend_lab)
