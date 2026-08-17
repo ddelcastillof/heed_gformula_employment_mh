@@ -26,11 +26,7 @@ ltmle_strategy_plot <- function(df, x_lab, legend_lab) {
   library(ggplot2)
   library(colorBlindness)
 
-  # read top-to-bottom from never-exposed to always-exposed
-  lvls <- df |>
-    dplyr::distinct(intervention, n_exposed) |>
-    dplyr::arrange(dplyr::desc(n_exposed), dplyr::desc(intervention)) |>
-    dplyr::pull(intervention)
+  lvls <- sort(unique(df$intervention))
 
   df <- dplyr::mutate(df, intervention = factor(intervention, levels = lvls))
 
@@ -48,16 +44,6 @@ ltmle_strategy_plot <- function(df, x_lab, legend_lab) {
 }
 
 
-# Difference of every regime from a reference regime, formed within each
-# imputation and returned in the shape pool_ltmle() consumes.
-#
-# The point estimates are exact. The variances are NOT: fit_ltmle_imp() discards
-# the influence curves, so Cov(regime, reference) is unavailable and the two
-# variances are simply summed. Regimes are estimated on the same subjects, so
-# that covariance is expected to be positive and the resulting intervals are
-# therefore conservative -- which cuts against ltmle's own warning that the IC
-# variance is anticonservative under positivity violations. Treat the widths as
-# approximate either way.
 ltmle_contrasts <- function(ltmle_summaries, reference = NULL) {
   library(dplyr)
 
