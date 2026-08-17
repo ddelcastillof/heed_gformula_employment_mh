@@ -89,4 +89,4 @@ tests/*.xlsx
 !tests/test_crew_slurm.R
 
 # sh script for uploading data
-upload_data.sh
+*.sh
