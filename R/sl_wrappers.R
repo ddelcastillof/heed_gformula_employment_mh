@@ -44,7 +44,7 @@ SL.xgboost4.ltmle <- function(...) SL.xgboost.ltmle(..., depth = 4, ntrees = 500
 
 SL.rf.ltmle <- function(Y, X, newX, family,
                        obsWeights = rep(1, length(Y)), id = NULL,
-                       num.trees = 200, min.node.size = 20, ...) {
+                       num.trees = 100, min.node.size = 50, ...) {
   if (!requireNamespace("ranger", quietly = TRUE)) stop("package 'ranger' required")
 
   Xm  <- data.matrix(X)
