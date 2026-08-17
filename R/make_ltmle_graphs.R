@@ -1,10 +1,4 @@
 # Plots for the LTMLE arm.
-#
-# TMLE is the sensitivity analysis for gFormulaMI, so both arms intervene on
-# econ_emp_bin_fact and the regimes mean the same thing in both figures. These
-# are kept separate from make_graphs() only because the pooled columns differ
-# (ltmle_effect / ltmle_ll / ltmle_ul rather than mi_*) and because the
-# contrasts have to be formed before pooling rather than by a second model fit.
 
 prep_ltmle_results <- function(pooled, outcome_label, codes = c("E", "U")) {
   library(dplyr)
