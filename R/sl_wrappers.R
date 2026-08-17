@@ -162,5 +162,5 @@ predict.SL.nnet.ltmle <- function(object, newdata, ...) {
     object$y.scl + object$y.ctr
 }
 
-SL.nnet10 <- function(...) SL.nnet.ltmle(..., size = 5)
-SL.nnet20 <- function(...) SL.nnet.ltmle(..., size = 10)
+SL.nnet5 <- function(...) SL.nnet.ltmle(..., size = 5)
+SL.nnet10 <- function(...) SL.nnet.ltmle(..., size = 10)
