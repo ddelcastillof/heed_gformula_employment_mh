@@ -381,6 +381,6 @@ list(
     }),
   tar_target(tmle_imp_idx, seq_len(mice_m)), # listing imputed datasets so LTMLE can act over each one
 
-  map
-#  map_ltmle_three
+  map,
+  map_ltmle_three
 )
