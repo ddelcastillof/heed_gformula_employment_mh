@@ -2,7 +2,7 @@
 fit_ltmle_one <- function(regime_label, imp_idx, ltmle_data_list,
                           regimes, sl_libs,
                           outcome, n_waves,
-                          gbounds = c(0.01, 1),
+                          gbounds = c(1e-6, 1),
                           Yrange  = c(0, 1),
                           SL.cvControl = list(V = 3L)) {
 
