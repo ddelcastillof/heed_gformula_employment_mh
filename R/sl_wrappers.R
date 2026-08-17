@@ -7,7 +7,7 @@ register_sl_wrappers <- function() {
   nms <- c("SL.xgboost2.ltmle", "SL.xgboost4.ltmle",
            "SL.gam.ltmle2", "SL.gam.ltmle3", "SL.gam.ltmle4", "SL.gam.ltmle5",
            "SL.rf.ltmle", "predict.SL.rf.ltmle", 
-           "SL.nnet10", "SL.nnet20", "predict.SL.nnet.ltmle",
+           "SL.nnet5", "SL.nnet10", "predict.SL.nnet.ltmle",
            "SL.poly2", "SL.poly3", ".poly_design", "predict.SL.poly.ltmle")
   src <- environment(register_sl_wrappers)
   for (nm in nms) assign(nm, get(nm, envir = src), envir = globalenv())
@@ -117,8 +117,8 @@ SL.poly3 <- function(...) SL.poly.ltmle(..., degree = 3)
 
 SL.nnet.ltmle <- function(Y, X, newX, family,
                          obsWeights = rep(1, length(Y)), id = NULL,
-                         size = 50, decay = 0.02, maxit = 200,
-                         n.restarts = 2, ...) {
+                         size = 20, decay = 0.02, maxit = 200,
+                         n.restarts = 1, ...) {
   if (!requireNamespace("nnet", quietly = TRUE)) stop("package 'nnet' required")
 
   Xm  <- data.matrix(X)
@@ -162,5 +162,5 @@ predict.SL.nnet.ltmle <- function(object, newdata, ...) {
     object$y.scl + object$y.ctr
 }
 
-SL.nnet10 <- function(...) SL.nnet.ltmle(..., size = 10)
-SL.nnet20 <- function(...) SL.nnet.ltmle(..., size = 20)
+SL.nnet10 <- function(...) SL.nnet.ltmle(..., size = 5)
+SL.nnet20 <- function(...) SL.nnet.ltmle(..., size = 10)

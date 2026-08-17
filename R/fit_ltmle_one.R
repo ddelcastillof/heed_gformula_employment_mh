@@ -4,7 +4,7 @@ fit_ltmle_one <- function(regime_label, imp_idx, ltmle_data_list,
                           outcome, n_waves,
                           gbounds = c(0.01, 1),
                           Yrange  = c(0, 1),
-                          SL.cvControl = list(V = 5L)) {
+                          SL.cvControl = list(V = 3L)) {
 
   register_sl_wrappers()
   
