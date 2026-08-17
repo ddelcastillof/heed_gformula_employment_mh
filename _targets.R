@@ -101,7 +101,7 @@ gform_M <- 50
 
 ## ltmle configs
 sl_libs <- c("SL.mean", "SL.glm", "SL.gam.ltmle2", "SL.gam.ltmle3", "SL.gam.ltmle4", "SL.gam.ltmle5",
-             "SL.xgboost2.ltmle", "SL.xgboost4.ltmle", "SL.rf.ltmle", "SL.nnet10", "SL.nnet20", "SL.poly2", "SL.poly3")
+             "SL.xgboost2.ltmle", "SL.xgboost4.ltmle", "SL.rf.ltmle", "SL.nnet5", "SL.nnet10", "SL.poly2", "SL.poly3")
 
 regimes <- list(
   "0-0-0-0" = c(0, 0, 0, 0),
