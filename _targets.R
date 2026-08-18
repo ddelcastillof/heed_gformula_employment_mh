@@ -80,11 +80,7 @@ tar_option_set(
   storage   = "worker",   # workers read/write the shared _targets/ store directly, so multi-GB gFormulaImpute objects never transit the controller
   retrieval = "worker",
   seed   = 42,
-  # Each future.batchtools future owns a registry, and every poll of an
-  # unresolved one shells out to squeue. At the default backoff (0.001-0.1s)
-  # dozens of concurrent workers flood slurmctld until a listing RPC times out,
-  # which batchtools does not retry -- it aborts the whole run. Jobs here take
-  # hours, so a 5-30s polling interval costs nothing.
+  # To avoid excess of calls to the cluster for unresolved workers from the controller.
   backoff = tar_backoff(min = 5, max = 30, rate = 1.5)
 )
 
@@ -103,9 +99,7 @@ gform_M <- 50
 sl_libs <- c("SL.mean", "SL.glm", "SL.gam.ltmle2", "SL.gam.ltmle3", "SL.gam.ltmle4", "SL.gam.ltmle5",
              "SL.xgboost2.ltmle", "SL.xgboost4.ltmle", "SL.rf.ltmle", "SL.nnet5", "SL.nnet10", "SL.poly2", "SL.poly3")
 
-# The 2^4 static patterns of the four-wave analysis. Deliberately kept under the
-# bare name `regimes`: targets hashes the command text, so renaming it would
-# rewrite every ltmle_sum_*_four command and discard the cached branches.
+# Regimes for four-waves LTMLE analyses
 regimes <- list(
   "0-0-0-0" = c(0, 0, 0, 0),
   "0-0-1-0" = c(0, 0, 1, 0),
@@ -125,7 +119,7 @@ regimes <- list(
   "1-1-1-1" = c(1, 1, 1, 1)
 )
 
-# The 2^3 static patterns of the three-wave LTMLE sensitivity analysis.
+# Patterns for sensitivity with three waves
 regimes_three <- list(
   "0-0-0" = c(0, 0, 0),
   "0-0-1" = c(0, 0, 1),
@@ -148,17 +142,12 @@ wave_spec <- tibble::tibble(
 # confounder block per wave.
 wave_spec$n_waves <- wave_spec$round_end - wave_spec$round_start + 1L
 
-# Current focus: the four-wave analysis over waves 3-6. Swap `values` in tar_map
-# below to wave_spec to stamp the chain for every wave-set again.
+# Four-wave analysis over waves 3-6.
 wave_spec_one <- wave_spec[wave_spec$how_many == "four" & wave_spec$round_start == 3L, ]
 
-# Three-wave row (waves 3-5), stamped by map_ltmle_three below: the LTMLE arm
-# only, since the three-wave gFormulaMI targets have already been run.
+# Three-wave analysis over waves 3-5 for sensitivity
 wave_spec_three <- wave_spec[wave_spec$how_many == "three", ]
 
-# The regimes above are the 2^4 static patterns of the four-wave analysis, so
-# they only fit a spec whose n_waves is 4. ltmle_msm_design() would catch a
-# mismatch, but only after the branch has already been scheduled.
 stopifnot(
   all(lengths(regimes) == wave_spec_one$n_waves),
   all(lengths(regimes_three) == wave_spec_three$n_waves)
@@ -239,8 +228,8 @@ map <- tar_map(
                        outcome   = "PCS",
                        n_waves   = n_waves),
     resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
-  # One ltmleMSM fit per imputation, all 2^n_waves regimes at once. iteration = "list"
-  # because each branch returns estimates PLUS their covariance matrix, not a tibble.
+
+# One ltmleMSM fit per imputation
   tar_target(ltmle_sum_mcs,
     fit_ltmle_imp(imp_idx         = tmle_imp_idx,
                   ltmle_data_list = ltmle_data_mcs,
@@ -284,7 +273,6 @@ map <- tar_map(
       ltmle_pooled_pcs = ltmle_pooled_pcs,
       mcs_label = "Mental Component Score (MCS)",
       pcs_label = "Physical Component Score (PCS)",
-      exposure_label = "unemployed",
       save_dir  = here::here("figs"),
       wave_label = how_many
     ))
@@ -332,7 +320,7 @@ map_ltmle_three <- tar_map(
                        n_waves   = n_waves),
     resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
 
-  # 8 regimes x mice_m imputations, one ltmleMSM fit per branch -- ltmle tier
+# One LTMLEmsm per imputed dataset
   tar_target(ltmle_sum_mcs,
     fit_ltmle_imp(imp_idx         = tmle_imp_idx,
                   ltmle_data_list = ltmle_data_mcs,
