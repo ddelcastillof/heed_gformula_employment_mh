@@ -1,0 +1,371 @@
+# _targets.R — pipeline orchestration for the employment and health outcomes
+# from the HEED project, using gFormula via multiple imputation
+
+library(targets)
+library(tarchetypes)
+library(future)
+library(future.batchtools)
+library(future.callr)
+
+# Detect SLURM at runtime, if not in cluster, run locally with future.callr (in a separate r process)
+on_slurm <- nzchar(Sys.getenv("SLURM_JOB_ID")) && nzchar(Sys.which("sbatch"))
+# Assigning tiers for resources and walltime
+if (on_slurm) {
+  options(future.cache.path = here::here("logs", ".future"))
+  slurm_tier <- function(memory_gb, walltime_h, ncpus = 2L) {
+    future::tweak(
+      future.batchtools::batchtools_slurm,
+      template  = "slurm.tmpl",
+      resources = list(
+        ncpus    = ncpus,
+        memory   = memory_gb * 1024L,       # MB
+        walltime = walltime_h * 60L * 60L,  # seconds
+        account  = "none"
+      )
+    )
+  }
+  # pop_data, build_data, graphs plan
+  plan_light <- slurm_tier(memory_gb = 8, walltime_h = 2)   
+  # run_mice plan
+  plan_mice  <- slurm_tier(memory_gb = 16, walltime_h = 8)   
+  # three/four gform
+  plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 12)  
+  # ltmle plan
+  plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 8)
+  future::plan(plan_light)                                  # default for untagged targets
+} else {
+  # Off-cluster: one local plan for all targets, not recommended as it eats a loooot of RAM
+  local_plan <- future::tweak(future.callr::callr, workers = 2L)
+  plan_light <- plan_mice <- plan_gform <- plan_ltmle <- local_plan
+  future::plan(local_plan)
+}
+
+message("--- TARGETS FUTURE PLAN ---")
+message("hostname:        ", Sys.info()[["nodename"]])
+message("SLURM_JOB_ID:    '", Sys.getenv("SLURM_JOB_ID"), "'")
+message("Sys.which sbatch: '", Sys.which("sbatch"), "'")
+message("on_slurm:        ", on_slurm)
+message("plan:            ", paste(class(future::plan()), collapse = "/"))
+message("---------------------------")
+
+# ---- Packages attached to every target's evaluation environment ----
+tar_option_set(
+  packages = c(
+    "data.table",
+    "bit64",
+    "dplyr",
+    "tidyr",
+    "tibble",
+    "purrr",
+    "magrittr",
+    "rlang",
+    "here",
+    "mice",
+    "quarto",
+    "gFormulaMI",
+    "stringr",
+    "fst",
+    "lubridate",
+    "haven",
+    "ggplot2",
+    "ltmle",
+    "SuperLearner",
+    "xgboost",
+    "gam",
+    "nnet",
+    "ranger"
+  ),
+  format = "rds",
+  repository = "local",
+  storage   = "worker",   # workers read/write the shared _targets/ store directly, so multi-GB gFormulaImpute objects never transit the controller
+  retrieval = "worker",
+  seed   = 42,
+  # To avoid excess of calls to the cluster for unresolved workers from the controller.
+  backoff = tar_backoff(min = 5, max = 30, rate = 1.5)
+)
+
+# ---- Source extracted functions (R/) ----
+for (f in list.files(here::here("R"), pattern = "\\.R$", full.names = TRUE)) source(f); rm(f)
+
+# ---- Configuration for each function ----
+## mice configs
+mice_m      <- 50
+mice_maxit  <- 15
+seed_random <- 20260728
+## gFormulaMI configs
+gform_M <- 50
+
+## ltmle configs
+sl_libs <- c("SL.mean", "SL.glm", "SL.gam.ltmle2", "SL.gam.ltmle3", "SL.gam.ltmle4", "SL.gam.ltmle5",
+             "SL.xgboost2.ltmle", "SL.xgboost4.ltmle", "SL.rf.ltmle", "SL.nnet5", "SL.nnet10", "SL.poly2", "SL.poly3")
+
+# Regimes for four-waves LTMLE analyses
+regimes <- list(
+  "0-0-0-0" = c(0, 0, 0, 0),
+  "0-0-1-0" = c(0, 0, 1, 0),
+  "0-1-0-0" = c(0, 1, 0, 0),
+  "0-1-1-0" = c(0, 1, 1, 0),
+  "1-0-0-0" = c(1, 0, 0, 0),
+  "1-0-1-0" = c(1, 0, 1, 0),
+  "1-1-0-0" = c(1, 1, 0, 0),
+  "1-1-1-0" = c(1, 1, 1, 0),
+  "0-0-0-1" = c(0, 0, 0, 1),
+  "0-0-1-1" = c(0, 0, 1, 1),
+  "0-1-0-1" = c(0, 1, 0, 1),
+  "0-1-1-1" = c(0, 1, 1, 1),
+  "1-0-0-1" = c(1, 0, 0, 1),
+  "1-0-1-1" = c(1, 0, 1, 1),
+  "1-1-0-1" = c(1, 1, 0, 1),
+  "1-1-1-1" = c(1, 1, 1, 1)
+)
+
+# Patterns for sensitivity with three waves
+regimes_three <- list(
+  "0-0-0" = c(0, 0, 0),
+  "0-0-1" = c(0, 0, 1),
+  "0-1-0" = c(0, 1, 0),
+  "0-1-1" = c(0, 1, 1),
+  "1-0-0" = c(1, 0, 0),
+  "1-0-1" = c(1, 0, 1),
+  "1-1-0" = c(1, 1, 0),
+  "1-1-1" = c(1, 1, 1)
+)
+
+# ---- Wave-set spec: one row per analysis, tar_map stamps the chain below per row ----
+
+wave_spec <- tibble::tibble(
+  how_many    = c("four", "four", "three"),
+  round_start = c(3L, 7L, 3L),
+  round_end   = c(6L, 10L, 5L)
+)
+# n_waves drives the LTMLE node expansion: one A node, one Y node and one
+# confounder block per wave.
+wave_spec$n_waves <- wave_spec$round_end - wave_spec$round_start + 1L
+
+# Four-wave analysis over waves 3-6.
+wave_spec_one <- wave_spec[wave_spec$how_many == "four" & wave_spec$round_start == 3L, ]
+
+# Three-wave analysis over waves 3-5 for sensitivity
+wave_spec_three <- wave_spec[wave_spec$how_many == "three", ]
+
+stopifnot(
+  all(lengths(regimes) == wave_spec_one$n_waves),
+  all(lengths(regimes_three) == wave_spec_three$n_waves)
+)
+# ---- Per-wave-set analysis chain (generated by tar_map) ----
+map <- tar_map(
+  values = wave_spec_one,
+  names  = "how_many",
+
+  # Build wide datasets (MCS / PCS) -- light tier (default plan)
+  tar_target(wide_data_mcs,
+    build_data(data = pop_data, 
+               how_many = how_many, 
+               outcome = "MCS",
+               round_start = round_start, 
+               round_end = round_end)),
+  tar_target(wide_data_pcs,
+    build_data(data = pop_data, 
+               how_many = how_many, 
+               outcome = "PCS",
+               round_start = round_start, 
+               round_end = round_end)),
+
+  # mice imputation (m = 100) -- mice tier
+  tar_target(wide_mids_mcs,
+    run_mice(wide_data = wide_data_mcs$data, 
+            m = mice_m, 
+            maxit = mice_maxit, 
+            seed = seed_random),
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+  tar_target(wide_mids_pcs,
+    run_mice(wide_data = wide_data_pcs$data, 
+      m = mice_m, 
+      maxit = mice_maxit, 
+      seed = seed_random),
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+
+  # gFormulaMI: marginal + ATE, both outcomes -- gform tier
+  tar_target(gform_mcs,
+    run_gform(wide_mids = wide_mids_mcs, 
+              wide_data_mi = wide_data_mcs$data,
+              intervention_pattern = wide_data_mcs$intervention_pattern,
+              estimand = "factor(regime) + 0", 
+              M = gform_M,
+              nSim = 2*nrow(wide_data_mcs$data)),
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
+  tar_target(gform_pcs,
+    run_gform(wide_mids = wide_mids_pcs, 
+              wide_data_mi = wide_data_pcs$data,
+              intervention_pattern = wide_data_pcs$intervention_pattern,
+              estimand = "factor(regime) + 0", 
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_pcs$data)),
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
+  tar_target(gform_mcs_ate,
+    run_gform(wide_mids = wide_mids_mcs, 
+              wide_data_mi = wide_data_mcs$data,
+              intervention_pattern = wide_data_mcs$intervention_pattern,
+              estimand = "factor(regime)", 
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_mcs$data)),
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
+  tar_target(gform_pcs_ate,
+    run_gform(wide_mids = wide_mids_pcs, 
+              wide_data_mi = wide_data_pcs$data,
+              intervention_pattern = wide_data_pcs$intervention_pattern,
+              estimand = "factor(regime)", 
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_pcs$data)),
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
+  tar_target(ltmle_data_mcs,
+    prepare_ltmle_data(wide_mids = wide_mids_mcs,
+                       outcome   = "MCS",
+                       n_waves   = n_waves),
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+  tar_target(ltmle_data_pcs,
+    prepare_ltmle_data(wide_mids = wide_mids_pcs,
+                       outcome   = "PCS",
+                       n_waves   = n_waves),
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+
+# One ltmleMSM fit per imputation
+  tar_target(ltmle_sum_mcs,
+    fit_ltmle_imp(imp_idx         = tmle_imp_idx,
+                  ltmle_data_list = ltmle_data_mcs,
+                  regimes         = regimes,
+                  sl_libs         = sl_libs,
+                  outcome         = "MCS",
+                  n_waves         = n_waves),
+    pattern   = map(tmle_imp_idx),
+    iteration = "list",
+    resources = tar_resources(future = tar_resources_future(plan = plan_ltmle))),
+  tar_target(ltmle_sum_pcs,
+    fit_ltmle_imp(imp_idx         = tmle_imp_idx,
+                  ltmle_data_list = ltmle_data_pcs,
+                  regimes         = regimes,
+                  sl_libs         = sl_libs,
+                  outcome         = "PCS",
+                  n_waves         = n_waves),
+    pattern   = map(tmle_imp_idx),
+    iteration = "list",
+    resources = tar_resources(future = tar_resources_future(plan = plan_ltmle))),
+
+  # Rubin's rules over the branches -- light tier
+  tar_target(ltmle_pooled_mcs, pool_ltmle(ltmle_sum_mcs)),
+  tar_target(ltmle_pooled_pcs, pool_ltmle(ltmle_sum_pcs)),
+
+  # Plots
+  tar_target(graphs,
+    make_graphs(
+      gform_mcs     = gform_mcs,
+      gform_pcs     = gform_pcs,
+      gform_mcs_ate = gform_mcs_ate,
+      gform_pcs_ate = gform_pcs_ate,
+      mcs_label = "Mental Component Score (MCS)",
+      pcs_label = "Physical Component Score (PCS)",
+      save_dir  = here::here("figs"),
+      wave_label = how_many
+    )),
+  tar_target(ltmle_graphs,
+    make_ltmle_graphs(
+      ltmle_pooled_mcs = ltmle_pooled_mcs,
+      ltmle_pooled_pcs = ltmle_pooled_pcs,
+      mcs_label = "Mental Component Score (MCS)",
+      pcs_label = "Physical Component Score (PCS)",
+      save_dir  = here::here("figs"),
+      wave_label = how_many
+    ))
+)
+
+# ---- Three-wave LTMLE sensitivity chain ----
+map_ltmle_three <- tar_map(
+  values = wave_spec_three,
+  names  = "how_many",
+
+  tar_target(wide_data_mcs,
+    build_data(data = pop_data,
+               how_many = how_many,
+               outcome = "MCS",
+               round_start = round_start,
+               round_end = round_end)),
+  tar_target(wide_data_pcs,
+    build_data(data = pop_data,
+               how_many = how_many,
+               outcome = "PCS",
+               round_start = round_start,
+               round_end = round_end)),
+
+  tar_target(wide_mids_mcs,
+    run_mice(wide_data = wide_data_mcs$data,
+             m = mice_m,
+             maxit = mice_maxit,
+             seed = seed_random),
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+  tar_target(wide_mids_pcs,
+    run_mice(wide_data = wide_data_pcs$data,
+             m = mice_m,
+             maxit = mice_maxit,
+             seed = seed_random),
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+
+  tar_target(ltmle_data_mcs,
+    prepare_ltmle_data(wide_mids = wide_mids_mcs,
+                       outcome   = "MCS",
+                       n_waves   = n_waves),
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+  tar_target(ltmle_data_pcs,
+    prepare_ltmle_data(wide_mids = wide_mids_pcs,
+                       outcome   = "PCS",
+                       n_waves   = n_waves),
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+
+# One LTMLEmsm per imputed dataset
+  tar_target(ltmle_sum_mcs,
+    fit_ltmle_imp(imp_idx         = tmle_imp_idx,
+                  ltmle_data_list = ltmle_data_mcs,
+                  regimes         = regimes_three,
+                  sl_libs         = sl_libs,
+                  outcome         = "MCS",
+                  n_waves         = n_waves),
+    pattern   = map(tmle_imp_idx),
+    iteration = "list",
+    resources = tar_resources(future = tar_resources_future(plan = plan_ltmle))),
+  tar_target(ltmle_sum_pcs,
+    fit_ltmle_imp(imp_idx         = tmle_imp_idx,
+                  ltmle_data_list = ltmle_data_pcs,
+                  regimes         = regimes_three,
+                  sl_libs         = sl_libs,
+                  outcome         = "PCS",
+                  n_waves         = n_waves),
+    pattern   = map(tmle_imp_idx),
+    iteration = "list",
+    resources = tar_resources(future = tar_resources_future(plan = plan_ltmle))),
+
+  # Rubin's rules over the branches -- light tier
+  tar_target(ltmle_pooled_mcs, pool_ltmle(ltmle_sum_mcs)),
+  tar_target(ltmle_pooled_pcs, pool_ltmle(ltmle_sum_pcs)),
+
+  tar_target(ltmle_graphs,
+    make_ltmle_graphs(
+      ltmle_pooled_mcs = ltmle_pooled_mcs,
+      ltmle_pooled_pcs = ltmle_pooled_pcs,
+      mcs_label = "Mental Component Score (MCS)",
+      pcs_label = "Physical Component Score (PCS)",
+      save_dir  = here::here("figs"),
+      wave_label = how_many
+    ))
+)
+
+# ---- Pipeline: shared import + the mapped per-wave-set chains ----
+list(
+  # Data preparation: import, clean, preprocessing (shared across every wave-set).
+  tar_target(pop_data,
+    if (on_slurm) {
+      import_data(force = FALSE) |> clean_data() |> preproc_data()
+    } else {
+      import_data(force = TRUE) |> clean_data() |> preproc_data()
+    }),
+  tar_target(tmle_imp_idx, seq_len(mice_m)), # listing imputed datasets so LTMLE can act over each one
+  map
+)
