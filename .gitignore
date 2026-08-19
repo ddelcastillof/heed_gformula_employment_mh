@@ -12,6 +12,8 @@
 data/cache/*.fst
 data/raw/ukhls/*.dta
 data/raw/*.rds
+data/raw/dictionary/
+data/output/*.rds
 
 # Quarto files
 /.quarto/
