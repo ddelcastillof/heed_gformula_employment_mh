@@ -4,7 +4,6 @@ make_ltmle_graphs <- function(ltmle_pooled_mcs, ltmle_pooled_pcs,
                               mcs_label = "Mental Component Score (MCS)",
                               pcs_label = "Physical Component Score (PCS)",
                               codes = c("E", "U"),
-                              reference = NULL,
                               save_dir  = NULL,
                               wave_label = NULL) {
   library(dplyr)
@@ -23,8 +22,7 @@ make_ltmle_graphs <- function(ltmle_pooled_mcs, ltmle_pooled_pcs,
     ),
     diff = list(
       x_lab = "Estimated mean difference (TMLE)\n(reference: never unemployed)",
-      data  = list(ltmle_contrasts(ltmle_pooled_mcs, reference),
-                   ltmle_contrasts(ltmle_pooled_pcs, reference))
+      data  = list(ltmle_pooled_mcs$contrasts, ltmle_pooled_pcs$contrasts)
     )
   )
 
