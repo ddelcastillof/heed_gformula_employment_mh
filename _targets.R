@@ -134,9 +134,9 @@ regimes_three <- list(
 # ---- Wave-set spec: one row per analysis, tar_map stamps the chain below per row ----
 
 wave_spec <- tibble::tibble(
-  how_many    = c("four", "four", "three"),
-  round_start = c(3L, 7L, 3L),
-  round_end   = c(6L, 10L, 5L)
+  how_many    = c("four", "three"),
+  round_start = c(3L, 3L),
+  round_end   = c(6L, 5L)
 )
 # n_waves drives the LTMLE node expansion: one A node, one Y node and one
 # confounder block per wave.
