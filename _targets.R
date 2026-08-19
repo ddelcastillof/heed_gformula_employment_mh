@@ -18,7 +18,7 @@ if (on_slurm) {
       template  = "slurm.tmpl",
       resources = list(
         ncpus    = ncpus,
-        memory   = memory_gb * 1024L,       # MB, whole-job (--mem)
+        memory   = memory_gb * 1024L,       # MB
         walltime = walltime_h * 60L * 60L,  # seconds
         account  = "none"
       )
@@ -34,7 +34,7 @@ if (on_slurm) {
   plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 8)
   future::plan(plan_light)                                  # default for untagged targets
 } else {
-  # Off-cluster: one local plan for all targets, not recommended as it eats RAM as crazy
+  # Off-cluster: one local plan for all targets, not recommended as it eats a loooot of RAM
   local_plan <- future::tweak(future.callr::callr, workers = 2L)
   plan_light <- plan_mice <- plan_gform <- plan_ltmle <- local_plan
   future::plan(local_plan)
