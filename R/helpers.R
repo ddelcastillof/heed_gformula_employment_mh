@@ -234,7 +234,7 @@ make_counterfactual_method <- function(return_vals) {
   probe <- rbind(as.data.frame(return_vals), NA)
 
   method <- mice::make.method(probe,
-                              defaultMethod = c("pmm", "logreg", "pmm", "pmm"))
+                              defaultMethod = c("cart", "logreg", "polyreg", "polr"))
 
   # treatment columns are assigned from the regime rather than imputed, and are
   # complete in the observed block, so gFormulaMI expects them blank
