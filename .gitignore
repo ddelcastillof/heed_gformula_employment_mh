@@ -1,16 +1,96 @@
+# R Files
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
-model_outputs/
-do/
+
+# PDF and docx files
 *.pdf
 *.docx
-data/*
-!building_models/reference.docx
 
+# Datasets
+data/cache/*.fst
+data/raw/ukhls/*.dta
+data/raw/*.rds
+data/raw/dictionary/
+data/output/*.rds
+
+# Quarto files
 /.quarto/
-graphs/
+**/*.quarto_ipynb
+
+# Rendered reports
 reports/
 
-**/*.quarto_ipynb
+# Ignoring files in figs
+/figs/*
+
+# Ignoring manuscript folder
+/manuscript/
+
+#DS_Store files
+.DS_Store
+
+# Git worktrees
+.worktrees/
+
+# ignoring stata build files
+/ukhls/
+*.dta
+
+# ingoring dag until futher notice
+/dag/
+
+# ignoring output tables until further notice
+/output/
+
+# ignoring meta-analysis until further notice
+/overall_estimates/
+
+# settings json vscode
+.vscode/
+
+# claude files
+CLAUDE.md
+.claude
+docs/superpowers/
+
+# targets output
+_targets/
+
+# STROBE flowchart compiled artifacts
+/checklists/*.aux
+/checklists/*.log
+/checklists/*.png
+
+# Legacy folder
+legacy/
+
+# latexmk build artifacts
+*.aux
+*.log
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.bbl-SAVE-ERROR
+
+# logs from SLURM jobs and future batchtools workers
+logs/*.err
+logs/.future/
+
+# test files
+tests/*.R
+tests/*.xlsx
+!tests/testthat/tests.R
+!tests/test_crew_slurm.R
+
+# sh script for uploading data
+*.sh
