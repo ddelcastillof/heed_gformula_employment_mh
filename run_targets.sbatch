@@ -31,7 +31,7 @@ echo "Quarto: $(which quarto)"; quarto --version
 
 cd "${SLURM_SUBMIT_DIR}"
 
-Rscript -e 'targets::tar_make_future(workers = 50L)' 2>&1 | tee "logs/targets_make_${SLURM_JOB_ID}.log"
+Rscript -e 'targets::tar_make_future(workers = 25L)' 2>&1 | tee "logs/targets_make_${SLURM_JOB_ID}.log"
 status=${PIPESTATUS[0]}
 echo "tar_make_future exit status: $status"
 
