@@ -9,7 +9,9 @@
 *.docx
 
 # Datasets
-data/*
+data/cache/*.fst
+data/raw/ukhls/*.dta
+data/raw/*.rds
 
 # Quarto files
 /.quarto/
