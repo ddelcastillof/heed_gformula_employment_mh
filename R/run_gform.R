@@ -11,18 +11,6 @@ run_gform <- function(wide_mids, wide_data_mi, intervention_pattern, estimand, M
   trt_vars    <- attr(wide_data_mi, "exposure_vars")
   outcome_final <- attr(wide_data_mi, "outcome_final")
 
-  if (is.null(regimes)) {
-    stop("intervention_pattern is NULL: extract the intervention object from the build_data list")
-  }
-  if (is.null(trt_vars) || is.null(outcome_final)) {
-    stop("wide_data_mi lacks 'exposure_vars'/'outcome_final' attributes: ",
-         "extract the data from the build_data list")
-  }
-  if (length(regimes[[1]]) != length(trt_vars)) {
-    stop("regime length (", length(regimes[[1]]), ") != number of treatment ",
-         "columns (", length(trt_vars), "): ", paste(trt_vars, collapse = ", "))
-  }
-
   predictor_matrix <- make_counterfactual_matrix(wide_data_mi)
   method_vector    <- make_counterfactual_method(wide_data_mi)
 
