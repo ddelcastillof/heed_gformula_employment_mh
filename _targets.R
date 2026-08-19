@@ -157,7 +157,7 @@ map <- tar_map(
   values = wave_spec_one,
   names  = "how_many",
 
-  # Build wide datasets (MCS / PCS) -- light tier (default plan)
+  # Build wide datasets (MCS / PCS)
   tar_target(wide_data_mcs,
     build_data(data = pop_data, 
                how_many = how_many, 
@@ -171,7 +171,7 @@ map <- tar_map(
                round_start = round_start, 
                round_end = round_end)),
 
-  # mice imputation (m = 100) -- mice tier
+  # mice imputation
   tar_target(wide_mids_mcs,
     run_mice(wide_data = wide_data_mcs$data, 
             m = mice_m, 
@@ -185,7 +185,7 @@ map <- tar_map(
       seed = seed_random),
     resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
 
-  # gFormulaMI: marginal + ATE, both outcomes -- gform tier
+  # gFormulaMI: marginal + ATE, both outcomes
   tar_target(gform_mcs,
     run_gform(wide_mids = wide_mids_mcs, 
               wide_data_mi = wide_data_mcs$data,
