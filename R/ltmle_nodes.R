@@ -42,12 +42,12 @@ ltmle_nodes <- function(outcome, n_waves) {
 
   Lnodes <- c(
     at(nm$post, 0L),
-    unlist(lapply(waves[waves > 0L], \(t) c(at(nm$conf, t), at(nm$post, t))),
-           use.names = FALSE)
+    purrr::list_c(purrr::map(waves[waves > 0L],
+                             \(t) c(at(nm$conf, t), at(nm$post, t))))
   )
 
   list(
-    cols     = c(nm$baseline, unlist(lapply(waves, wave_block), use.names = FALSE)),
+    cols     = c(nm$baseline, purrr::list_c(purrr::map(waves, wave_block))),
     Anodes   = at(nm$A, waves),
     Lnodes   = Lnodes,
     Ynodes   = at(nm$Y, waves),

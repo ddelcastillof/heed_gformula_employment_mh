@@ -1,7 +1,5 @@
 # Custom SuperLearner learners for the LTMLE step.
-
 ## Registrer SuperLearner wrappers with a function
-### Pending: add more learners
 
 register_sl_wrappers <- function() {
   nms <- c("SL.xgboost2.ltmle", "SL.xgboost4.ltmle",
@@ -10,7 +8,7 @@ register_sl_wrappers <- function() {
            "SL.nnet5", "SL.nnet10", "predict.SL.nnet.ltmle",
            "SL.poly2", "SL.poly3", ".poly_design", "predict.SL.poly.ltmle")
   src <- environment(register_sl_wrappers)
-  for (nm in nms) assign(nm, get(nm, envir = src), envir = globalenv())
+  purrr::walk(nms, \(nm) assign(nm, get(nm, envir = src), envir = globalenv()))
   invisible(nms)
 }
 
@@ -97,7 +95,7 @@ SL.poly.ltmle <- function(Y, X, newX, family,
 
 .poly_design <- function(M, cont, ctr, scl, degree) {
   Cm <- scale(M[, cont, drop = FALSE], center = ctr, scale = scl)
-  pw <- do.call(cbind, lapply(seq(2, degree), function(d) {
+  pw <- do.call(cbind, purrr::map(seq(2, degree), function(d) {
     P <- Cm^d
     colnames(P) <- paste0(colnames(Cm), "_p", d)
     P

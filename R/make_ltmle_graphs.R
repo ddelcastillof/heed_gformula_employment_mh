@@ -7,6 +7,7 @@ make_ltmle_graphs <- function(ltmle_pooled_mcs, ltmle_pooled_pcs,
                               save_dir  = NULL,
                               wave_label = NULL) {
   library(dplyr)
+  library(purrr)
   library(stringr)
   library(ggplot2)
   library(colorBlindness)
@@ -26,17 +27,17 @@ make_ltmle_graphs <- function(ltmle_pooled_mcs, ltmle_pooled_pcs,
     )
   )
 
-  plots <- lapply(panels, function(p) {
+  plots <- map(panels, function(p) {
     # Regime labels arrive as "0-1-1-0". Recode to "E-U-U-E" for the axis; the count
     # of exposed periods drives the colour scale.
-    df <- bind_rows(Map(
+    df <- bind_rows(map2(
+      p$data, list(mcs_label, pcs_label),
       \(d, lab) mutate(
         d,
         outcome      = lab,
         n_exposed    = factor(str_count(intervention, "1")),
-        intervention = str_replace_all(intervention, setNames(codes, c("0", "1")))
-      ),
-      p$data, list(mcs_label, pcs_label)
+        intervention = str_replace_all(intervention, set_names(codes, c("0", "1")))
+      )
     ))
 
     # Level order set after binding both outcomes, so the facets share one y axis.
@@ -58,10 +59,10 @@ make_ltmle_graphs <- function(ltmle_pooled_mcs, ltmle_pooled_pcs,
 
   if (!is.null(save_dir)) {
     suffix <- if (!is.null(wave_label)) paste0("_", wave_label) else ""
-    for (nm in names(plots)) {
+    iwalk(plots, \(plt, nm) {
       ggsave(file.path(save_dir, paste0("graph_ltmle_", nm, suffix, ".png")),
-             plots[[nm]], dpi = 300, width = 8, height = 12)
-    }
+             plt, dpi = 300, width = 8, height = 12)
+    })
   }
 
   plots

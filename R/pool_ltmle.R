@@ -9,7 +9,7 @@ pool_ltmle <- function(ltmle_msm_fits, y_scale = 100, reference = NULL) {
   if (!is.null(ltmle_msm_fits$estimate)) ltmle_msm_fits <- list(ltmle_msm_fits)
 
   labels <- ltmle_msm_fits[[1L]]$intervention
-  ok <- vapply(ltmle_msm_fits, function(f) identical(f$intervention, labels), logical(1))
+  ok <- purrr::map_lgl(ltmle_msm_fits, \(f) identical(f$intervention, labels))
   if (!all(ok)) {
     stop("pool_ltmle(): imputations disagree on the regime set", call. = FALSE)
   }
@@ -17,11 +17,11 @@ pool_ltmle <- function(ltmle_msm_fits, y_scale = 100, reference = NULL) {
   M <- length(ltmle_msm_fits)
   R <- length(labels)
 
-  Q <- do.call(rbind, lapply(ltmle_msm_fits, function(f) as.vector(f$estimate)))
-  U <- lapply(ltmle_msm_fits, `[[`, "cov")
+  Q <- do.call(rbind, purrr::map(ltmle_msm_fits, \(f) as.vector(f$estimate)))
+  U <- purrr::map(ltmle_msm_fits, "cov")
 
   qbar <- colMeans(Q)
-  Ubar <- Reduce(`+`, U) / M
+  Ubar <- purrr::reduce(U, `+`) / M
   B    <- if (M > 1L) stats::var(Q) else matrix(0, R, R)
   Tm   <- Ubar + (1 + 1 / M) * B
 

@@ -1,15 +1,4 @@
 # One ltmleMSM fit: all regimes against a single imputed dataset.
-# Reduces the number of Q fits to decrease processing time. It's the same as calling ltmle() but it shares the g fits across al models
-# Four waves, 16 regimes:
-#
-#                                   16 x ltmle()   1 x ltmleMSM()
-#   g fits (4 A nodes)                  64                4
-#   Q fits, first block (target = Y)    16                1
-#   Q fits, remaining 3 blocks          48               48
-#   total SuperLearner fits            128               53
-#
-# Returns a list, not a tibble: the covariance matrix must travel with the estimates so
-# contrasts can be formed after pooling.
 
 fit_ltmle_imp <- function(imp_idx, ltmle_data_list, regimes, sl_libs,
                           outcome, n_waves,
@@ -32,23 +21,22 @@ fit_ltmle_imp <- function(imp_idx, ltmle_data_list, regimes, sl_libs,
     stop("fit_ltmle_imp(): `regimes` must have unique names", call. = FALSE)
   }
 
-  bad <- vapply(regimes, function(a) length(as.vector(a)) != n_anodes, logical(1))
+  bad <- purrr::map_lgl(regimes, \(a) length(as.vector(a)) != n_anodes)
   if (any(bad)) {
     stop("fit_ltmle_imp(): regime(s) ", paste(labels[bad], collapse = ", "),
          " do not have ", n_anodes, " element(s)", call. = FALSE)
   }
 
-  # regimes arg in ltmleMSM accepts an array of the strategies
-  regime_arr <- array(NA_real_, dim = c(n_obs, n_anodes, R))
-  for (j in seq_len(R)) {
-    regime_arr[, , j] <- matrix(as.vector(regimes[[j]]),
-                                nrow = n_obs, ncol = n_anodes, byrow = TRUE)
-  }
+  # regimes arg in ltmleMSM accepts an array of the strategies.
+  regime_arr <- array(
+    purrr::list_c(purrr::map(regimes, \(a) rep(as.numeric(a), each = n_obs))),
+    dim = c(n_obs, n_anodes, R)
+  )
 
   # An indicator per regime except the reference.
   ind <- paste0("d", seq_len(R)[-1L])
-  sm  <- array(0, dim = c(R, R - 1L, 1L), dimnames = list(NULL, ind, NULL))
-  for (j in 2:R) sm[j, j - 1L, 1L] <- 1
+  sm  <- array(rbind(0, diag(R - 1L)),
+               dim = c(R, R - 1L, 1L), dimnames = list(NULL, ind, NULL))
 
   rhs         <- paste(ind, collapse = " + ")
   working.msm <- paste("Y ~", rhs)
