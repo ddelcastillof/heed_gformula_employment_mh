@@ -395,7 +395,7 @@ test_that("TMLE functions run without errors", {
   print(pooled$estimates)
 
   # contrasts come from the pooled covariance, so one row per non-reference regime
-  contr <- ltmle_contrasts(pooled)
+  contr <- pooled$contrasts
   expect_equal(nrow(contr), length(flight) - 1L)
   expect_true(all(contr$ltmle_se > 0))
 
@@ -423,4 +423,158 @@ test_that("TMLE functions run without errors", {
                   sl_libs, outcome, n_waves),
     "element"
   )
+})
+## fit_ltmle_imp must carry positivity diagnostics, not just point estimates
+
+test_that("fit_ltmle_imp returns per-regime cumulative g diagnostics", {
+  for (f in list.files(here::here("R"), "\\.R$", full.names = TRUE)) source(f); rm(f)
+
+  outcome <- "MCS"
+  n_waves <- 2L
+  nodes   <- ltmle_nodes(outcome, n_waves)
+
+  # Synthetic data in the shape prepare_ltmle_data() emits: no network, no mice.
+  set.seed(20260819)
+  n <- 300L
+  fac <- function(k) factor(sample(seq_len(k), n, TRUE))
+  dat <- data.frame(
+    sex_dv_base          = fac(2),
+    hiqual_dv_fact_base  = fac(3),
+    race_base            = fac(2),
+    gor_dv_fact_base     = fac(3),
+    age_dv_base          = sample(25:65, n, TRUE),
+    age_dv_sq_base       = NA_real_,
+    sf12mcs_dv_base      = rnorm(n, 50, 9)
+  )
+  dat$age_dv_sq_base <- dat$age_dv_base^2
+  for (t in 0:(n_waves - 1L)) {
+    dat[[paste0("pcs_lagged_", t)]]           <- rnorm(n, 50, 9)
+    dat[[paste0("econ_benefits_lagged_", t)]] <- rbinom(n, 1L, 0.2)
+    dat[[paste0("home_owner_lagged_", t)]]    <- rbinom(n, 1L, 0.6)
+    dat[[paste0("mastat_dv_lagged_", t)]]     <- fac(3)
+    dat[[paste0("dnc_fact_lagged_", t)]]      <- fac(2)
+    dat[[paste0("econ_emp_bin_fact_", t)]]    <-
+      rbinom(n, 1L, plogis(-1 + 0.02 * (dat$sf12mcs_dv_base - 50)))
+    dat[[paste0("log_income_", t)]]           <- rnorm(n, 10, 1)
+    dat[[paste0("econ_dist_bin_fact_", t)]]   <- rbinom(n, 1L, 0.25)
+    dat[[paste0("sf12mcs_dv_", t)]]           <- plogis(rnorm(n))
+  }
+  dat <- dat[, nodes$cols]
+  expect_identical(names(dat), nodes$cols)
+
+  # every A path, so the cumulative g's must partition probability
+  regs <- asplit(as.matrix(expand.grid(rep(list(0:1), n_waves))), 1)
+  regs <- setNames(lapply(regs, as.vector),
+                   vapply(regs, paste, character(1), collapse = "-"))
+
+  fit <- fit_ltmle_imp(imp_idx         = 1L,
+                       ltmle_data_list = list(dat),
+                       regimes         = regs,
+                       sl_libs         = "SL.glm",
+                       outcome         = outcome,
+                       n_waves         = n_waves)
+
+  g <- fit$g_diag
+  expect_s3_class(g, "data.frame")
+  expect_true(all(c("intervention", "depth", "n_follow", "g_mean", "g_median",
+                    "g_p01", "g_min", "pct_lt_1e2", "pct_lt_1e3", "n_clipped",
+                    "ess", "max_wt_share") %in% names(g)))
+  # one row per regime per cumulative depth
+  expect_equal(nrow(g), length(regs) * length(nodes$Anodes))
+  expect_setequal(g$intervention, names(regs))
+  expect_setequal(g$depth, seq_along(nodes$Anodes))
+
+  # IDENTITY 1: the 2^n regimes enumerate every A path, so summing cum.g over them
+  # partitions probability. At depth d only the first d elements of abar matter, so
+  # each distinct prefix is counted 2^(n_anodes - d) times and the means sum to that.
+  n_a <- length(nodes$Anodes)
+  for (d in seq_len(n_a)) {
+    expect_equal(sum(g$g_mean[g$depth == d]), 2^(n_a - d), tolerance = 1e-8)
+  }
+
+  # IDENTITY 2: cum.g is a running product of probabilities, so it cannot grow with depth
+  for (lab in names(regs)) {
+    gi <- g[g$intervention == lab, ][order(g$depth[g$intervention == lab]), ]
+    expect_true(all(diff(gi$g_mean) <= 1e-12))
+  }
+
+  # n_follow at full depth is just the observed A pattern count
+  A <- as.matrix(dat[, nodes$Anodes])
+  for (lab in names(regs)) {
+    hand <- sum(rowSums(sweep(A, 2, regs[[lab]], `==`)) == length(nodes$Anodes))
+    expect_equal(g$n_follow[g$intervention == lab & g$depth == length(nodes$Anodes)],
+                 hand)
+  }
+
+  # an effective sample size can never exceed the number of rows following the regime
+  expect_true(all(g$ess <= g$n_follow + 1e-8))
+  expect_true(all(g$g_min > 0 & g$g_median > 0))
+  expect_true(all(g$max_wt_share >= 0 & g$max_wt_share <= 100))
+})
+
+## the diagnostics must survive pooling, or nobody will look at them
+
+test_that("pool_ltmle averages the cum.g diagnostics across imputations", {
+  for (f in list.files(here::here("R"), "\\.R$", full.names = TRUE)) source(f); rm(f)
+
+  outcome <- "MCS"
+  n_waves <- 2L
+  nodes   <- ltmle_nodes(outcome, n_waves)
+
+  make_imp <- function(seed) {
+    set.seed(seed)
+    n <- 300L
+    fac <- function(k) factor(sample(seq_len(k), n, TRUE))
+    d <- data.frame(
+      sex_dv_base         = fac(2),
+      hiqual_dv_fact_base = fac(3),
+      race_base           = fac(2),
+      gor_dv_fact_base    = fac(3),
+      age_dv_base         = sample(25:65, n, TRUE),
+      age_dv_sq_base      = NA_real_,
+      sf12mcs_dv_base     = rnorm(n, 50, 9)
+    )
+    d$age_dv_sq_base <- d$age_dv_base^2
+    for (t in 0:(n_waves - 1L)) {
+      d[[paste0("pcs_lagged_", t)]]           <- rnorm(n, 50, 9)
+      d[[paste0("econ_benefits_lagged_", t)]] <- rbinom(n, 1L, 0.2)
+      d[[paste0("home_owner_lagged_", t)]]    <- rbinom(n, 1L, 0.6)
+      d[[paste0("mastat_dv_lagged_", t)]]     <- fac(3)
+      d[[paste0("dnc_fact_lagged_", t)]]      <- fac(2)
+      d[[paste0("econ_emp_bin_fact_", t)]]    <-
+        rbinom(n, 1L, plogis(-1 + 0.02 * (d$sf12mcs_dv_base - 50)))
+      d[[paste0("log_income_", t)]]           <- rnorm(n, 10, 1)
+      d[[paste0("econ_dist_bin_fact_", t)]]   <- rbinom(n, 1L, 0.25)
+      d[[paste0("sf12mcs_dv_", t)]]           <- plogis(rnorm(n))
+    }
+    d[, nodes$cols]
+  }
+
+  imps <- list(make_imp(11L), make_imp(12L))
+  regs <- list("0-0" = c(0, 0), "0-1" = c(0, 1), "1-1" = c(1, 1))
+
+  fits <- lapply(seq_along(imps), function(i) {
+    fit_ltmle_imp(imp_idx = i, ltmle_data_list = imps, regimes = regs,
+                  sl_libs = "SL.glm", outcome = outcome, n_waves = n_waves)
+  })
+
+  pooled <- pool_ltmle(fits)
+
+  g <- pooled$g_diag
+  expect_s3_class(g, "data.frame")
+  expect_equal(nrow(g), length(regs) * length(nodes$Anodes))
+  expect_setequal(g$intervention, names(regs))
+  expect_true(all(g$n_imp == length(fits)))
+
+  # every numeric diagnostic is the mean over imputations, keyed on regime x depth
+  key <- function(d) paste(d$intervention, d$depth)
+  num_cols <- setdiff(names(g)[vapply(g, is.numeric, logical(1))],
+                      c("depth", "n_imp"))
+  expect_true(length(num_cols) >= 8)
+  for (cl in num_cols) {
+    per_imp <- vapply(fits, function(f) {
+      f$g_diag[[cl]][match(key(g), key(f$g_diag))]
+    }, numeric(nrow(g)))
+    expect_equal(g[[cl]], rowMeans(per_imp), tolerance = 1e-10, info = cl)
+  }
 })
