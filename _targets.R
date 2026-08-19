@@ -89,11 +89,11 @@ for (f in list.files(here::here("R"), pattern = "\\.R$", full.names = TRUE)) sou
 
 # ---- Configuration for each function ----
 ## mice configs
-mice_m      <- 100
+mice_m      <- 50
 mice_maxit  <- 15
 seed_random <- 20260728
 ## gFormulaMI configs
-gform_M <- 100
+gform_M <- 50
 
 ## ltmle configs
 sl_libs <- c("SL.mean", "SL.glm", "SL.gam.ltmle2", "SL.gam.ltmle3", "SL.gam.ltmle4", "SL.gam.ltmle5",
@@ -191,28 +191,32 @@ map <- tar_map(
               wide_data_mi = wide_data_mcs$data,
               intervention_pattern = wide_data_mcs$intervention_pattern,
               estimand = "factor(regime) + 0", 
-              M = gform_M),
+              M = gform_M,
+              nSim = 2*nrow(wide_data_mcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
   tar_target(gform_pcs,
     run_gform(wide_mids = wide_mids_pcs, 
               wide_data_mi = wide_data_pcs$data,
               intervention_pattern = wide_data_pcs$intervention_pattern,
               estimand = "factor(regime) + 0", 
-              M = gform_M),
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_pcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
   tar_target(gform_mcs_ate,
     run_gform(wide_mids = wide_mids_mcs, 
               wide_data_mi = wide_data_mcs$data,
               intervention_pattern = wide_data_mcs$intervention_pattern,
               estimand = "factor(regime)", 
-              M = gform_M),
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_mcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
   tar_target(gform_pcs_ate,
     run_gform(wide_mids = wide_mids_pcs, 
               wide_data_mi = wide_data_pcs$data,
               intervention_pattern = wide_data_pcs$intervention_pattern,
               estimand = "factor(regime)", 
-              M = gform_M),
+              M = gform_M, 
+              nSim = 2*nrow(wide_data_pcs$data)),
     resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
   tar_target(ltmle_data_mcs,
     prepare_ltmle_data(wide_mids = wide_mids_mcs,
