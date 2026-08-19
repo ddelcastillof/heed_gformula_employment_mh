@@ -3,6 +3,7 @@
 \usepackage{array}
 \usepackage{tabularx}
 \usepackage{multirow}
+\usepackage{hyperref}
 
 % ---- Math ----
 \usepackage{amsmath}
@@ -20,14 +21,14 @@
 % ---- Frame numbering ----
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}[frame number]
-% Continuation counter (allowframebreaks) matches "Title (i)" style used elsewhere
+% Continuation counter for slide titles
 \setbeamertemplate{frametitle continuation}{(\MakeLowercase{\insertcontinuationcountroman})}
 
 % ---- Bibliography ----
 \usepackage[style=vancouver, backend=biber, natbib=true, sorting=none]{biblatex}
 \addbibresource{../bibliography/references.bib}
 
-% Make \cite render as Vancouver superscript numbers (mirrors built-in \supercite)
+% Make \cite render as Vancouver superscript numbers
 \DeclareCiteCommand{\cite}[\mkbibsuperscript]
   {\iffieldundef{prenote}{}{\BibliographyWarning{Ignoring prenote argument}}%
    \iffieldundef{postnote}{}{\BibliographyWarning{Ignoring postnote argument}}}
@@ -37,16 +38,51 @@
   {}
 
 % ---- Defining Colours ----
-\definecolor{UniversityBlue}{RGB}{1, 20, 81}
+\definecolor{UniversityBlue}{HTML}{011451}
 
-\definecolor{DarkPurple}{RGB}{76, 38, 131}
-\definecolor{DarkPink}{RGB}{166, 3, 103}
-\definecolor{DarkGreen}{RGB}{64, 93, 24}
-\definecolor{DarkBlue}{RGB}{0, 83, 152}
-\definecolor{DarkRed}{RGB}{125, 34, 57}
+\definecolor{DarkPurple}{HTML}{4C2683}
+\definecolor{DarkPink}{HTML}{A60367}
+\definecolor{DarkGreen}{HTML}{405D18}
+\definecolor{DarkBlue}{HTML}{005398}
+\definecolor{DarkRed}{HTML}{7D2239}
 
-\definecolor{LightPurple}{RGB}{165, 161, 206}
-\definecolor{LightPink}{RGB}{233, 139, 175}
-\definecolor{LightGreen}{RGB}{129, 192, 113}
-\definecolor{LightBlue}{RGB}{77, 187, 198}
-\definecolor{LightRed}{RGB}{242, 210, 92}
+\definecolor{LightPurple}{HTML}{A5A1CE}
+\definecolor{LightPink}{HTML}{E98BAF}
+\definecolor{LightGreen}{HTML}{81C071}
+\definecolor{LightBlue}{HTML}{4DBBC6}
+\definecolor{LightYelow}{HTML}{F2D25C}
+
+% ---- Hyperlinks ----
+\hypersetup{colorlinks=true, allcolors=DarkPurple}
+
+% ---- Title colours ----
+\setbeamercolor{title}{fg=UniversityBlue}
+\setbeamercolor{frametitle}{fg=DarkBlue}
+
+% ---- Bullets ----
+\setbeamercolor{itemize item}{fg=DarkBlue}
+\setbeamercolor{itemize subitem}{fg=DarkPurple}
+\setbeamercolor{itemize subsubitem}{fg=DarkGreen}
+\setbeamercolor{enumerate item}{fg=DarkBlue}
+\setbeamercolor{enumerate subitem}{fg=DarkPurple}
+\setbeamercolor{description item}{fg=DarkBlue}
+
+% ---- Other particular colours ----
+\newcommand{\pkg}[1]{\textcolor{LightGreen}{\texttt{#1}}}
+\newcommand{\boldtxt}[1]{\textcolor{DarkBlue}{\textbf{#1}}}
+
+
+% ---- Reference list ----
+\setbeamertemplate{bibliography item}{\textcolor{DarkBlue}{\insertbiblabel}}
+
+% Blocks beamer recognises inside an entry (author runs until the title starts).
+\setbeamercolor{bibliography entry author}{fg=DarkPurple}
+\setbeamercolor{bibliography entry title}{fg=black}
+\setbeamercolor{bibliography entry location}{fg=DarkPurple!60}
+\setbeamercolor{bibliography entry note}{fg=DarkPurple!60}
+
+% Recolour journal title
+\DeclareFieldFormat{journaltitle}{\textcolor{DarkPurple}{#1}}
+
+% Suppress language from references
+\AtEveryBibitem{\clearlist{language}}

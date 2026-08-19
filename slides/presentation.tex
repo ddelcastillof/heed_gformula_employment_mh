@@ -48,43 +48,31 @@ Pearce, A.\inst{1} \and Katikireddi, S.V.\inst{1}}
 % =====================================
 % Methods
 % =====================================
-\begin{frame}{Methods (i)}
-  \begin{itemize}
-    \item We used data from January 2010 — May 2020 from the UK Household Longitudinal Study (UKHLS)\cite{ukhls6614} to estimate the effect of unemployment trajectories on mental health.
-    \item Analyses were restricted to working-age adults (25 to 65) who were employed at baseline (n = 21,104).
-    \item We excluded individuals who reported student status, early retirement, or long-term sickness within the estimation sample.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Methods (ii)}
-  \begin{itemize}
-    \item \textbf{Exposure:} Employment status trajectories across four waves (employed, unemployed, or out of the labor force).
-    \item \textbf{Outcome:} Mental health status (MCS SF-12) at the end of each wave.
-    \item \textbf{Covariates:} 
-    \item 
-      \begin{itemize}
-        \item Time-invariant: gender, ethnicity, highest educational attainment.
-        \item Time-varying: age, location (GOR), marital status, household income (log), house tenancy, number of dependants, receipt of welfare benefits, physical health status (PCS SF-12).
-      \end{itemize}
-  \end{itemize}
-\end{frame}
-
-% DAG
-\begin{frame}{Methods (iii)}
-  \centering
-  \includegraphics[width=0.9\textwidth]{HEED_DAG_MH_v2.pdf}\\[0.5em]
-  \includegraphics[width=0.6\textwidth]{HEED_DAG_MH_key.pdf}
-\end{frame}
-
-\begin{frame}{Methods (iv)}
-  \begin{itemize}
-    \item \textbf{Causal estimand:} Marginal mean (mental health score) under different employment trajectories.
-    \item We used the g-formula (\texttt{gFormulaMI}) to estimate the effect of unemployment trajectories on mental health (\texttt{R} 4.5.2)\cite{Bartlett2025-iw}.
+\begin{frame}[shrink=10]{Methods}
+  \begin{minipage}[t]{0.48\textwidth}
+    \vspace{0pt}
     \begin{itemize}
-      \item We used multiple imputation (\texttt{mice}) to account for missing data (m=50, i=10).
+      \item Data from January 2010 — May 2020 from the UK Household Longitudinal Study (UKHLS)\cite{ukhls6614}.
+      \item \boldtxt{Eligibility:} Working-age adults (25 to 65) who were employed at baseline (n = 21,104). Students, early retired, or long-term sick at baseline were excluded.
+      \item \boldtxt{Variables:}
+        \begin{itemize}
+          \item \boldtxt{Exposure:} Employment status (employed, unemployed).
+          \item \boldtxt{Outcome:} Mental health status (MCS SF-12).
+          \item \boldtxt{Covariates:} gender, ethnicity, education, age, location (GOR), marital status, household income (log), house tenancy, number of dependants, receipt of welfare benefits, physical health status (PCS SF-12).
+        \end{itemize}
+    \end{itemize}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.48\textwidth}
+    \vspace{0pt}
+  \begin{itemize}
+    \item \boldtxt{Causal estimand:} Marginal mean (mental health score) under different employment trajectories.
+    \item We used the g-formula (\pkg{gFormulaMI}) to estimate the effect of unemployment trajectories on mental health (\texttt{R 4.5.2})\cite{Bartlett2025-iw}.
+    \begin{itemize}
+      \item We used multiple imputation (\pkg{mice}) to account for missing data (m=50, i=15).
       \item We simulated potential outcomes under different employment trajectories, e.g. (E-E-E-E vs U-U-U-U).
     \end{itemize}
   \end{itemize}
+  \end{minipage}
 \end{frame}
 
 % =====================================
@@ -103,16 +91,6 @@ Pearce, A.\inst{1} \and Katikireddi, S.V.\inst{1}}
   \includegraphics[width=0.75\textwidth]{graph4waves_marginal_conf.png}
 \end{frame}
 
-\begin{frame}{Results (ii)}{Sensitivity analysis: Marginal effects across three waves (2013 — 2015)}
-  \centering
-  \includegraphics[width=0.75\textwidth]{graph3waves_marginal_conf.png}
-\end{frame}
-
-\begin{frame}{Results (iii)}{Sensitivity analysis: Marginal effects across five waves (2013 — 2017)}
-  \centering
-  \includegraphics[width=0.75\textwidth]{graph5waves_marginal_conf.png}
-\end{frame}
-
 % =====================================
 % Conclusions
 % =====================================
@@ -120,7 +98,7 @@ Pearce, A.\inst{1} \and Katikireddi, S.V.\inst{1}}
   \begin{itemize}
     \item Employment trajectories have substantial adverse mental health effects, with more unemployment episodes having greater effects.
     \item Unemployment effects are greatest within the first year, they persist long-term and vary across trajectories.
-    \item \textbf{Potential limitations:} potential residual confounding, differential attrition, inability to differentiate detailed employment status categories.
+    \item \boldtxt{Potential limitations:} potential residual confounding, differential attrition, inability to differentiate detailed employment status categories.
   \end{itemize}
 \end{frame}
 
@@ -136,7 +114,24 @@ Pearce, A.\inst{1} \and Katikireddi, S.V.\inst{1}}
 %=====================================
 \begin{frame}{Appendix (i)}{STROBE Flowchart}
   \centering
-  \includegraphics[width=0.9\textwidth,height=0.9\textheight,keepaspectratio]{strobe_flowchart.png}
+  \includegraphics[width=0.9\textwidth,height=0.85\textheight,keepaspectratio]{strobe_flowchart.png}
+\end{frame}
+
+% DAG
+\begin{frame}{Appendix (ii)}{DAG}
+  \centering
+  \includegraphics[width=0.9\textwidth]{HEED_DAG_MH_v2.pdf}\\[0.5em]
+  \includegraphics[width=0.6\textwidth]{HEED_DAG_MH_key.pdf}
+\end{frame}
+
+\begin{frame}{Appendix (iii)}{Sensitivity analysis: Marginal effects across three waves (2013 — 2015)}
+  \centering
+  \includegraphics[width=0.75\textwidth]{graph3waves_marginal_conf.png}
+\end{frame}
+
+\begin{frame}{Appendix (iv)}{Sensitivity analysis: Marginal effects across five waves (2013 — 2017)}
+  \centering
+  \includegraphics[width=0.75\textwidth]{graph5waves_marginal_conf.png}
 \end{frame}
 %=====================================
 \end{document}
