@@ -141,9 +141,6 @@ make_counterfactual_matrix <- function(return_vals, arrows = NULL) {
   mediators <- attr(return_vals, "mediators")
   exposure <- attr(return_vals, "exposure_vars")
 
-  # same-wave time-varying confounders (age_dv, gor_dv_fact): tagged by
-  # make_wide() from ..., minus the exposure, which arrives the same way but is
-  # its own node. NULL for wide data built before this attribute existed.
   time_varying <- setdiff(attr(return_vals, "time_varying"), exposure)
 
   n_vars <- length(return_vals) + 1
