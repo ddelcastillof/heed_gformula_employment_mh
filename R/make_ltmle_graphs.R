@@ -12,7 +12,7 @@ make_ltmle_graphs <- function(ltmle_pooled_mcs, ltmle_pooled_pcs,
   library(ggplot2)
   library(colorBlindness)
 
-  legend_lab <- paste("Number of unemployed periods")
+  legend_lab <- "Number of unemployed periods"
 
   # The two panels share every geom, scale and facet; they differ only in the data
   # they read and their x label. Hold that difference as data and draw them in one pass.
@@ -22,7 +22,7 @@ make_ltmle_graphs <- function(ltmle_pooled_mcs, ltmle_pooled_pcs,
       data  = list(ltmle_pooled_mcs$estimates, ltmle_pooled_pcs$estimates)
     ),
     diff = list(
-      x_lab = paste("Estimated mean difference (TMLE) (reference: never unemployed)"),
+      x_lab = "Estimated mean difference (TMLE)\n(reference: never unemployed)",
       data  = list(ltmle_contrasts(ltmle_pooled_mcs, reference),
                    ltmle_contrasts(ltmle_pooled_pcs, reference))
     )

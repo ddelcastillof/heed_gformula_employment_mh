@@ -352,7 +352,6 @@ map_ltmle_three <- tar_map(
       ltmle_pooled_pcs = ltmle_pooled_pcs,
       mcs_label = "Mental Component Score (MCS)",
       pcs_label = "Physical Component Score (PCS)",
-      exposure_label = "unemployed",
       save_dir  = here::here("figs"),
       wave_label = how_many
     ))
