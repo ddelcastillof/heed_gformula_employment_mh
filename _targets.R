@@ -27,7 +27,7 @@ if (on_slurm) {
   # pop_data, build_data, graphs plan
   plan_light <- slurm_tier(memory_gb = 8, walltime_h = 1)   
   # run_mice plan
-  plan_mice  <- slurm_tier(memory_gb = 16, walltime_h = 12)   
+  plan_mice  <- slurm_tier(memory_gb = 16, walltime_h = 24)   
   # three/four gform
   plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 12)  
   # ltmle plan
