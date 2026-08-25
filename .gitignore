@@ -63,6 +63,9 @@ _targets/
 /checklists/*.log
 /checklists/*.png
 
+# Slides assets
+slides/assets/
+
 # Legacy folder
 legacy/
 
