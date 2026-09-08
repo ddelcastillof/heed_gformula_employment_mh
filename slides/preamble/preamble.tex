@@ -13,20 +13,28 @@
 \usepackage{xcolor}
 \usepackage{tikz}
 \usepackage{graphicx}
-\graphicspath{{../figs/dag/}{../figs/conference/}{../checklists/}}
+\graphicspath{{assets/pdf/}{../figs/dag/}{../figs/}{../figs/conference/}{../checklists/}}
+\input{figures/impute.tex}
 
 % ---- Listings ----
 \usepackage{enumerate}
+\usepackage{multicol}
 
 % ---- Frame numbering ----
 \setbeamertemplate{navigation symbols}{}
-\setbeamertemplate{footline}[frame number]
+% Footline is the bottom band
+\setbeamertemplate{page number in head/foot}[framenumber]
 % Continuation counter for slide titles
 \setbeamertemplate{frametitle continuation}{(\MakeLowercase{\insertcontinuationcountroman})}
 
 % ---- Bibliography ----
 \usepackage[style=vancouver, backend=biber, natbib=true, sorting=none]{biblatex}
 \addbibresource{../bibliography/references.bib}
+
+% Bibliography size + spacing
+\renewcommand*{\bibfont}{\tiny\raggedright}
+\setlength{\bibitemsep}{0.5em}
+\setlength{\bibhang}{1em}
 
 % Make \cite render as Vancouver superscript numbers
 \DeclareCiteCommand{\cite}[\mkbibsuperscript]
@@ -50,7 +58,7 @@
 \definecolor{LightPink}{HTML}{E98BAF}
 \definecolor{LightGreen}{HTML}{81C071}
 \definecolor{LightBlue}{HTML}{4DBBC6}
-\definecolor{LightYelow}{HTML}{F2D25C}
+\definecolor{LightYellow}{HTML}{F2D25C}
 
 % ---- Hyperlinks ----
 \hypersetup{colorlinks=true, allcolors=DarkPurple}
@@ -58,6 +66,10 @@
 % ---- Title colours ----
 \setbeamercolor{title}{fg=UniversityBlue}
 \setbeamercolor{frametitle}{fg=DarkBlue}
+
+% ---- Title font size ----
+\setbeamerfont{frametitle}{size={\fontsize{12}{14}\selectfont}}
+\setbeamerfont{framesubtitle}{size={\fontsize{10}{12}\selectfont}}
 
 % ---- Bullets ----
 \setbeamercolor{itemize item}{fg=DarkBlue}
@@ -70,7 +82,6 @@
 % ---- Other particular colours ----
 \newcommand{\pkg}[1]{\textcolor{LightGreen}{\texttt{#1}}}
 \newcommand{\boldtxt}[1]{\textcolor{DarkBlue}{\textbf{#1}}}
-
 
 % ---- Reference list ----
 \setbeamertemplate{bibliography item}{\textcolor{DarkBlue}{\insertbiblabel}}
@@ -86,3 +97,67 @@
 
 % Suppress language from references
 \AtEveryBibitem{\clearlist{language}}
+
+
+% ---- University of Glasgow brand assets ----
+\newcommand{\uofglogo}[1]{\includegraphics[width=#1]{uofg-logo-white.pdf}}
+
+% Page-relative coordinate: (x,y) as fractions of the page from the top-left corner.
+\newcommand{\PG}[2]{([shift={(#1\paperwidth,-#2\paperheight)}]current page.north west)}
+
+% ---- Bottom band ----
+\newlength{\bottombandheight}
+\setlength{\bottombandheight}{0.125\paperheight}
+
+\setbeamertemplate{background}{%
+  \begin{tikzpicture}
+    \useasboundingbox (0,0) rectangle (\the\paperwidth,\the\paperheight);
+    \fill[UniversityBlue] (0,0) rectangle (\the\paperwidth,\bottombandheight);
+  \end{tikzpicture}%
+}
+
+\setbeamertemplate{footline}{%
+  \vbox to \bottombandheight{%
+    \vfill
+    \hbox to \paperwidth{%
+      \kern0.005\paperwidth
+      \raisebox{-0.40\height}[0pt][0pt]{\uofglogo{0.15\paperwidth}}%
+      \hfill
+      \usebeamerfont{footline}\color{white}%
+      \ifnum\insertframenumber>0 \insertframenumber\fi
+      \kern0.02\paperwidth}%
+    \vskip0.36\bottombandheight
+  }%
+}
+
+% ---- Title slide formatting ----
+\makeatletter
+\newcommand{\railtitlepage}{%
+  \begingroup
+  \hyphenpenalty=10000 \exhyphenpenalty=10000
+  \def\beamer@andtitle{\unskip;\ }%
+  \def\beamer@andinst{\newline}%
+  \setbeamertemplate{background}{}%
+  \setbeamertemplate{footline}{}%
+  \begin{frame}[plain,noframenumbering]
+    \begin{tikzpicture}[remember picture,overlay]
+      \fill[UniversityBlue] \PG{0}{0} rectangle \PG{0.25}{1};
+      \node[anchor=north west] at \PG{-0.005}{0.35} {\uofglogo{0.25\paperwidth}};
+      \node[anchor=north,text width=0.74\paperwidth,align=center] at \PG{0.625}{0.26}
+        {\color{UniversityBlue}\LARGE\inserttitle\par};
+      \draw[LightBlue,line width=1.2pt] \PG{0.575}{0.50} -- \PG{0.675}{0.50};
+      \node[anchor=north,text width=0.62\paperwidth,align=center] at \PG{0.625}{0.535}
+        {\color{DarkBlue}\small\insertsubtitle\par};
+      \node[anchor=north,text width=0.62\paperwidth,align=center] at \PG{0.625}{0.63}
+        {\color{black!78}\scriptsize
+         \insertauthor\par};
+      \node[anchor=north,text width=0.62\paperwidth,align=center] at \PG{0.625}{0.75}
+        {\color{black!55}\scriptsize
+         \let\CR\\ \def\beamer@andinst{\CR}%
+         {\renewcommand{\\}[1][]{\unskip,\ }\insertinstitute}\\[0.9em]
+         \insertdate\par};
+    \end{tikzpicture}
+  \end{frame}
+  \endgroup
+}
+\makeatother

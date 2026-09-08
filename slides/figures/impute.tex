@@ -1,0 +1,89 @@
+%% ------------------------------------------------------------------
+%% Methods inset — "analytic methods"
+%% ------------------------------------------------------------------
+
+\usetikzlibrary{arrows.meta,calc}
+
+\def\HEEDpitch{3.8}
+
+\newcommand{\HEEDgrid}[3]{%
+  \foreach \r in {0,1,2}{%
+    \foreach \c in {0,1,2,3}{%
+      \node[hdobs] at ({#1+\HEEDpitch*\c},{#2-\HEEDpitch*\r}) {};}}%
+  \foreach \r/\c in {0/2,1/0,2/3}{%
+      \node[#3] at ({#1+\HEEDpitch*\c},{#2-\HEEDpitch*\r}) {};}%
+}
+
+\newcommand{\HEEDsim}[2]{%
+  \foreach \r in {0,1,2}{%
+    \foreach \c in {0,1}{%
+      \node[hdsim] at ({#1+\HEEDpitch*\c},{#2-\HEEDpitch*\r}) {};}}%
+}
+
+\newcommand{\impute}[1][1.0]{%
+\begin{tikzpicture}[
+    x=1mm, y=1mm, scale=#1,
+    every node/.style={transform shape},
+    hdcell/.style  ={minimum size=3.2mm, inner sep=0pt, draw=white, line width=.3pt},
+    hdobs/.style   ={hdcell, fill=UniversityBlue},
+    hdgap/.style   ={hdcell, fill=white, draw=black!45, line width=.45pt,
+                   dash pattern=on 1pt off .9pt},
+    hdfill/.style={hdcell, fill=LightGreen},
+    hdsim/.style   ={hdcell, fill=LightPurple, draw=DarkPurple, line width=.45pt},
+    hdnote/.style   ={font=\tiny, text=black!62, anchor=west, inner sep=0pt},
+    hdstep/.style  ={font=\tiny\bfseries, anchor=west, inner sep=0pt},
+    hdflow/.style  ={line width=.6pt, -{Stealth[length=1.5mm,width=1.2mm]}},
+  ]
+
+  % ---- what the survey collected ---------------------------------
+  \node[hdnote] at (0,4.4) {UKHLS data};
+  \HEEDgrid{0}{0}{hdgap}
+
+  % ---- step 1: the gaps the survey left --------------------------
+  \draw[hdflow, DarkGreen] (5.7,-10.8) -- (5.7,-14.8);
+  \node[hdstep, text=DarkGreen] at (13,-11.0) {1 \textperiodcentered\ impute missing obs. data ($A$, $L$, $Y$)};
+  \node[hdnote]                  at (13,-14.5) {multiple imputation (\texttt{mice})};
+
+  \HEEDgrid{0}{-18.6}{hdfill}
+
+  % ---- step 2: the lives nobody lived ----------------------------
+  \draw[hdflow, DarkPurple] (5.7,-29.4) -- (5.7,-33.4);
+  \node[hdstep, text=DarkPurple] at (13,-29.6) {2 \textperiodcentered\ impute trajectories ($Y^{a=a}$)};
+  \node[hdnote, anchor=north west, align=left] at (13,-32.2)
+       {each purple column represents\\one trajectory(\texttt{gFormulaMI})};
+  \HEEDgrid{0}{-39.7}{hdfill}
+  \HEEDsim{16.7}{-39.7}
+  \node[font=\tiny, text=DarkPurple, anchor=west, inner sep=0pt]
+       at (15.1,-50.6) {16 potential trajectories};
+
+  % ---- wave axis --------------------------------------------------
+  \foreach \c/\w in {0/1,1/2,2/3,3/4}{%
+    \node[font=\tiny, text=black!45, inner sep=0pt]
+         at ({\HEEDpitch*\c},-52.3) {\w};}
+  \node[font=\tiny, text=black!45, anchor=east, inner sep=0pt]
+       at (-2.0,-52.3) {wave};
+
+  % ---- observed vs potential ---------------------------------------
+  % Sits in the blank pocket right of the simulated block. One unit,
+  % two possible futures, only one of which becomes a record.
+  \fill[UniversityBlue] (30,-43) circle (.7mm);
+  \draw[UniversityBlue, line width=.5pt] (30.8,-42.6) -- (37,-39.8);
+  \draw[DarkPurple, line width=.5pt,
+        dash pattern=on .8pt off .8pt]   (30.8,-43.4) -- (37,-46.2);
+  \fill[UniversityBlue] (37.4,-39.6) circle (.7mm);
+  \draw[DarkPurple, fill=white, line width=.4pt] (37.4,-46.4) circle (.7mm);
+  \node[font=\tiny, text=black!62, anchor=west, inner sep=0pt]
+       at (39,-39.6) {observed};
+  \node[font=\tiny, text=DarkPurple, anchor=west, inner sep=0pt]
+       at (39,-46.4) {potential};
+
+  % ---- footnote ---------------------------------------------------
+  \path (current bounding box.south west) coordinate (hdfa)
+        (current bounding box.south east) coordinate (hdfb);
+  \draw[black!22, line width=.3pt] ([yshift=-2.4mm]hdfa) -- ([yshift=-2.4mm]hdfb);
+  \path let \p1=($(hdfb)-(hdfa)$) in
+    node[font=\tiny, text=black!55, anchor=north west, inner sep=0pt,
+         align=left, text width=\x1] at ([yshift=-3.4mm]hdfa)
+      {We estimated $Y^{a=a}-Y^{a=0}$ as our measure of interest (causal mean difference), where $Y^{a=0}$ is the always employed trajectory};
+\end{tikzpicture}%
+}
