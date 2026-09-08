@@ -27,11 +27,11 @@ if (on_slurm) {
   # pop_data, build_data, graphs plan
   plan_light <- slurm_tier(memory_gb = 8, walltime_h = 1)   
   # run_mice plan
-  plan_mice  <- slurm_tier(memory_gb = 16, walltime_h = 24)   
+  plan_mice  <- slurm_tier(memory_gb = 16, walltime_h = 36)   
   # three/four gform
   plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 12)  
   # ltmle plan
-  plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 8)
+  plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 4)
   future::plan(plan_light)                                  # default for untagged targets
 } else {
   # Off-cluster: one local plan for all targets, not recommended as it eats a loooot of RAM
@@ -69,6 +69,8 @@ tar_option_set(
     "haven",
     "ggplot2",
     "ltmle",
+    "meta",
+    "colorBlindness",
     "SuperLearner",
     "xgboost",
     "gam",
@@ -81,7 +83,7 @@ tar_option_set(
   retrieval = "worker",
   seed   = 42,
   # To avoid excess of calls to the cluster for unresolved workers from the controller.
-  backoff = tar_backoff(min = 5, max = 30, rate = 1.5)
+  backoff = tar_backoff(min = 10, max = 60, rate = 2)
 )
 
 # ---- Source extracted functions (R/) ----
@@ -89,11 +91,16 @@ for (f in list.files(here::here("R"), pattern = "\\.R$", full.names = TRUE)) sou
 
 # ---- Configuration for each function ----
 ## mice configs
-mice_m      <- 75
+mice_m      <- 100
 mice_maxit  <- 15
 seed_random <- 20260728
 ## gFormulaMI configs
-gform_M <- 75
+gform_M <- 100
+
+## meta-analysis configs
+# k = 2 studies, so Knapp-Hartung random effects would sit on t with 1 df -- see the
+# header of R/meta_analysis.R. Fixed effect is the reported model.
+ma_effects <- "fixed"
 
 ## ltmle configs
 sl_libs <- c("SL.mean", "SL.glm", "SL.gam.ltmle2", "SL.gam.ltmle3", "SL.gam.ltmle4", "SL.gam.ltmle5",
@@ -364,5 +371,36 @@ list(
       import_data(force = TRUE) |> clean_data() |> preproc_data()
     }),
   tar_target(tmle_imp_idx, seq_len(mice_m)), # listing imputed datasets so LTMLE can act over each one
-  map
+  map,
+
+  # ---- Meta-analysis: pool the two four-wave windows, one regime at a time ----
+  
+  tar_target(ma_mcs,
+    meta_analysis(gform_early = gform_mcs_four,
+                  gform_late  = gform_mcs_four_w7_w10,
+                  effects     = ma_effects)),
+  tar_target(ma_pcs,
+    meta_analysis(gform_early = gform_pcs_four,
+                  gform_late  = gform_pcs_four_w7_w10,
+                  effects     = ma_effects)),
+  tar_target(ma_mcs_ate,
+    meta_analysis(gform_early = gform_mcs_ate_four,
+                  gform_late  = gform_mcs_ate_four_w7_w10,
+                  effects     = ma_effects)),
+  tar_target(ma_pcs_ate,
+    meta_analysis(gform_early = gform_pcs_ate_four,
+                  gform_late  = gform_pcs_ate_four_w7_w10,
+                  effects     = ma_effects)),
+
+  tar_target(ma_graph,
+    make_ma_graph(
+      ma_mcs     = ma_mcs,
+      ma_mcs_ate = ma_mcs_ate,
+      ma_pcs     = ma_pcs,
+      ma_pcs_ate = ma_pcs_ate,
+      mcs_label  = "Mental Component Score (MCS)",
+      pcs_label  = "Physical Component Score (PCS)",
+      save_dir   = here::here("figs"),
+      wave_label = "pooled"
+    ))
 )
