@@ -1,7 +1,12 @@
 project:
   title: "G-formula testing"
   output-dir: reports
-format: 
+
+# Documents without their own `format:` render to both. Pick one from the
+# console with: quarto render <file>.qmd --to html   (or --to docx)
+format:
+  html:
+    embed-resources: true
   docx:
     number-sections: true
-    reference-doc: building_models/reference.docx
+    reference-doc: reports/reference.docx
