@@ -34,6 +34,21 @@ test_that("build_data runs without errors", {
   message("Is wide_data a DT object?")
   
   expect_true(data.table::is.data.table(wide_data$data))
+
+  # Regression: every other test starts at wave 3, which is the one window where a
+  # fixed t0 offset happens to be right. A later window must index from 0 just the same.
+  message("Testing build_data on a window that does not start at wave 3 (7-10)")
+
+  expect_error(wide_late <- build_data(data = pop_data,
+                                       round_start = 7,
+                                       round_end = 10,
+                                       how_many = "four",
+                                       outcome = "MCS"
+                                       ), NA)
+
+  expect_gt(nrow(wide_late$data), 0L)
+  expect_identical(attr(wide_late$data, "exposure_vars"),
+                   paste0("econ_emp_bin_fact_", 0:3))
 })
 
 ## does run_mice runs without errors
@@ -285,21 +300,591 @@ make_counterfactual_matrix(wide_data$data) |> as.data.frame() |>
                        rowNames = TRUE, 
                        colNames = TRUE)
 
-# testing effect modification functions
-test_that("effect modification functions run without errors", {
+# testing effect modification: one function, three steps (split, gform, contrast)
+test_that("effect_modification: split and gform run end to end on toy data", {
   for (f in list.files(here::here("R"), "\\.R$", full.names = TRUE)) source(f); rm(f)
-  
-  pop_data <- import_data(force = TRUE) |> clean_data() |> preproc_data()
 
-  message("Testing build_data_em with three waves and outcome MCS, modifier sex")
+  # ---- toy long panel: 300 persons x 3 waves, one row per person-wave ----
+  # Every not-employed wave so far lowers MCS by about 4 points, about 6 for men, so the
+  # contrasts sit far from null. The data seed is picked so that the two sex strata differ
+  # in size: a mids from the wrong stratum is told apart by its row count.
+  set.seed(6)
+  n   <- 300L
+  per <- rep(seq_len(n), each = 3L)          # row -> person
+  N   <- length(per)
 
-  wide_data_em <- build_data_em(data = pop_data, 
-                                              round_start = 3, 
-                                              round_end = 5, 
-                                              how_many = "three",
-                                              outcome = "MCS",
-                                              modifier = "sex"
-                                              )
+  # person level, constant across a person's waves
+  sex      <- factor(sample(c("Female", "Male"), n, replace = TRUE),
+                     levels = c("Female", "Male"))
+  race     <- factor(sample(c("White", "Non-white"), n, replace = TRUE, prob = c(0.8, 0.2)),
+                     levels = c("White", "Non-white"))
+  hiqual   <- factor(sample(c("High", "Medium", "Low"), n, replace = TRUE),
+                     levels = c("High", "Medium", "Low"))
+  hiqual[sample(n, 10L)] <- NA
+  region   <- factor(sample(c("North", "Midlands", "South"), n, replace = TRUE))
+  age      <- sample(25:65, n, replace = TRUE)
+  mcs_base <- rnorm(n, 50, 8)
+
+  # person-wave level
+  not_emp <- factor(rbinom(N, 1L, 0.3), levels = 0:1)
+  n_off   <- stats::ave(as.integer(not_emp == "1"), per, FUN = cumsum)
+  mcs     <- mcs_base[per] - n_off * (4 + 2 * (sex[per] == "Male")) + rnorm(N, 0, 5)
+  log_inc <- rnorm(N, 7.5, 0.6)
+  mcs[sample(N, round(0.1 * N))]     <- NA
+  log_inc[sample(N, round(0.1 * N))] <- NA
+
+  long <- data.table::data.table(
+    pidp                 = per,
+    t0                   = rep(0:2, times = n),
+    gor_dv_fact_base     = region[per],
+    sex_dv_base          = sex[per],
+    race_base            = race[per],
+    hiqual_dv_fact_base  = hiqual[per],
+    age_dv_base          = age[per],
+    age_dv_sq_base       = (age[per] - 45)^2,
+    sf12mcs_dv_base      = mcs_base[per],
+    gor_dv_fact          = region[per],
+    pcs_lagged           = rnorm(N, 50, 8),
+    dnc_fact_lagged      = factor(sample(c("Zero", "One", "2+"), N, replace = TRUE),
+                                  levels = c("Zero", "One", "2+")),
+    home_owner_lagged    = factor(sample(c("Renter", "Owner"), N, replace = TRUE),
+                                  levels = c("Renter", "Owner")),
+    econ_benefits_lagged = factor(sample(c("No benefits", "Benefits"), N, replace = TRUE,
+                                         prob = c(0.8, 0.2)),
+                                  levels = c("No benefits", "Benefits")),
+    mastat_dv_lagged     = factor(sample(c("Not partnered", "Partnered"), N, replace = TRUE),
+                                  levels = c("Not partnered", "Partnered")),
+    econ_emp_bin_fact    = not_emp,
+    log_income           = log_inc,
+    econ_dist_bin_fact   = factor(rbinom(N, 1L, 0.3), levels = 0:1),
+    sf12mcs_dv           = mcs
+  )
+
+  # ---- through the real make_wide() and set_exposure(), as build_data()'s MCS branch ----
+  wide_data <- long |>
+    make_wide(pidp,
+              t0,
+              base_cols = c(gor_dv_fact_base,
+                            sex_dv_base,
+                            race_base,
+                            hiqual_dv_fact_base,
+                            age_dv_base,
+                            age_dv_sq_base,
+                            sf12mcs_dv_base),
+              outcome = sf12mcs_dv,
+              mediators = c(log_income,
+                            econ_dist_bin_fact),
+              gor_dv_fact,
+              pcs_lagged,
+              dnc_fact_lagged,
+              home_owner_lagged,
+              econ_benefits_lagged,
+              mastat_dv_lagged,
+              econ_emp_bin_fact,
+              waves = c(0:2)
+              ) |>
+    data.table::as.data.table()
+  wide_data <- set_exposure(wide_data, exposure = "econ_emp_bin_fact")
+
+  intervention_pattern <- asplit(as.matrix(do.call(data.table::CJ, rep(list(0:1), 3L))), 1)
+
+  # ---- split ----
+  n_high <- sum(wide_data$hiqual_dv_fact_base == "High", na.rm = TRUE)
+
+  # 10 persons have no hiqual: they belong to no stratum of it, and the call says so
+  suppressMessages(expect_message(
+    high <- effect_modification("split", wide_data = wide_data,
+                                column = "hiqual_dv_fact_base", level = "High"),
+    "dropped 10 row\\(s\\) with missing hiqual_dv_fact_base"
+  ))
+
+  expect_s3_class(high, "data.table")
+  expect_equal(nrow(high), n_high)
+  expect_equal(high$sf12mcs_dv_base,
+               wide_data$sf12mcs_dv_base[which(wide_data$hiqual_dv_fact_base == "High")])
+
+  # the constant modifier column goes, and nothing else does
+  dropped <- setdiff(names(wide_data), names(high))
+  expect_identical(dropped, "hiqual_dv_fact_base")
+  expect_identical(names(high), setdiff(names(wide_data), dropped))
+
+  # the make_wide()/set_exposure() attributes are restamped without it, and only without it
+  expect_false("hiqual_dv_fact_base" %in% attr(high, "baseline_vars"))
+  expect_identical(attr(high, "baseline_vars"),
+                   setdiff(attr(wide_data, "baseline_vars"), dropped))
+  for (a in c("time_lagged", "time_varying", "outcome_vars", "mediators", "exposure_vars",
+              "outcome_final", "outcome_baseline", "time_points")) {
+    expect_identical(attr(high, a), attr(wide_data, a), info = a)
+  }
+
+  expect_error(effect_modification("split", wide_data = wide_data,
+                                   column = "hiqual_dv_fact_base", level = "Very high"),
+               "Very high")
+
+  # the split is stored as an rds target and read back by run_mice() and the gform step, so
+  # every attribute has to survive the round trip: only the data.table self-reference
+  # pointer is rebuilt on read
+  pipeline_attrs <- c("baseline_vars", "time_lagged", "time_varying", "outcome_vars",
+                      "mediators", "exposure_vars", "outcome_final", "outcome_baseline",
+                      "time_points")
+  rds <- tempfile(fileext = ".rds")
+  saveRDS(high, rds)
+  high_back <- readRDS(rds)
+  unlink(rds)
+
+  without_selfref <- \(x) {
+    a <- attributes(x)
+    a <- a[setdiff(names(a), ".internal.selfref")]
+    a[sort(names(a))]
+  }
+  expect_true(all(pipeline_attrs %in% names(attributes(high_back))))
+  expect_identical(without_selfref(high_back), without_selfref(high))
+  expect_identical(as.data.frame(high_back), as.data.frame(high))
+
+  # ---- gform on the Male stratum ----
+  male   <- suppressMessages(effect_modification("split", wide_data = wide_data,
+                                                 column = "sex_dv_base", level = "Male"))
+  female <- suppressMessages(effect_modification("split", wide_data = wide_data,
+                                                 column = "sex_dv_base", level = "Female"))
+  expect_false(nrow(male) == nrow(female))
+
+  invisible(utils::capture.output(
+    mids_male <- suppressMessages(run_mice(male, m = 5, maxit = 2, seed = 1))
+  ))
+  labels <- list(outcome = "mcs", window = "toy", modifier = "sex", stratum = "male")
+
+  # gFormulaImpute calls mice() once per imputation (M = 5), not once per regime (8)
+  set.seed(11)
+  suppressMessages(expect_message(
+    res <- effect_modification("gform", stratum = male, mids = mids_male,
+                               intervention_pattern = intervention_pattern, M = 5,
+                               nSim = 2L * nrow(male), labels = labels),
+    "5 mice\\(\\) call\\(s\\)"
+  ))
+
+  expect_s3_class(res, "tbl_df")
+  expect_equal(nrow(res), 2L * 8L)
+  expect_named(res, c("outcome", "window", "modifier", "stratum", "stratum_n", "estimand",
+                      "term", "intervention", "mi_effect", "mi_se", "mi_df", "mi_ll",
+                      "mi_ul"))
+  expect_equal(res$estimand, rep(c("marginal", "diff"), each = 8L))
+  expect_equal(res$term[res$estimand == "marginal"], paste0("factor(regime)", 1:8))
+  expect_equal(res$term[res$estimand == "diff"],
+               c("(Intercept)", paste0("factor(regime)", 2:8)))
+  expect_equal(res$intervention,
+               rep(purrr::map_chr(intervention_pattern, paste, collapse = "-"), times = 2L))
+  for (nm in names(labels)) expect_equal(unique(res[[nm]]), labels[[nm]], info = nm)
+  expect_true(all(is.finite(res$mi_effect)))
+  # plain columns: the coefficient names must not ride along into the tibble
+  expect_null(names(res$mi_effect))
+  # all-unemployed against all-employed: the toy data lower MCS, far from null
+  expect_lt(res$mi_effect[res$estimand == "diff" & res$intervention == "1-1-1"], 0)
+
+  # the stratum's own n, as an integer. `stratum` is also a label here, so this fails if
+  # nrow(stratum) is read off the label column instead of the data
+  expect_type(res$stratum_n, "integer")
+  expect_identical(res$stratum_n, rep(nrow(male), 16L))
+
+  # a mids imputed from the other stratum of the same modifier is refused
+  invisible(utils::capture.output(
+    mids_female <- suppressMessages(run_mice(female, m = 2, maxit = 1, seed = 1))
+  ))
+  expect_error(
+    effect_modification("gform", stratum = male, mids = mids_female,
+                        intervention_pattern = intervention_pattern, M = 5,
+                        nSim = 2L * nrow(male), labels = labels),
+    "not imputed from this"
+  )
+
+  # a mids with one imputation has no between-imputation variance to pool, so it is
+  # refused up front, before gFormulaImpute() does any work
+  invisible(utils::capture.output(
+    mids_one <- suppressMessages(run_mice(male, m = 1, maxit = 1, seed = 1))
+  ))
+  impute_called <- FALSE
+  testthat::with_mocked_bindings(
+    expect_error(
+      effect_modification("gform", stratum = male, mids = mids_one,
+                          intervention_pattern = intervention_pattern, M = 5,
+                          nSim = 2L * nrow(male), labels = labels),
+      "m = 1.*at least 2"
+    ),
+    gFormulaImpute = function(...) {
+      impute_called <<- TRUE
+      stop("gFormulaImpute must not be reached")
+    },
+    .package = "gFormulaMI"
+  )
+  expect_false(impute_called)
+
+  # ---- pooling on imputations built by hand: no RNG, every number is known ----
+  # gFormulaImpute() is replaced by a mids of M = 4 synthetic datasets, 8 regimes x 6 rows.
+  # In dataset j the outcome of regime r is the fixed mean mu[j, r] plus the same residual
+  # pattern `e` (it sums to 0) every time, so the regime mean in dataset j is exactly
+  # mu[j, r] and the residual variance is the same in all datasets.
+  e   <- c(-2, -1, 0, 0, 1, 2)
+  reg <- factor(rep(1:8, each = length(e)))
+  of  <- attr(male, "outcome_final")
+
+  hand_imps <- function(mu) {
+    orig <- data.frame(.imp = 0L, .id = seq_along(reg), regime = reg)
+    orig[[of]] <- NA_real_
+    sets <- lapply(seq_len(nrow(mu)), \(j) {
+      d <- data.frame(.imp = j, .id = seq_along(reg), regime = reg)
+      d[[of]] <- rep(mu[j, ], each = length(e)) + e
+      d
+    })
+    mice::as.mids(do.call(rbind, c(list(orig), sets)))
+  }
+
+  # the gform step with gFormulaImpute() (and, if given, syntheticPool()) replaced
+  gform_with <- function(impute, pool = gFormulaMI::syntheticPool, nSim = 2L * nrow(male)) {
+    testthat::with_mocked_bindings(
+      suppressMessages(
+        effect_modification("gform", stratum = male, mids = mids_male,
+                            intervention_pattern = intervention_pattern, M = 5,
+                            nSim = nSim, labels = labels)
+      ),
+      gFormulaImpute = impute,
+      syntheticPool  = pool,
+      .package = "gFormulaMI"
+    )
+  }
+
+  # regime 5 is regime 1 plus 10 in every dataset, so its contrast against regime 1 is the
+  # same in every dataset: its between-imputation variance is 0 in the difference fit
+  mu_bad <- rbind(c(10, 12, 31, 38, 20, 61, 70, 79),
+                  c(14, 25, 29, 47, 24, 55, 68, 90),
+                  c( 7, 21, 38, 41, 17, 66, 77, 85),
+                  c(13, 18, 35, 52, 23, 58, 73, 82))
+  stopifnot(all(mu_bad[, 5] - mu_bad[, 1] == 10))
+  # the same, except that regime 5 now moves independently of regime 1
+  mu_ok <- mu_bad
+  mu_ok[, 5] <- c(20, 28, 14, 29)
+
+  # built here, outside the gform step, because it traces mice()
+  imps_bad <- hand_imps(mu_bad)
+  imps_ok  <- hand_imps(mu_ok)
+
+  # every total variance is positive: both fits go through the real syntheticPool(), and the
+  # result columns are its table, marginal fit first: Estimate, sqrt(Total), df and the CI
+  real_pool <- gFormulaMI::syntheticPool
+  seen      <- list()
+  res_ok <- gform_with(
+    \(...) imps_ok,
+    pool = \(fits) {
+      seen[[length(seen) + 1L]] <<- fits
+      real_pool(fits)
+    }
+  )
+  expect_length(seen, 2L)
+  pooled <- do.call(rbind, lapply(seen, real_pool))
+  expect_equal(res_ok$mi_effect, unname(pooled[, "Estimate"]))
+  expect_equal(res_ok$mi_se,     unname(sqrt(pooled[, "Total"])))
+  expect_equal(res_ok$mi_df,     unname(pooled[, "df"]))
+  expect_equal(res_ok$mi_ll,     unname(pooled[, "95% CI L"]))
+  expect_equal(res_ok$mi_ul,     unname(pooled[, "95% CI U"]))
+  expect_false(anyNA(res_ok))
+
+  # one bad term: the real syntheticPool() stops on the diff fit, so the inline rule takes
+  # over for it. The warning names the stratum, the estimand, the term and the original
+  # error, and only that term is blanked
+  expect_warning(
+    res_bad <- gform_with(\(...) imps_bad),
+    paste0("^effect_modification: \\[mcs/toy/sex/male\\] diff: total variance <= 0 for ",
+           "term\\(s\\) factor\\(regime\\)5, so mi_se, mi_df, mi_ll and mi_ul are NA\\. ",
+           ".*\\(syntheticPool: Some parameters have estimated total variances")
+  )
+  is_bad <- res_bad$estimand == "diff" & res_bad$term == "factor(regime)5"
+  expect_equal(sum(is_bad), 1L)
+  expect_true(all(is.na(res_bad[is_bad, c("mi_se", "mi_df", "mi_ll", "mi_ul")])))
+  expect_equal(res_bad$mi_effect[is_bad], 10)            # the contrast itself survives
+  expect_true(all(is.finite(res_bad$mi_effect)))
+  expect_false(anyNA(res_bad[!is_bad, ]))
+  # and the good terms are what the real syntheticPool() gives for them: mu_ok differs from
+  # mu_bad only by a constant shift of regime 5 in each dataset, which changes nothing but
+  # the terms for regime 5 (the residuals, and so every variance, stay the same), and the
+  # real function succeeds on mu_ok. So it is the reference for all the other terms
+  not5 <- res_bad$term != "factor(regime)5"
+  for (col in c("mi_effect", "mi_se", "mi_df", "mi_ll", "mi_ul")) {
+    expect_equal(res_bad[[col]][not5], res_ok[[col]][not5], info = col)
+  }
+
+  # every imputation identical: the between-imputation variance is 0, so no total is > 0.
+  # Every se, df and CI is NA, the estimates stay, and nSim reaches gFormulaImpute().
+  # Both fits warn, once each. A call of expect_warning() claims the warning it matches;
+  # the other one goes to suppressWarnings(), whichever way the testthat edition treats it.
+  same <- data.frame(regime = reg)
+  same[[of]] <- 10 * as.integer(reg) + rep(e, times = 8L)
+  degenerate <- mice::mice(same, m = 3, maxit = 0, printFlag = FALSE)
+  seen_nsim  <- NULL
+  impute_degenerate <- \(data, M, trtVars, trtRegimes, nSim, ...) {
+    seen_nsim <<- nSim
+    degenerate
+  }
+  suppressWarnings(expect_warning(
+    res_deg <- gform_with(impute_degenerate, nSim = 77L),
+    "\\[mcs/toy/sex/male\\] marginal: total variance <= 0 for term\\(s\\) factor\\(regime\\)1,"
+  ))
+  suppressWarnings(expect_warning(
+    gform_with(impute_degenerate, nSim = 77L),
+    "\\[mcs/toy/sex/male\\] diff: total variance <= 0 for term\\(s\\) \\(Intercept\\),"
+  ))
+  expect_identical(seen_nsim, 77L)
+  expect_equal(nrow(res_deg), 16L)
+  expect_true(all(is.finite(res_deg$mi_effect)))
+  expect_true(all(is.na(res_deg[c("mi_se", "mi_df", "mi_ll", "mi_ul")])))
+
+  # a syntheticPool() failure that is not a bad total is not the fallback's to absorb:
+  # here every total is positive, so the original error comes through
+  expect_error(
+    gform_with(\(...) imps_ok, pool = \(fits) stop("boom")),
+    "boom"
+  )
+
+  # ---- back to the real run: its mi_df follows the same rules, whichever way it pooled ----
+  # mi_df goes NA exactly where mi_se does, and the CI is the estimate +/- t(mi_df) * mi_se.
+  # (Last, because a missing mi_df makes the qt() call an error rather than a failure)
+  ok <- !is.na(res$mi_se)
+  expect_true(any(ok))
+  expect_identical(is.na(res$mi_df), is.na(res$mi_se))
+  expect_true(all(res$mi_df[ok] > 0))
+  half <- (stats::qt(0.975, res$mi_df) * res$mi_se)[ok]
+  expect_equal(res$mi_ul[ok] - res$mi_effect[ok], half)
+  expect_equal(res$mi_effect[ok] - res$mi_ll[ok], half)
+})
+
+test_that("effect_modification: contrast reproduces hand-computed delta and Q", {
+  for (f in list.files(here::here("R"), "\\.R$", full.names = TRUE)) source(f); rm(f)
+
+  # one contrast per stratum: regime 8 ("1-1-1") against the reference regime. Infinite
+  # df make the t reference the normal one, so the expected values are the z-based ones.
+  # stratum_n rides along, as it does in the "gform" output
+  contrasts <- tibble::tribble(
+    ~modifier, ~stratum, ~mi_effect, ~mi_se,
+    "sex",     "male",   -2,         0.3,
+    "sex",     "female", -3,         0.4,
+    "hiqual",  "high",   -1,         0.5,
+    "hiqual",  "medium", -2,         0.5,
+    "hiqual",  "low",    -4,         1.0
+  ) |>
+    dplyr::mutate(outcome = "mcs", window = "toy", estimand = "diff",
+                  term = "factor(regime)8", intervention = "1-1-1",
+                  stratum_n = 100L, mi_df = Inf)
+
+  # rows that must not reach delta or Q, given wild values: the intercept of the diff fit
+  # (the mean under the reference regime) and the marginal means
+  ignored <- dplyr::bind_rows(
+    dplyr::mutate(contrasts, term = "(Intercept)", mi_effect = 50, mi_se = 0.01),
+    dplyr::mutate(contrasts, estimand = "marginal", mi_effect = 999, mi_se = 0.001)
+  )
+  results   <- dplyr::bind_rows(ignored, contrasts)
+  reference <- c(sex = "male", hiqual = "high")
+
+  res <- effect_modification("contrast", results = results, reference = reference)
+
+  expect_named(res, c("delta", "q"))
+  # stratum_n is neither carried nor allowed to turn into .x/.y columns
+  expect_named(res$delta, c("outcome", "window", "modifier", "intervention", "stratum",
+                            "reference", "delta", "delta_se", "delta_df", "delta_ll",
+                            "delta_ul", "delta_p"))
+  expect_named(res$q, c("outcome", "window", "modifier", "intervention", "k", "q", "q_df",
+                        "q_p", "min_mi_df"))
+
+  # delta: one row per non-reference stratum
+  expected_delta <- tibble::tribble(
+    ~modifier, ~stratum, ~reference, ~delta, ~delta_se,    ~delta_ll,     ~delta_ul,     ~delta_p,
+    "hiqual",  "low",    "high",     -3,     1.1180339887, -5.1913063514, -0.8086936486, 0.0072903581,
+    "hiqual",  "medium", "high",     -1,     0.7071067812, -2.3859038243, 0.3859038243,  0.1572992071,
+    "sex",     "female", "male",     -1,     0.5,          -1.9799819923, -0.0200180077, 0.0455002639
+  )
+  got_delta <- dplyr::arrange(res$delta, modifier, stratum)
+
+  expect_equal(nrow(got_delta), 3L)
+  expect_equal(got_delta$modifier,     expected_delta$modifier)
+  expect_equal(got_delta$stratum,      expected_delta$stratum)
+  expect_equal(got_delta$reference,    expected_delta$reference)
+  expect_equal(unique(got_delta$outcome),      "mcs")
+  expect_equal(unique(got_delta$window),       "toy")
+  expect_equal(unique(got_delta$intervention), "1-1-1")
+  for (col in c("delta", "delta_se", "delta_ll", "delta_ul", "delta_p")) {
+    expect_equal(got_delta[[col]], expected_delta[[col]], tolerance = 1e-8, info = col)
+  }
+  # two infinite df give an infinite delta df, and so the normal reference
+  expect_true(all(got_delta$delta_df == Inf))
+
+  # q: one row per modifier
+  expected_q <- tibble::tribble(
+    ~modifier, ~k, ~q,           ~q_df, ~q_p,
+    "hiqual",  3,  7.5555555556, 2,     0.0228734649,
+    "sex",     2,  4.0000000000, 1,     0.0455002639
+  )
+  got_q <- dplyr::arrange(res$q, modifier)
+
+  expect_equal(nrow(got_q), 2L)
+  expect_equal(got_q$modifier, expected_q$modifier)
+  expect_equal(unique(got_q$outcome),      "mcs")
+  expect_equal(unique(got_q$window),       "toy")
+  expect_equal(unique(got_q$intervention), "1-1-1")
+  for (col in c("k", "q", "q_df", "q_p")) {
+    expect_equal(got_q[[col]], expected_q[[col]], tolerance = 1e-8, info = col)
+  }
+  expect_true(all(got_q$min_mi_df == Inf))
+
+  # a modifier in results without a reference entry, or whose reference stratum is not
+  # in results, or a results table without a required column, is refused
+  expect_error(effect_modification("contrast", results = results,
+                                   reference = c(sex = "male")),
+               "hiqual")
+  expect_error(effect_modification("contrast", results = results,
+                                   reference = c(sex = "male", hiqual = "very high")),
+               "very high")
+  expect_error(effect_modification("contrast", results = dplyr::select(results, -mi_se),
+                                   reference = reference),
+               "missing: mi_se")
+  expect_error(effect_modification("contrast", results = dplyr::select(results, -mi_df),
+                                   reference = reference),
+               "missing: mi_df")
+
+  # a missing mi_se propagates: NA delta_se for that stratum, NA q for its modifier
+  na_results <- dplyr::mutate(
+    results,
+    mi_se = dplyr::if_else(modifier == "hiqual" & stratum == "low" &
+                             estimand == "diff" & term != "(Intercept)",
+                           NA_real_, mi_se)
+  )
+  res_na   <- effect_modification("contrast", results = na_results, reference = reference)
+  delta_na <- dplyr::arrange(res_na$delta, modifier, stratum)
+  q_na     <- dplyr::arrange(res_na$q, modifier)
+
+  expect_true(all(is.na(delta_na[1, c("delta_se", "delta_df", "delta_ll", "delta_ul",
+                                      "delta_p")])))
+  expect_equal(delta_na$delta[1], -3)
+  expect_false(anyNA(delta_na[2:3, c("delta_se", "delta_df", "delta_ll", "delta_ul",
+                                     "delta_p")]))
+  expect_true(is.na(q_na$q[q_na$modifier == "hiqual"]))
+  expect_true(is.na(q_na$q_p[q_na$modifier == "hiqual"]))
+  expect_false(is.na(q_na$q[q_na$modifier == "sex"]))
+})
+
+test_that("effect_modification: contrast takes its t reference from the strata's own df", {
+  for (f in list.files(here::here("R"), "\\.R$", full.names = TRUE)) source(f); rm(f)
+
+  # one outcome x window x intervention, one contrast term, sex with male as reference
+  results <- tibble::tibble(
+    outcome = "mcs", window = "toy", modifier = "sex", intervention = "1-1-1",
+    stratum = c("male", "female"), estimand = "diff", term = "factor(regime)8",
+    mi_effect = c(2, 1), mi_se = c(0.3, 0.4), mi_df = c(20, 10)
+  )
+  res <- effect_modification("contrast", results = results, reference = c(sex = "male"))
+
+  # Constants worked out by hand, not by the formula under test.
+  #   delta    = 1 - 2 = -1
+  #   delta_se = sqrt(0.4^2 + 0.3^2) = 0.5
+  #   delta_df = 0.5^4 / (0.4^4 / 10 + 0.3^4 / 20) = 0.0625 / 0.002965 = 21.0792580101
+  #   t(0.975, 21.0792580101) = 2.0791378290, so the CI is -1 -/+ 2.0791378290 * 0.5
+  #   p        = 2 * pt(-|-1 / 0.5|, 21.0792580101) = 0.0585499975 (z would give 0.0455)
+  #   Q        = (2 - 1)^2 / (0.3^2 + 0.4^2) = 4, on 1 df: p = 0.0455002639
+  #   min_mi_df = min(20, 10) = 10
+  expect_equal(nrow(res$delta), 1L)
+  expect_equal(res$delta$delta,    -1,            tolerance = 1e-8)
+  expect_equal(res$delta$delta_se, 0.5,           tolerance = 1e-8)
+  expect_equal(res$delta$delta_df, 21.0792580101, tolerance = 1e-8)
+  expect_equal(res$delta$delta_ll, -2.0395689145, tolerance = 1e-8)
+  expect_equal(res$delta$delta_ul, 0.0395689145,  tolerance = 1e-8)
+  expect_equal(res$delta$delta_p,  0.0585499975,  tolerance = 1e-8)
+
+  expect_equal(nrow(res$q), 1L)
+  expect_equal(res$q$k,         2L)
+  expect_equal(res$q$q,         4,            tolerance = 1e-8)
+  expect_equal(res$q$q_df,      1,            tolerance = 1e-8)
+  expect_equal(res$q$q_p,       0.0455002639, tolerance = 1e-8)
+  expect_equal(res$q$min_mi_df, 10,           tolerance = 1e-8)
+
+  # one infinite df drops out of the Welch-Satterthwaite sum; no special case is needed:
+  # 0.25^2 / (0.4^4 / 10) = 24.4140625
+  inf_ref <- dplyr::mutate(results, mi_df = c(Inf, 10))
+  res_inf <- effect_modification("contrast", results = inf_ref, reference = c(sex = "male"))
+  expect_equal(res_inf$delta$delta_df, 24.4140625, tolerance = 1e-8)
+  expect_equal(res_inf$q$min_mi_df, 10)
+
+  # a missing df makes every t-based cell NA, and min_mi_df too; the z-free ones stay
+  na_df     <- dplyr::mutate(results, mi_df = c(20, NA))
+  res_na_df <- effect_modification("contrast", results = na_df, reference = c(sex = "male"))
+  expect_true(all(is.na(res_na_df$delta[c("delta_df", "delta_ll", "delta_ul", "delta_p")])))
+  expect_equal(res_na_df$delta$delta, -1)
+  expect_equal(res_na_df$delta$delta_se, 0.5)
+  expect_true(is.na(res_na_df$q$min_mi_df))
+  expect_equal(res_na_df$q$q, 4, tolerance = 1e-8)
+})
+
+test_that("effect_modification: contrast handles one stratum, duplicated keys, a missing reference", {
+  for (f in list.files(here::here("R"), "\\.R$", full.names = TRUE)) source(f); rm(f)
+
+  results <- tibble::tribble(
+    ~modifier, ~stratum, ~mi_effect, ~mi_se, ~mi_df,
+    "sex",     "male",   -2,         0.3,    20,
+    "sex",     "female", -3,         0.4,    10,
+    "hiqual",  "high",   -1,         0.5,    30,
+    "hiqual",  "medium", -2,         0.5,    25,
+    "hiqual",  "low",    -4,         1.0,    15
+  ) |>
+    dplyr::mutate(outcome = "mcs", window = "toy", estimand = "diff",
+                  term = "factor(regime)8", intervention = "1-1-1")
+  reference <- c(sex = "male", hiqual = "high")
+
+  # a modifier with one stratum has no heterogeneity to test: q, q_df and q_p are NA, not
+  # 0, 0 and 1, but k and min_mi_df are still reported, and the column types do not change
+  one_sex <- dplyr::filter(results, !(modifier == "sex" & stratum == "female"))
+  res_one <- effect_modification("contrast", results = one_sex, reference = reference)
+  q_one   <- dplyr::arrange(res_one$q, modifier)
+
+  expect_equal(q_one$modifier, c("hiqual", "sex"))
+  expect_equal(q_one$k, c(3L, 1L))
+  expect_true(all(is.na(q_one[2, c("q", "q_df", "q_p")])))
+  expect_false(anyNA(q_one[1, c("q", "q_df", "q_p")]))
+  expect_equal(q_one$min_mi_df, c(15, 20))
+  expect_type(q_one$q,    "double")
+  expect_type(q_one$q_df, "integer")
+  expect_type(q_one$q_p,  "double")
+  expect_false("sex" %in% res_one$delta$modifier)       # no stratum left to contrast
+
+  # and when every group has one stratum the columns keep their types too
+  only_one <- effect_modification("contrast", results = dplyr::filter(one_sex, modifier == "sex"),
+                                  reference = c(sex = "male"))
+  expect_equal(nrow(only_one$q), 1L)
+  expect_true(is.na(only_one$q$q) && is.na(only_one$q$q_df) && is.na(only_one$q$q_p))
+  expect_type(only_one$q$q,    "double")
+  expect_type(only_one$q$q_df, "integer")
+  expect_type(only_one$q$q_p,  "double")
+  expect_equal(nrow(only_one$delta), 0L)
+
+  # a repeated key (a stratum bound twice, a target built twice) is refused, and the
+  # message names the first one
+  dup <- dplyr::bind_rows(results, results[2, ])
+  expect_error(effect_modification("contrast", results = dup, reference = reference),
+               "duplicated")
+  expect_error(effect_modification("contrast", results = dup, reference = reference),
+               "modifier = sex, stratum = female, estimand = diff, term = factor\\(regime\\)8")
+  expect_error(effect_modification("contrast", results = dplyr::bind_rows(results, results),
+                                   reference = reference),
+               "stratum = male")        # the first repeated row is the first male row
+
+  # a window without the reference stratum: no error, NA cells for that window's deltas
+  # (the join finds nothing), and the windows that have it are unaffected
+  no_ref <- results |>
+    dplyr::filter(!(modifier == "sex" & stratum == "male")) |>
+    dplyr::mutate(window = "toy2")
+  both   <- dplyr::bind_rows(results, no_ref)
+  res_nr <- effect_modification("contrast", results = both, reference = reference)
+
+  cells  <- c("delta", "delta_se", "delta_df", "delta_ll", "delta_ul", "delta_p")
+  d_toy2 <- dplyr::filter(res_nr$delta, window == "toy2", modifier == "sex")
+  expect_equal(nrow(d_toy2), 1L)
+  expect_equal(d_toy2$stratum, "female")
+  expect_true(all(is.na(d_toy2[cells])))
+  expect_false(anyNA(dplyr::filter(res_nr$delta, window == "toy")[cells]))
+  expect_false(anyNA(dplyr::filter(res_nr$delta, window == "toy2", modifier == "hiqual")[cells]))
 })
 
 #### Testing LTMLE functions
@@ -577,4 +1162,74 @@ test_that("pool_ltmle averages the cum.g diagnostics across imputations", {
     }, numeric(nrow(g)))
     expect_equal(g[[cl]], rowMeans(per_imp), tolerance = 1e-10, info = cl)
   }
+})
+
+test_that("meta_analysis pools the two wave-sets", {
+  source(here::here("R", "meta_analysis.R"))
+
+  regs <- c("0-0-0-0", "1-0-1-0", "1-1-1-1")
+  mk <- function(eff, se) {
+    tibble::tibble(intervention = regs, mi_effect = eff, mi_se = se,
+                   mi_ll = eff - 1.96 * se, mi_ul = eff + 1.96 * se)
+  }
+  # Regime 1 is the equal-SE pair, so its fixed-effect pool must be the plain
+  # mean. Regime 3 is identical in both arms, so its tau2 must be exactly 0.
+  early <- list(results = mk(c(50, 47, 44), c(0.5, 0.4, 0.6)))
+  late  <- list(results = mk(c(52, 46, 44), c(0.5, 0.7, 0.6)))
+
+  fx <- meta_analysis(early, late, effects = "fixed")
+  rm_ <- suppressMessages(meta_analysis(early, late, effects = "random"))
+
+  # shape and ordering follow the early arm
+  for (ma in list(fx, rm_)) {
+    expect_named(ma, c("results", "fits"))
+    expect_equal(ma$results$intervention, regs)
+    expect_equal(names(ma$fits), regs)
+    expect_true(all(vapply(ma$fits, inherits, logical(1), "meta")))
+  }
+  expect_equal(fx$results$effects, rep("fixed", length(regs)))
+  expect_equal(rm_$results$effects, rep("random", length(regs)))
+
+  # inverse variance on two equally precise estimates is their arithmetic mean
+  expect_equal(fx$results$mi_effect[1], 51)
+  # and pooling never leaves the interval spanned by the two inputs
+  expect_true(all(fx$results$mi_effect >=
+                    pmin(early$results$mi_effect, late$results$mi_effect)))
+  expect_true(all(fx$results$mi_effect <=
+                    pmax(early$results$mi_effect, late$results$mi_effect)))
+  # pooling two studies is more precise than either one alone
+  expect_true(all(fx$results$mi_se <
+                    pmin(early$results$mi_se, late$results$mi_se)))
+
+  # Knapp-Hartung is t on k - 1 = 1 df, so the random interval is wider even
+  # where tau2 is zero and the two models share a standard error.
+  expect_equal(rm_$results$tau2[3], 0)
+  expect_equal(rm_$results$mi_se[3], fx$results$mi_se[3])
+  expect_true(all((rm_$results$mi_ul - rm_$results$mi_ll) >
+                    (fx$results$mi_ul - fx$results$mi_ll)))
+
+  # The HK variance rescales by Q / (k - 1), so regime 3 -- identical in both
+  # wave-sets, hence Q = 0 -- collapses to a zero-width interval without the
+  # ad hoc correction. That collapse is exactly what the default guards.
+  raw <- suppressMessages(meta_analysis(early, late, effects = "random",
+                                        adhoc.hakn.ci = ""))
+  expect_equal(raw$results$Q[3], 0)
+  expect_equal(raw$results$mi_se[3], 0)
+  expect_equal(raw$results$mi_ul[3] - raw$results$mi_ll[3], 0)
+  # and it leaves the heterogeneous regimes alone
+  expect_equal(raw$results$mi_se[1:2], rm_$results$mi_se[1:2])
+
+  # no column carries the regime names through from the fits list
+  expect_true(all(vapply(rm_$results, \(x) is.null(names(x)), logical(1))))
+
+  # a bare tibble is accepted in place of the run_gform() wrapper
+  expect_equal(meta_analysis(early$results, late$results)$results, fx$results)
+
+  # disagreeing regime sets are a hard error, as in pool_ltmle()
+  clash <- list(results = dplyr::mutate(late$results,
+                                        intervention = c(regs[1:2], "0-1-0-1")))
+  expect_error(meta_analysis(early, clash), "disagree on the regime set")
+  # so is a table that is not a gFormulaMI result
+  expect_error(meta_analysis(early, list(results = tibble::tibble(x = 1))),
+               "missing column")
 })

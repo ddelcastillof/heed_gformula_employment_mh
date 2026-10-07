@@ -272,6 +272,70 @@ map_ltmle_three <- tar_map(
     resources = tar_resources(future = tar_resources_future(plan = plan_mice)))
 )
 
+# ---- Effect modification: stratified gFormulaMI per modifier level ----
+## one row per stratum; the first row of each modifier is its reference stratum
+em_spec <- tibble::tribble(
+  ~em_modifier, ~em_stratum, ~em_column,            ~em_level,
+  "sex",        "male",      "sex_dv_base",         "Male",
+  "sex",        "female",    "sex_dv_base",         "Female",
+  "race",       "white",     "race_base",           "White",
+  "race",       "nonwhite",  "race_base",           "Non-white",
+  "hiqual",     "high",      "hiqual_dv_fact_base", "High",
+  "hiqual",     "medium",    "hiqual_dv_fact_base", "Medium",
+  "hiqual",     "low",       "hiqual_dv_fact_base", "Low"
+)
+em_reference <- rlang::set_names(em_spec$em_stratum[!duplicated(em_spec$em_modifier)],
+                                 em_spec$em_modifier[!duplicated(em_spec$em_modifier)])
+em_windows  <- wave_spec_one$label
+em_outcomes <- c("mcs", "pcs")
+em_grid <- tidyr::expand_grid(em_window = em_windows, em_outcome = em_outcomes, em_spec)
+em_grid$em_wide <- rlang::syms(paste0("wide_data_", em_grid$em_outcome, "_", em_grid$em_window))
+
+map_em <- tar_map(
+  values = em_grid,
+  names  = c("em_outcome", "em_modifier", "em_stratum", "em_window"),
+  unlist = FALSE,
+
+  # Cut one stratum out of the wide data (cheap, so it stays on the default plan)
+  tar_target(em_data,
+    effect_modification("split",
+                        wide_data = em_wide$data,
+                        column = em_column,
+                        level = em_level),
+    error = "abridge",
+    deployment = "main"),
+
+  # mice imputation inside the stratum
+  tar_target(em_mids,
+    run_mice(wide_data = em_data,
+             m = mice_m,
+             maxit = mice_maxit,
+             seed = seed_random),
+    error = "abridge",
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+
+  # gFormulaMI inside the stratum: marginal means + contrasts against the first regime
+  tar_target(em_gform,
+    effect_modification("gform",
+                        stratum = em_data,
+                        mids = em_mids,
+                        intervention_pattern = em_wide$intervention_pattern,
+                        M = gform_M,
+                        nSim = 2L * nrow(em_data),
+                        labels = list(outcome = em_outcome,
+                                      window = em_window,
+                                      modifier = em_modifier,
+                                      stratum = em_stratum)),
+    error = "abridge",
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform)))
+)
+
+# All strata, one table
+em_combined <- tar_combine(em_results, 
+                           map_em[["em_gform"]], 
+                           command = dplyr::bind_rows(!!!.x),
+                           deployment = "main")
+
 # ---- Pipeline: shared import + the mapped per-wave-set chains ----
 list(
   # Data preparation: import, clean, preprocessing (shared across every wave-set).
@@ -313,5 +377,14 @@ list(
       pcs_label  = "Physical Component Score (PCS)",
       save_dir   = here::here("figs"),
       wave_label = "pooled"
-    ))
+    )),
+
+  # ---- Effect modification: stratified chains, one table, delta + Q across strata ----
+  map_em,
+  em_combined,
+  tar_target(em_contrasts,
+    effect_modification("contrast",
+                        results = em_results,
+                        reference = em_reference),
+                      deployment = "main")
 )
