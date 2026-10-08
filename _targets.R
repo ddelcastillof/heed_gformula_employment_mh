@@ -321,7 +321,7 @@ map_em <- tar_map(
                         mids = em_mids,
                         intervention_pattern = em_wide$intervention_pattern,
                         M = gform_M,
-                        nSim = 2L * nrow(em_data),
+                        nSim = 4L * nrow(em_data),
                         labels = list(outcome = em_outcome,
                                       window = em_window,
                                       modifier = em_modifier,
@@ -386,5 +386,16 @@ list(
     effect_modification("contrast",
                         results = em_results,
                         reference = em_reference),
-                      deployment = "main")
+                      deployment = "main"),
+
+  # Plots: one forest plot per window, the strata of each modifier side by side
+  tar_target(em_graph,
+    make_em_graph(
+      em_results      = em_results,
+      stratum_labels  = rlang::set_names(em_spec$em_level, em_spec$em_stratum),
+      modifier_labels = c(sex = "Sex", race = "Race", hiqual = "Education"),
+      min_df          = 5,
+      save_dir        = here::here("figs")
+    ),
+    deployment = "main")
 )
