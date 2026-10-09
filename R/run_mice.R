@@ -5,23 +5,23 @@ run_mice <- function(wide_data, m = 5, maxit = 10, seed = 20260522) {
   method_by_group <- c(
     # time-invariant baseline confounders (columns end in _base)
     sex_dv               = "logreg",
-    hiqual_dv_fact       = "pmm",
+    hiqual_dv_fact       = "polr",
     race                 = "logreg",
     age_dv               = "norm",
     # time-varying confounders (NOT lagged), also time-invariant
-    gor_dv_fact          = "pmm",
+    gor_dv_fact          = "polyreg",
     # SF-12 scores: baseline (_base) and outcome
-    sf12mcs_dv           = "pmm",
-    sf12pcs_dv           = "pmm",
+    sf12mcs_dv           = "cart",
+    sf12pcs_dv           = "cart",
     # mediators / exposure
     econ_dist_bin_fact   = "logreg",
-    log_income           = "pmm",
+    log_income           = "cart",
     econ_emp_bin_fact    = "logreg",   # exposure
     # lagged confounders mcs and pcs
-    pcs_lagged           = "pmm",
-    mcs_lagged           = "pmm",
+    pcs_lagged           = "cart",
+    mcs_lagged           = "cart",
     # other lagged confounders
-    dnc_fact_lagged      = "pmm",
+    dnc_fact_lagged      = "polr",
     home_owner_lagged    = "logreg",
     econ_benefits_lagged = "logreg",
     mastat_dv_lagged     = "logreg"

@@ -1,0 +1,130 @@
+% ---- SSM ECE Conference Slides ----
+\documentclass[aspectratio=169]{beamer}
+\input{preamble/preamble.tex}
+
+%=====================================
+% Metadata
+%=====================================
+
+\title[HEED Employment]{The effect of unemployment trajectories on\texorpdfstring{\\}{ }mental health} 
+\subtitle[SubHEED]{G-formula analyses using the UK Household Longitudinal Study}
+
+\author[Del Castillo et al.]
+{Del Castillo, D.\inst{1,*}; 
+Kopasker, D.\inst{1,*}; 
+Baxter, A.\inst{1}; 
+Kromydas, T.\inst{1}; 
+Thomson, R.\inst{1}; 
+Pearce, A.\inst{1} \and Katikireddi, S.V.\inst{1}}
+
+\institute[Glasgow]
+{ \inst{1} % 
+  School of Health and Wellbeing \\ 
+  University of Glasgow, UK
+  \and
+  \inst{*}
+  Contributed equally to this work
+}
+
+\date[ConferenceDay]{September 11, 2026}
+%=====================================
+\begin{document}
+%=====================================
+
+\railtitlepage
+% =====================================
+% Introduction
+% =====================================
+\begin{frame}{Background}
+  \begin{itemize}
+    \item Employment is a major determinant of mental health and a key driver of social inequalities\cite{Marmot2005-kx,Nie2020-zw}.
+    \item Re-employment has restorative effects on mental health. However, the duration of the lingering effects of unemployment on mental health is unclear\cite{Luhmann2012-em,Lahelma1989-we}.
+    \item Studying the effect of unemployment trajectories on mental health is complicated by the presence of causal structures such as time-varying confounding and treatment-confounder feedback\cite{Bijlsma2019-hc}.
+  \end{itemize}
+\end{frame}
+
+% =====================================
+% Methods
+% =====================================
+\begin{frame}{Methods}
+  \begin{minipage}[t]{0.55\textwidth}
+    \vspace{0pt}
+    \footnotesize
+    \begin{itemize}
+      \item Data from January 2011 - May 2020 from the UK Household Longitudinal Study (UKHLS)\cite{ukhls6614}.
+      \item \boldtxt{Eligibility:} Working-age adults (25 to 64) who were employed at baseline. Students, early retired, or long-term sick at baseline were excluded.
+    \end{itemize}
+  \boldtxt{Variables:}
+  \begin{itemize}
+    \item \boldtxt{Exposure:} Employment status (employed, unemployed).
+    \item \boldtxt{Outcome:} SF-12 mental health component score (SF-12 MCS).
+    \item \boldtxt{Covariates:} sex, ethnicity, education, age, location (GOR), marital status, household income, house tenancy, dependants, welfare benefits, physical health status (SF-12 PCS).
+  \end{itemize}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.45\textwidth}
+    \vspace{0pt}
+    \centering
+    \impute[0.90]
+  \end{minipage}
+\end{frame}
+
+% =====================================
+% Results
+% =====================================
+\begin{frame}{Results (i)}{Sample characteristics}
+  \begin{minipage}[t]{0.45\textwidth}
+  \vspace{2em}
+  \centering
+  \begin{itemize}
+    \item The mean age of the sample was 44.7 years (SD = 10).
+    \item Women made up 56.4\% of the sample.
+    \item The most frequent trajectory was E-E-E-E (78.7\%), and the least was E-U-E-U (0.25\%).
+  \end{itemize}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.55\textwidth}
+  \vspace{-3em}
+  \centering
+  \includegraphics[width=\linewidth,height=0.9\textheight,keepaspectratio]{strobe_flowchart.png}
+  \end{minipage}
+\end{frame}
+
+\begin{frame}{Results (ii)}{Effects of unemployment trajectories on mental health across four waves}
+  \centering
+  \vspace{0.5em}
+  \includegraphics[width=\textwidth,height=0.825\textheight,keepaspectratio]{conf_meta_mcs_fixed.png}
+\end{frame}
+
+% =====================================
+% Conclusions
+% =====================================
+\begin{frame}{Conclusions}
+  \begin{itemize}
+    \item The causal effect of unstable employment on mental health lands between -0.7 and -3.5 points for the SF-12 MCS scale.
+    \item Unstable employment have substantial adverse mental health effects, with more unemployment episodes having greater effects.
+ %   \item \boldtxt{Potential limitations:} potential residual confounding, differential attrition, inability to differentiate detailed employment status categories.
+    \item Unstable employment leaves `scars' on mental health. 
+    \item Policymakers should prioritise efforts to secure and maintain stable employment opportunities through employability and job retention schemes.
+  \end{itemize}
+\end{frame}
+
+%=====================================
+% References
+%=====================================
+\begin{frame}{References}
+  \begin{multicols}{2}
+    \printbibliography[heading=none]
+  \end{multicols}
+\end{frame}
+
+%=====================================
+% Appendix
+%=====================================
+% DAG
+\begin{frame}{Appendix (i)}{DAG}
+  \centering
+  \includegraphics[width=0.85\textwidth]{HEED_DAG_MH_v2.pdf}\\[0.5em]
+  \includegraphics[width=0.55\textwidth]{HEED_DAG_MH_key_v2.pdf}
+\end{frame}
+%=====================================
+\end{document}
+%=====================================

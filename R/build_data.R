@@ -40,7 +40,9 @@ build_data <- function(data = pop_data, round_start, round_end, how_many, outcom
 
 # long format variable shifting
   long_data <- pop_DT[, `:=`(
-    t0 = t0 - 2L, 
+    # re-index t0 (= wave - 1) so the analysis window starts at 0; derived from
+    # round_start, not hardcoded, or any window not starting at wave 3 filters to zero rows
+    t0 = t0 - (round_start - 1L),
     pcs_lagged = shift(sf12pcs_dv, type = "lag"),
     mcs_lagged = shift(sf12mcs_dv, type = "lag"),
 # the other time-varying confounders should also be lagged

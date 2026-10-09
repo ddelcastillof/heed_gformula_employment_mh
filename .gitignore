@@ -63,6 +63,9 @@ _targets/
 /checklists/*.log
 /checklists/*.png
 
+# Slides assets
+slides/assets/
+
 # Legacy folder
 legacy/
 
@@ -81,6 +84,8 @@ legacy/
 *.synctex.gz
 *.toc
 *.bbl-SAVE-ERROR
+*.dvi
+*.pptx
 
 # logs from SLURM jobs and future batchtools workers
 logs/*.err
