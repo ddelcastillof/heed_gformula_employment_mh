@@ -887,6 +887,138 @@ test_that("effect_modification: contrast handles one stratum, duplicated keys, a
   expect_false(anyNA(dplyr::filter(res_nr$delta, window == "toy2", modifier == "hiqual")[cells]))
 })
 
+# testing make_em_graph: the effect-modification forest plot, one figure per window
+## A toy em_results: 2 windows x 2 outcomes x 7 strata, with two-wave regimes. The diff
+## contrasts are small and negative. The rows that must never be drawn carry wild values:
+## the (Intercept) of the diff fit, which is the mean under the reference regime, and the
+## marginal means.
+toy_em_results <- function() {
+  strata <- tibble::tribble(
+    ~modifier, ~stratum,
+    "sex",     "male",
+    "sex",     "female",
+    "race",    "white",
+    "race",    "nonwhite",
+    "hiqual",  "high",
+    "hiqual",  "medium",
+    "hiqual",  "low"
+  )
+  cells   <- tidyr::expand_grid(window = c("w_a", "w_b"), outcome = c("mcs", "pcs"), strata)
+  regimes <- c("0-0", "0-1", "1-0", "1-1")
+
+  marginal <- tidyr::expand_grid(
+    cells, tibble::tibble(intervention = regimes, term = paste0("factor(regime)", 1:4))
+  ) |>
+    dplyr::mutate(estimand = "marginal", mi_effect = 999)
+  diff <- tidyr::expand_grid(
+    cells, tibble::tibble(intervention = regimes,
+                          term = c("(Intercept)", paste0("factor(regime)", 2:4)))
+  ) |>
+    dplyr::mutate(estimand  = "diff",
+                  mi_effect = dplyr::if_else(term == "(Intercept)", 50,
+                                             -stringr::str_count(intervention, "1")))
+
+  dplyr::bind_rows(marginal, diff) |>
+    dplyr::mutate(stratum_n = 100L, mi_se = 0.25, mi_df = 50,
+                  mi_ll = mi_effect - 0.5, mi_ul = mi_effect + 0.5)
+}
+toy_stratum_labels <- c(male = "Male", female = "Female", white = "White",
+                        nonwhite = "Non-white", high = "High", medium = "Medium", low = "Low")
+
+## the drawn data of one geom, found by class rather than by position in the layer stack
+em_layer <- function(p, geom) {
+  ggplot2::get_layer_data(p, which(vapply(p$layers, \(l) inherits(l$geom, geom), logical(1))))
+}
+
+test_that("make_em_graph: one plot per window, each saved as graph_em_<window>.png", {
+  source(here::here("R", "em_graph.R"))
+  dir <- withr::local_tempdir()
+
+  plots <- make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels,
+                         save_dir = dir)
+
+  expect_named(plots, c("w_a", "w_b"))
+  expect_true(all(vapply(plots, ggplot2::is_ggplot, logical(1))))
+  expect_setequal(list.files(dir), c("graph_em_w_a.png", "graph_em_w_b.png"))
+})
+
+test_that("make_em_graph: draws the contrasts only, never the intercept or the marginal means", {
+  source(here::here("R", "em_graph.R"))
+
+  p   <- make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels)$w_a
+  pts <- em_layer(p, "GeomPoint")
+
+  # 2 outcomes x 7 strata x 3 contrasts. The intercepts (x = 50) would add 14 points and
+  # the marginal means (x = 999) another 56.
+  expect_equal(nrow(pts), 2 * 7 * 3)
+  expect_true(all(pts$x < 0))
+  # the reference regime is the zero of every contrast, not a row on the axis
+  expect_setequal(ggplot2::get_panel_scales(p)$y$get_limits(), c("E-U", "U-E", "U-U"))
+})
+
+test_that("make_em_graph: rows follow modifier_labels and the legend follows stratum_labels", {
+  source(here::here("R", "em_graph.R"))
+
+  # neither alphabetical nor the em_spec order, so only the arguments can produce it
+  p <- make_em_graph(toy_em_results(), stratum_labels = rev(toy_stratum_labels),
+                     modifier_labels = c(hiqual = "Education", sex = "Sex", race = "Race"))$w_a
+
+  strips <- ggplot2::get_strip_labels(p)
+  expect_equal(strips$rows[[1]], c("Education", "Sex", "Race"))
+  expect_equal(strips$cols[[1]], c("Mental Component Score (MCS)",
+                                   "Physical Component Score (PCS)"))
+  expect_equal(ggplot2::get_guide_data(p, "colour")$.label,
+               c("Low", "Medium", "High", "Non-white", "White", "Female", "Male"))
+})
+
+test_that("make_em_graph: a contrast without a usable CI keeps its point, loses its bar, and is named", {
+  source(here::here("R", "em_graph.R"))
+
+  res     <- toy_em_results()
+  uu_mcs  <- res$window == "w_a" & res$outcome == "mcs" & res$estimand == "diff" &
+    res$intervention == "1-1"
+  # the syntheticPool fallback blanked this one ...
+  na_cell <- uu_mcs & res$stratum == "medium"
+  res[na_cell, c("mi_se", "mi_df", "mi_ll", "mi_ul")] <- NA
+  # ... and this one has a near-zero total variance: df far below 1 and a CI of +-1e6
+  wide_cell <- uu_mcs & res$stratum == "nonwhite"
+  res[wide_cell, c("mi_df", "mi_ll", "mi_ul")] <- list(0.2, -1e6, 1e6)
+
+  msgs <- testthat::capture_messages(
+    p <- make_em_graph(res, stratum_labels = toy_stratum_labels, min_df = 5)$w_a
+  )
+  expect_match(paste(msgs, collapse = ""), "mcs/w_a/hiqual/medium U-U")
+  expect_match(paste(msgs, collapse = ""), "mcs/w_a/race/nonwhite U-U")
+
+  # both points are still drawn, hollow, and only their two bars are gone
+  pts  <- em_layer(p, "GeomPoint")
+  bars <- em_layer(p, "GeomErrorbar")
+  expect_equal(nrow(pts), 2 * 7 * 3)
+  expect_equal(sum(pts$fill == "white"), 2L)
+  expect_equal(sum(is.finite(bars$xmin) & is.finite(bars$xmax)), 2L * 7L * 3L - 2L)
+  # the +-1e6 interval does not set the MCS axis
+  expect_true(all(abs(ggplot2::get_panel_scales(p, i = 1, j = 1)$x$get_limits()) < 10))
+  # and drawing it raises no "Removed rows" warning for targets to record
+  expect_no_warning(ggplot2::ggplotGrob(p))
+})
+
+test_that("make_em_graph: refuses a table it cannot draw, naming what is missing", {
+  source(here::here("R", "em_graph.R"))
+
+  expect_error(make_em_graph(tibble::tibble(x = 1), stratum_labels = toy_stratum_labels),
+               "missing column")
+  # a stratum with no label would drop out of the legend, and one with no colour out of the plot
+  expect_error(make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels[-7]),
+               "low")
+  expect_error(make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels,
+                             colours = c(male = "#000000", female = "#CC79A7")),
+               "white")
+  # a modifier with no row label would be drawn under its raw id
+  ethnicity <- dplyr::mutate(toy_em_results(),
+                             modifier = dplyr::if_else(modifier == "race", "ethnicity", modifier))
+  expect_error(make_em_graph(ethnicity, stratum_labels = toy_stratum_labels), "ethnicity")
+})
+
 #### Testing LTMLE functions
 test_that("TMLE functions run without errors", {
   for (f in list.files(here::here("R"), "\\.R$", full.names = TRUE)) source(f); rm(f)
