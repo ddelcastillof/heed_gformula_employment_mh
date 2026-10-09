@@ -29,14 +29,17 @@ if (on_slurm) {
   # run_mice plan
   plan_mice  <- slurm_tier(memory_gb = 16, walltime_h = 36)   
   # three/four gform
-  plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 12)  
+  plan_gform     <- slurm_tier(memory_gb = 96,  walltime_h = 12)
+  # stratified EM gform, memory set per stratum in em_grid$em_gform_gb
+  plan_em_gform  <- function(memory_gb) slurm_tier(memory_gb = memory_gb, walltime_h = 12)
   # ltmle plan
   plan_ltmle <- slurm_tier(memory_gb = 16, walltime_h = 4)
   future::plan(plan_light)                                  # default for untagged targets
 } else {
-  # Off-cluster: one local plan for all targets, not recommended as it eats a loooot of RAM
+  # Off-cluster: one local plan for all targets, not recommended as it eats a lot of RAM
   local_plan <- future::tweak(future.callr::callr, workers = 2L)
   plan_light <- plan_mice <- plan_gform <- plan_ltmle <- local_plan
+  plan_em_gform <- function(memory_gb) local_plan
   future::plan(local_plan)
 }
 
@@ -141,10 +144,10 @@ regimes_three <- list(
 # ---- Wave-set spec: one row per analysis, tar_map stamps the chain below per row ----
 
 wave_spec <- tibble::tibble(
-  how_many    = c("four", "four", "three"),
-  round_start = c(3L, 7L, 3L),
-  round_end   = c(6L, 10L, 5L),
-  label       = c("four", "four_w7_w10", "three")
+  how_many    = c("four", "four", "three", "three"),
+  round_start = c(3L, 7L, 3L, 6L),
+  round_end   = c(6L, 10L, 5L, 8L),
+  label       = c("four", "four_w7_w10", "three", "three_w6_w8")
 )
 # n_waves drives the LTMLE node expansion: one A node, one Y node and one
 # confounder block per wave.
@@ -153,7 +156,7 @@ wave_spec$n_waves <- wave_spec$round_end - wave_spec$round_start + 1L
 # Four-wave analyses: waves 3-6 and 7-10. `label` keys tar_map because both rows share how_many = "four".
 wave_spec_one <- wave_spec[wave_spec$how_many == "four", ]
 
-# Three-wave analysis over waves 3-5 for sensitivity
+# Three-wave analyses: waves 3-5 and 6-8. `label` keys tar_map, as for the four-wave rows.
 wave_spec_three <- wave_spec[wave_spec$how_many == "three", ]
 
 stopifnot(
@@ -240,10 +243,10 @@ map <- tar_map(
     ))
 )
 
-# ---- Three-wave LTMLE sensitivity chain ----
-map_ltmle_three <- tar_map(
+# ---- Three-wave chains: waves 3-5 and 6-8 ----
+map_three <- tar_map(
   values = wave_spec_three,
-  names  = "how_many",
+  names  = "label",
 
   tar_target(wide_data_mcs,
     build_data(data = pop_data,
@@ -291,48 +294,70 @@ em_outcomes <- c("mcs", "pcs")
 em_grid <- tidyr::expand_grid(em_window = em_windows, em_outcome = em_outcomes, em_spec)
 em_grid$em_wide <- rlang::syms(paste0("wide_data_", em_grid$em_outcome, "_", em_grid$em_window))
 
-map_em <- tar_map(
-  values = em_grid,
-  names  = c("em_outcome", "em_modifier", "em_stratum", "em_window"),
-  unlist = FALSE,
-
-  # Cut one stratum out of the wide data (cheap, so it stays on the default plan)
-  tar_target(em_data,
-    effect_modification("split",
-                        wide_data = em_wide$data,
-                        column = em_column,
-                        level = em_level),
-    error = "abridge",
-    deployment = "main"),
-
-  # mice imputation inside the stratum
-  tar_target(em_mids,
-    run_mice(wide_data = em_data,
-             m = mice_m,
-             maxit = mice_maxit,
-             seed = seed_random),
-    error = "abridge",
-    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
-
-  # gFormulaMI inside the stratum: marginal means + contrasts against the first regime
-  tar_target(em_gform,
-    effect_modification("gform",
-                        stratum = em_data,
-                        mids = em_mids,
-                        intervention_pattern = em_wide$intervention_pattern,
-                        M = gform_M,
-                        nSim = 4L * nrow(em_data),
-                        labels = list(outcome = em_outcome,
-                                      window = em_window,
-                                      modifier = em_modifier,
-                                      stratum = em_stratum)),
-    error = "abridge",
-    resources = tar_resources(future = tar_resources_future(plan = plan_gform)))
+## em_gform memory (GB) per stratum. At M = 100 and nSim = 4n, sacct MaxRSS grew ~8.7 GiB
+## per 1,000 stratum rows (run of 2026-10-09: white and female four were OOM-killed at 96G,
+## medium four peaked at 92.6G). Each tier sits >= 15% above the measured or predicted
+## peak. The peak scales with M x nSim, so re-tier when either changes.
+em_grid$em_gform_gb <- dplyr::case_when(
+  em_grid$em_stratum == "white"                                ~ 192,
+  em_grid$em_stratum == "female"                               ~ 128,
+  em_grid$em_stratum == "medium" & em_grid$em_window == "four" ~ 128,
+  em_grid$em_stratum %in% c("low", "nonwhite")                 ~ 48,
+  .default = 96
 )
 
-# All strata, one table
-em_combined <- tar_combine(em_results, 
-                           map_em[["em_gform"]], 
+## tar_map substitutes values into commands, never into resources, so each memory tier gets
+## its own tar_map. Target names do not depend on the tier.
+em_chain <- function(values) {
+  tar_map(
+    values = values,
+    names  = c("em_outcome", "em_modifier", "em_stratum", "em_window"),
+    unlist = FALSE,
+
+    # Cut one stratum out of the wide data (cheap, so it stays on the default plan)
+    tar_target(em_data,
+      effect_modification("split",
+                          wide_data = em_wide$data,
+                          column = em_column,
+                          level = em_level),
+      error = "abridge",
+      deployment = "main"),
+
+    # mice imputation inside the stratum
+    tar_target(em_mids,
+      run_mice(wide_data = em_data,
+               m = mice_m,
+               maxit = mice_maxit,
+               seed = seed_random),
+      error = "abridge",
+      resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+
+    # gFormulaMI inside the stratum: marginal means + contrasts against the first regime
+    tar_target(em_gform,
+      effect_modification("gform",
+                          stratum = em_data,
+                          mids = em_mids,
+                          intervention_pattern = em_wide$intervention_pattern,
+                          M = gform_M,
+                          nSim = 4L * nrow(em_data),
+                          labels = list(outcome = em_outcome,
+                                        window = em_window,
+                                        modifier = em_modifier,
+                                        stratum = em_stratum)),
+      error = "abridge",
+      resources = tar_resources(future = tar_resources_future(
+        plan = plan_em_gform(values$em_gform_gb[[1]]))))
+  )
+}
+map_em <- lapply(split(em_grid, em_grid$em_gform_gb), em_chain)
+
+# All strata, one table, rows in em_grid order whatever the tier
+em_gform_all   <- unlist(unname(lapply(map_em, `[[`, "em_gform")), recursive = FALSE)
+em_gform_names <- paste("em_gform", em_grid$em_outcome, em_grid$em_modifier,
+                        em_grid$em_stratum, em_grid$em_window, sep = "_")
+stopifnot(setequal(names(em_gform_all), em_gform_names))
+em_combined <- tar_combine(em_results,
+                           em_gform_all[em_gform_names],
                            command = dplyr::bind_rows(!!!.x),
                            deployment = "main")
 
@@ -347,6 +372,7 @@ list(
     }),
   tar_target(tmle_imp_idx, seq_len(mice_m)), # listing imputed datasets so LTMLE can act over each one
   map,
+  map_three,
 
   # ---- Meta-analysis: pool the two four-wave windows, one regime at a time ----
   
