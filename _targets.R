@@ -272,7 +272,52 @@ map_three <- tar_map(
              m = mice_m,
              maxit = mice_maxit,
              seed = seed_random),
-    resources = tar_resources(future = tar_resources_future(plan = plan_mice)))
+    resources = tar_resources(future = tar_resources_future(plan = plan_mice))),
+  # gFormulaMI for 3 waves: marginal + ATE, both outcomes
+  tar_target(gform_mcs,
+    run_gform(wide_mids = wide_mids_mcs, 
+              wide_data_mi = wide_data_mcs$data,
+              intervention_pattern = wide_data_mcs$intervention_pattern,
+              estimand = "factor(regime) + 0", 
+              M = gform_M,
+              nSim = 2*nrow(wide_data_mcs$data)),
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
+  tar_target(gform_pcs,
+    run_gform(wide_mids = wide_mids_pcs, 
+              wide_data_mi = wide_data_pcs$data,
+              intervention_pattern = wide_data_pcs$intervention_pattern,
+              estimand = "factor(regime) + 0", 
+              M = gform_M,
+              nSim = 2*nrow(wide_data_pcs$data)),
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
+  tar_target(gform_mcs_ate,
+    run_gform(wide_mids = wide_mids_mcs, 
+              wide_data_mi = wide_data_mcs$data,
+              intervention_pattern = wide_data_mcs$intervention_pattern,
+              estimand = "factor(regime)", 
+              M = gform_M,
+              nSim = 2*nrow(wide_data_mcs$data)),
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
+  tar_target(gform_pcs_ate,
+    run_gform(wide_mids = wide_mids_pcs, 
+              wide_data_mi = wide_data_pcs$data,
+              intervention_pattern = wide_data_pcs$intervention_pattern,
+              estimand = "factor(regime)", 
+              M = gform_M,
+              nSim = 2*nrow(wide_data_pcs$data)),
+    resources = tar_resources(future = tar_resources_future(plan = plan_gform))),
+  ##3-wave plots
+    tar_target(graphs,
+    make_graphs(
+      gform_mcs     = gform_mcs,
+      gform_pcs     = gform_pcs,
+      gform_mcs_ate = gform_mcs_ate,
+      gform_pcs_ate = gform_pcs_ate,
+      mcs_label = "Mental Component Score (MCS)",
+      pcs_label = "Physical Component Score (PCS)",
+      save_dir  = here::here("figs"),
+      wave_label = label
+    ))
 )
 
 # ---- Effect modification: stratified gFormulaMI per modifier level ----
@@ -423,5 +468,39 @@ list(
       min_df          = 5,
       save_dir        = here::here("figs")
     ),
-    deployment = "main")
+    deployment = "main"),
+  
+  #Sensitivity: 3-waves meta-analysis
+# ---- Sensitivity: pool the two three-wave windows (3-5 and 6-8) ----
+  tar_target(ma_mcs_3w,
+    meta_analysis(gform_early = gform_mcs_three,
+                  gform_late  = gform_mcs_three_w6_w8,
+                  labels      = c("Waves 3-5", "Waves 6-8"),
+                  effects     = ma_effects)),
+  tar_target(ma_pcs_3w,
+    meta_analysis(gform_early = gform_pcs_three,
+                  gform_late  = gform_pcs_three_w6_w8,
+                  labels      = c("Waves 3-5", "Waves 6-8"),
+                  effects     = ma_effects)),
+  tar_target(ma_mcs_ate_3w,
+    meta_analysis(gform_early = gform_mcs_ate_three,
+                  gform_late  = gform_mcs_ate_three_w6_w8,
+                  labels      = c("Waves 3-5", "Waves 6-8"),
+                  effects     = ma_effects)),
+  tar_target(ma_pcs_ate_3w,
+    meta_analysis(gform_early = gform_pcs_ate_three,
+                  gform_late  = gform_pcs_ate_three_w6_w8,
+                  labels      = c("Waves 3-5", "Waves 6-8"),
+                  effects     = ma_effects)),
+  tar_target(ma_graph_3w,
+    make_ma_graph(
+      ma_mcs     = ma_mcs_3w,
+      ma_mcs_ate = ma_mcs_ate_3w,
+      ma_pcs     = ma_pcs_3w,
+      ma_pcs_ate = ma_pcs_ate_3w,
+      mcs_label  = "Mental Component Score (MCS)",
+      pcs_label  = "Physical Component Score (PCS)",
+      save_dir   = here::here("figs"),
+      wave_label = "pooled_3w"
+    ))
 )
