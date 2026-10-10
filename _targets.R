@@ -465,7 +465,7 @@ list(
       em_results      = em_results,
       stratum_labels  = rlang::set_names(em_spec$em_level, em_spec$em_stratum),
       modifier_labels = c(sex = "Sex", race = "Race", hiqual = "Education"),
-      min_df          = 5,
+      min_df          = 0,
       save_dir        = here::here("figs")
     ),
     deployment = "main"),

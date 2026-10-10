@@ -70,6 +70,12 @@ make_em_graph <- function(em_results, stratum_labels,
   # A CI is drawn only when syntheticPool's df reaches min_df. A total variance near zero
   # gives a df far below 1, and then an interval of +-Inf or +-1e6 that would set the
   # whole x axis; the fallback for a non-positive total leaves no interval at all.
+  # min_df = 0 draws every finite interval, and then only a missing one is left out.
+  no_ci <- if (min_df > 0) {
+    paste0("pooling df below ", min_df, ", or no interval")
+  } else {
+    "no interval"
+  }
   df <- df |>
     mutate(
       regime   = str_replace_all(intervention, c("0" = "E", "1" = "U")),
@@ -81,8 +87,8 @@ make_em_graph <- function(em_results, stratum_labels,
 
   hidden <- filter(df, !ci_drawn)
   if (nrow(hidden)) {
-    message("make_em_graph(): no 95% CI drawn for ", nrow(hidden), " contrast(s) with ",
-            "mi_df < ", min_df, " or no interval, shown as hollow markers: ",
+    message("make_em_graph(): no 95% CI drawn for ", nrow(hidden), " contrast(s) (",
+            no_ci, "), shown as hollow markers: ",
             toString(sprintf("%s/%s/%s/%s %s (df %s)", hidden$outcome, hidden$window,
                              hidden$modifier, hidden$stratum, hidden$regime,
                              signif(hidden$mi_df, 2))))
@@ -122,8 +128,7 @@ make_em_graph <- function(em_results, stratum_labels,
       labs(x = paste0("Estimated mean difference vs always employed (", ref, ")"),
            y = "Intervention strategy",
            caption = if (!all(d$ci_drawn)) {
-             paste0("Hollow markers: no 95% CI drawn (pooling df below ", min_df,
-                    ", or no interval).")
+             paste0("Hollow markers: no 95% CI drawn (", no_ci, ").")
            }) +
       theme_bw() +
       theme(legend.position = "bottom",
