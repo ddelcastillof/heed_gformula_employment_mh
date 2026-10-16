@@ -1,11 +1,14 @@
 # Effect-modification forest plot: every stratum's contrasts against the always-employed
-# regime, one figure per wave window. Rows are the modifiers, columns the outcomes, and
-# within a regime the strata of a modifier sit side by side. The colours are the Okabe-Ito
-# set of the conference figures (R/conference/fig_meta_pooled.R), extended by the two
-# Okabe-Ito hues that figure did not need.
+# regime, both wave windows in one figure and not pooled. Rows are the modifiers, columns
+# the outcomes, and within a regime the strata of a modifier sit side by side, each as a
+# pair: its first window filled, its second open. The colours are the Okabe-Ito set of the
+# conference figures (R/conference/fig_meta_pooled.R), extended by the two Okabe-Ito hues
+# that figure did not need.
 
 make_em_graph <- function(em_results, stratum_labels,
                           modifier_labels = c(sex = "Sex", race = "Race", hiqual = "Education"),
+                          # names are the window ids in em_results; NULL keeps the raw ids
+                          window_labels = NULL,
                           colours = stats::setNames(
                             grDevices::palette.colors(palette = "Okabe-Ito", names = TRUE)[
                               c("black", "reddishpurple", "skyblue", "vermillion",
@@ -50,10 +53,19 @@ make_em_graph <- function(em_results, stratum_labels,
   need_entry(modifier_labels, df$modifier, "modifier_labels", "modifier")
   need_entry(outcome_labels,  df$outcome,  "mcs_label/pcs_label", "outcome")
 
+  # window_labels fixes the window order too: the first is drawn filled, the second open.
+  if (is.null(window_labels)) window_labels <- setNames(nm = unique(df$window))
+  need_entry(window_labels,   df$window,   "window_labels",   "window")
+  windows <- intersect(names(window_labels), df$window)
+  if (length(windows) > 2) {
+    stop("make_em_graph(): ", length(windows), " windows to draw, but a stratum's windows ",
+         "are told apart only as filled and open, so at most two fit", call. = FALSE)
+  }
+
   # stratum_labels fixes the order of the legend and of the strata within a regime. The
   # shape follows a stratum's place within its modifier, so the first-listed stratum of
-  # every modifier (its reference in em_spec) is a circle. The shapes take a fill: a
-  # contrast drawn without its CI is hollow.
+  # every modifier (its reference in em_spec) is a circle. The shapes take a fill, which
+  # tells a stratum's two windows apart.
   shape_pool <- c(21, 24, 22, 23, 25)
   strata <- distinct(df, modifier, stratum) |>
     mutate(label = unname(stratum_labels[stratum]),
@@ -82,13 +94,13 @@ make_em_graph <- function(em_results, stratum_labels,
       ci_drawn = !is.na(mi_df) & mi_df >= min_df & is.finite(mi_ll) & is.finite(mi_ul),
       mi_ll    = if_else(ci_drawn, mi_ll, NA_real_),
       mi_ul    = if_else(ci_drawn, mi_ul, NA_real_),
-      fill     = if_else(ci_drawn, unname(colours[stratum]), "white")
+      fill     = if_else(window == windows[1], unname(colours[stratum]), "white")
     )
 
   hidden <- filter(df, !ci_drawn)
   if (nrow(hidden)) {
     message("make_em_graph(): no 95% CI drawn for ", nrow(hidden), " contrast(s) (",
-            no_ci, "), shown as hollow markers: ",
+            no_ci, "), shown as a marker without its bar: ",
             toString(sprintf("%s/%s/%s/%s %s (df %s)", hidden$outcome, hidden$window,
                              hidden$modifier, hidden$stratum, hidden$regime,
                              signif(hidden$mi_df, 2))))
@@ -99,49 +111,51 @@ make_em_graph <- function(em_results, stratum_labels,
       outcome  = factor(unname(outcome_labels[outcome]), levels = unname(outcome_labels)),
       modifier = factor(unname(modifier_labels[modifier]), levels = unname(modifier_labels)),
       stratum  = factor(unname(stratum_labels[stratum]), levels = strata$label),
+      window   = factor(unname(window_labels[window]), levels = unname(window_labels[windows])),
       # sorted, so the always-unemployed regime tops the axis as in the original figure
       regime   = factor(regime, levels = sort(unique(regime)))
     )
 
-  dodge <- position_dodge(width = 0.7, reverse = TRUE)
+  # Within a regime the groups run stratum-major, so each stratum's windows sit as a pair.
+  dodge <- position_dodge(width = 0.85, orientation = "y", reverse = TRUE)
 
-  plots <- lapply(setNames(nm = unique(df$window)), \(w) {
-    d <- filter(df, window == w)
+  # the reference regime of the diff fit: every wave employed
+  n_waves <- str_count(as.character(df$regime[1]), "-") + 1L
+  ref     <- paste(rep("E", n_waves), collapse = "-")
 
-    # the reference regime of the diff fit: every wave employed
-    n_waves <- str_count(as.character(d$regime[1]), "-") + 1L
-    ref     <- paste(rep("E", n_waves), collapse = "-")
-
-    ggplot(d, aes(mi_effect, regime, xmin = mi_ll, xmax = mi_ul,
-                  colour = stratum, shape = stratum, group = stratum)) +
-      geom_vline(xintercept = 0, linetype = 2, colour = "grey55") +
-      geom_errorbar(width = 0.25, position = dodge, na.rm = TRUE) +
-      geom_point(aes(fill = fill), size = 1.8, stroke = 0.7, position = dodge) +
-      facet_grid(modifier ~ outcome, scales = "free_x") +
-      scale_colour_manual(values = stratum_colours, name = "Stratum") +
-      scale_shape_manual(values = stratum_shapes, name = "Stratum") +
-      scale_fill_identity() +
-      # colour and shape merge into one legend; its keys are filled once, on the colour
-      # guide, since the merge keeps a single override.aes and warns about the other
-      guides(colour = guide_legend(nrow = 1, override.aes = list(fill = unname(stratum_colours))),
-             shape  = guide_legend(nrow = 1)) +
-      labs(x = paste0("Estimated mean difference vs always employed (", ref, ")"),
-           y = "Intervention strategy",
-           caption = if (!all(d$ci_drawn)) {
-             paste0("Hollow markers: no 95% CI drawn (", no_ci, ").")
-           }) +
-      theme_bw() +
-      theme(legend.position = "bottom",
-            strip.text.y    = element_text(angle = 0),
-            plot.caption    = element_text(colour = "grey35", hjust = 0))
-  })
+  g <- ggplot(df, aes(mi_effect, regime, xmin = mi_ll, xmax = mi_ul,
+                      colour = stratum, shape = stratum,
+                      group = interaction(window, stratum))) +
+    geom_vline(xintercept = 0, linetype = 2, colour = "grey55") +
+    geom_errorbar(width = 0.25, position = dodge, na.rm = TRUE) +
+    # alpha is held at 1: it only carries the window legend, filled against open
+    geom_point(aes(fill = fill, alpha = window), size = 1.3, stroke = 0.6, position = dodge) +
+    facet_grid(modifier ~ outcome, scales = "free_x") +
+    scale_colour_manual(values = stratum_colours, name = "Stratum") +
+    scale_shape_manual(values = stratum_shapes, name = "Stratum") +
+    scale_fill_identity() +
+    scale_alpha_manual(values = rep(1, length(windows)), name = "Window") +
+    # colour and shape merge into one legend; its keys are filled once, on the colour
+    # guide, since the merge keeps a single override.aes and warns about the other
+    guides(colour = guide_legend(order = 1, nrow = 1,
+                                 override.aes = list(fill = unname(stratum_colours))),
+           shape  = guide_legend(order = 1, nrow = 1),
+           alpha  = guide_legend(order = 2, override.aes = list(
+                      shape = 21, colour = "black", size = 2,
+                      fill = c("black", "white")[seq_along(windows)]))) +
+    labs(x = paste0("Estimated mean difference vs always employed (", ref, ")"),
+         y = "Intervention strategy",
+         caption = if (!all(df$ci_drawn)) {
+           paste0("Markers without a bar: no 95% CI drawn (", no_ci, ").")
+         }) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          strip.text.y    = element_text(angle = 0),
+          plot.caption    = element_text(colour = "grey35", hjust = 0))
 
   if (!is.null(save_dir)) {
-    for (w in names(plots)) {
-      ggsave(file.path(save_dir, paste0("graph_em_", w, ".png")),
-             plots[[w]], dpi = 300, width = width, height = height)
-    }
+    ggsave(file.path(save_dir, "graph_em.png"), g, dpi = 300, width = width, height = height)
   }
 
-  plots
+  g
 }

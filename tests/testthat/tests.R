@@ -887,7 +887,7 @@ test_that("effect_modification: contrast handles one stratum, duplicated keys, a
   expect_false(anyNA(dplyr::filter(res_nr$delta, window == "toy2", modifier == "hiqual")[cells]))
 })
 
-# testing make_em_graph: the effect-modification forest plot, one figure per window
+# testing make_em_graph: the effect-modification forest plot, both windows in one figure
 ## A toy em_results: 2 windows x 2 outcomes x 7 strata, with two-wave regimes. The diff
 ## contrasts are small and negative. The rows that must never be drawn carry wild values:
 ## the (Intercept) of the diff fit, which is the mean under the reference regime, and the
@@ -930,27 +930,42 @@ em_layer <- function(p, geom) {
   ggplot2::get_layer_data(p, which(vapply(p$layers, \(l) inherits(l$geom, geom), logical(1))))
 }
 
-test_that("make_em_graph: one plot per window, each saved as graph_em_<window>.png", {
+test_that("make_em_graph: one plot holding both windows, saved as graph_em.png", {
   source(here::here("R", "em_graph.R"))
   dir <- withr::local_tempdir()
 
-  plots <- make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels,
-                         save_dir = dir)
+  p <- make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels,
+                     save_dir = dir)
 
-  expect_named(plots, c("w_a", "w_b"))
-  expect_true(all(vapply(plots, ggplot2::is_ggplot, logical(1))))
-  expect_setequal(list.files(dir), c("graph_em_w_a.png", "graph_em_w_b.png"))
+  expect_true(ggplot2::is_ggplot(p))
+  expect_equal(list.files(dir), "graph_em.png")
+})
+
+test_that("make_em_graph: each stratum's windows sit as a pair, the first filled above the second open", {
+  source(here::here("R", "em_graph.R"))
+
+  # window_labels sets the order, so w_b is drawn first and filled
+  p   <- make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels,
+                       window_labels = c(w_b = "Window B", w_a = "Window A"))
+  pts <- em_layer(p, "GeomPoint")
+
+  expect_equal(ggplot2::get_guide_data(p, "alpha")$.label, c("Window B", "Window A"))
+  expect_equal(sum(pts$fill == "white"), 2 * 7 * 3)
+  # within a regime row, a stratum's two markers share its colour and the filled one is on top
+  pairs <- split(pts, list(pts$PANEL, round(pts$y), pts$colour), drop = TRUE)
+  expect_true(all(vapply(pairs, \(z) nrow(z) == 2 && z$y[z$fill != "white"] > z$y[z$fill == "white"],
+                         logical(1))))
 })
 
 test_that("make_em_graph: draws the contrasts only, never the intercept or the marginal means", {
   source(here::here("R", "em_graph.R"))
 
-  p   <- make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels)$w_a
+  p   <- make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels)
   pts <- em_layer(p, "GeomPoint")
 
-  # 2 outcomes x 7 strata x 3 contrasts. The intercepts (x = 50) would add 14 points and
-  # the marginal means (x = 999) another 56.
-  expect_equal(nrow(pts), 2 * 7 * 3)
+  # 2 windows x 2 outcomes x 7 strata x 3 contrasts. The intercepts (x = 50) would add 28
+  # points and the marginal means (x = 999) another 112.
+  expect_equal(nrow(pts), 2 * 2 * 7 * 3)
   expect_true(all(pts$x < 0))
   # the reference regime is the zero of every contrast, not a row on the axis
   expect_setequal(ggplot2::get_panel_scales(p)$y$get_limits(), c("E-U", "U-E", "U-U"))
@@ -961,7 +976,7 @@ test_that("make_em_graph: rows follow modifier_labels and the legend follows str
 
   # neither alphabetical nor the em_spec order, so only the arguments can produce it
   p <- make_em_graph(toy_em_results(), stratum_labels = rev(toy_stratum_labels),
-                     modifier_labels = c(hiqual = "Education", sex = "Sex", race = "Race"))$w_a
+                     modifier_labels = c(hiqual = "Education", sex = "Sex", race = "Race"))
 
   strips <- ggplot2::get_strip_labels(p)
   expect_equal(strips$rows[[1]], c("Education", "Sex", "Race"))
@@ -985,17 +1000,18 @@ test_that("make_em_graph: a contrast without a usable CI keeps its point, loses 
   res[wide_cell, c("mi_df", "mi_ll", "mi_ul")] <- list(0.2, -1e6, 1e6)
 
   msgs <- testthat::capture_messages(
-    p <- make_em_graph(res, stratum_labels = toy_stratum_labels, min_df = 5)$w_a
+    p <- make_em_graph(res, stratum_labels = toy_stratum_labels, min_df = 5)
   )
   expect_match(paste(msgs, collapse = ""), "mcs/w_a/hiqual/medium U-U")
   expect_match(paste(msgs, collapse = ""), "mcs/w_a/race/nonwhite U-U")
 
-  # both points are still drawn, hollow, and only their two bars are gone
+  # both points are still drawn, filled like the rest of w_a (only w_b's markers are
+  # open), and only their two bars are gone
   pts  <- em_layer(p, "GeomPoint")
   bars <- em_layer(p, "GeomErrorbar")
-  expect_equal(nrow(pts), 2 * 7 * 3)
-  expect_equal(sum(pts$fill == "white"), 2L)
-  expect_equal(sum(is.finite(bars$xmin) & is.finite(bars$xmax)), 2L * 7L * 3L - 2L)
+  expect_equal(nrow(pts), 2 * 2 * 7 * 3)
+  expect_equal(sum(pts$fill == "white"), 2 * 7 * 3)
+  expect_equal(sum(is.finite(bars$xmin) & is.finite(bars$xmax)), 2L * 2L * 7L * 3L - 2L)
   # the +-1e6 interval does not set the MCS axis
   expect_true(all(abs(ggplot2::get_panel_scales(p, i = 1, j = 1)$x$get_limits()) < 10))
   # and drawing it raises no "Removed rows" warning for targets to record
@@ -1017,6 +1033,14 @@ test_that("make_em_graph: refuses a table it cannot draw, naming what is missing
   ethnicity <- dplyr::mutate(toy_em_results(),
                              modifier = dplyr::if_else(modifier == "race", "ethnicity", modifier))
   expect_error(make_em_graph(ethnicity, stratum_labels = toy_stratum_labels), "ethnicity")
+  # a window with no label would be drawn as NA
+  expect_error(make_em_graph(toy_em_results(), stratum_labels = toy_stratum_labels,
+                             window_labels = c(w_a = "Window A")), "w_b")
+  # filled and open tell apart two windows, not three
+  three <- dplyr::bind_rows(toy_em_results(),
+                            dplyr::mutate(dplyr::filter(toy_em_results(), window == "w_a"),
+                                          window = "w_c"))
+  expect_error(make_em_graph(three, stratum_labels = toy_stratum_labels), "at most two")
 })
 
 #### Testing LTMLE functions
