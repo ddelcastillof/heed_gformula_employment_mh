@@ -444,6 +444,11 @@ list(
       ma_mcs_ate = ma_mcs_ate,
       ma_pcs     = ma_pcs,
       ma_pcs_ate = ma_pcs_ate,
+      windows    = list(
+        "Waves 3-6"  = list(mcs = gform_mcs_four,        mcs_ate = gform_mcs_ate_four,
+                            pcs = gform_pcs_four,        pcs_ate = gform_pcs_ate_four),
+        "Waves 7-10" = list(mcs = gform_mcs_four_w7_w10, mcs_ate = gform_mcs_ate_four_w7_w10,
+                            pcs = gform_pcs_four_w7_w10, pcs_ate = gform_pcs_ate_four_w7_w10)),
       mcs_label  = "Mental Component Score (MCS)",
       pcs_label  = "Physical Component Score (PCS)",
       save_dir   = here::here("figs"),
@@ -498,6 +503,11 @@ list(
       ma_mcs_ate = ma_mcs_ate_3w,
       ma_pcs     = ma_pcs_3w,
       ma_pcs_ate = ma_pcs_ate_3w,
+      windows    = list(
+        "Waves 3-5" = list(mcs = gform_mcs_three,       mcs_ate = gform_mcs_ate_three,
+                           pcs = gform_pcs_three,       pcs_ate = gform_pcs_ate_three),
+        "Waves 6-8" = list(mcs = gform_mcs_three_w6_w8, mcs_ate = gform_mcs_ate_three_w6_w8,
+                           pcs = gform_pcs_three_w6_w8, pcs_ate = gform_pcs_ate_three_w6_w8)),
       mcs_label  = "Mental Component Score (MCS)",
       pcs_label  = "Physical Component Score (PCS)",
       save_dir   = here::here("figs"),
