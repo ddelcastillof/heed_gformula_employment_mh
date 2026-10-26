@@ -45,12 +45,13 @@ build_data <- function(data = pop_data, round_start, round_end, how_many, outcom
     t0 = t0 - (round_start - 1L),
     pcs_lagged = shift(sf12pcs_dv, type = "lag"),
     mcs_lagged = shift(sf12mcs_dv, type = "lag"),
-# the other time-varying confounders should also be lagged
+    # the other time-varying confounders should also be lagged
     dnc_fact_lagged = shift(dnc_fact, type = "lag"),
     home_owner_lagged = shift(home_owner, type = "lag"),
     econ_benefits_lagged = shift(econ_benefits, type = "lag"),
     mastat_dv_lagged = shift(mastat_dv, type = "lag")
-    )][wave %in% round_start:round_end]
+    # adding pipd as a guard for potential issues with ordering
+    ), by = pidp][wave %in% round_start:round_end]
 
 # keeping those with at least 2 observed outcomes and no baseline missing
   outcome_col <- if (outcome == "MCS") "sf12mcs_dv" else "sf12pcs_dv"
