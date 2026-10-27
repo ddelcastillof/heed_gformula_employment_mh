@@ -394,10 +394,10 @@ em_chain <- function(values) {
         plan = plan_em_gform(values$em_gform_gb[[1]]))))
   )
 }
-map_em <- lapply(split(em_grid, em_grid$em_gform_gb), em_chain)
+map_em <- purrr::map(split(em_grid, em_grid$em_gform_gb), em_chain)
 
 # All strata, one table, rows in em_grid order whatever the tier
-em_gform_all   <- unlist(unname(lapply(map_em, `[[`, "em_gform")), recursive = FALSE)
+em_gform_all   <- unlist(unname(purrr::map(map_em, "em_gform")), recursive = FALSE)
 em_gform_names <- paste("em_gform", em_grid$em_outcome, em_grid$em_modifier,
                         em_grid$em_stratum, em_grid$em_window, sep = "_")
 stopifnot(setequal(names(em_gform_all), em_gform_names))
@@ -478,7 +478,7 @@ list(
     ),
     deployment = "main"),
   
-  #Sensitivity: 3-waves meta-analysis
+# Sensitivity: 3-waves meta-analysis
 # ---- Sensitivity: pool the two three-wave windows (3-5 and 6-8) ----
   tar_target(ma_mcs_3w,
     meta_analysis(gform_early = gform_mcs_three,
