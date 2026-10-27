@@ -1,9 +1,5 @@
 # Effect-modification forest plot: every stratum's contrasts against the always-employed
-# regime, both wave windows in one figure and not pooled. Rows are the modifiers, columns
-# the outcomes, and within a regime the strata of a modifier sit side by side, each as a
-# pair: its first window filled, its second open. The colours are the Okabe-Ito set of the
-# conference figures (R/conference/fig_meta_pooled.R), extended by the two Okabe-Ito hues
-# that figure did not need.
+# regime, both wave windows in one figure and not pooled.
 
 make_em_graph <- function(em_results, stratum_labels,
                           modifier_labels = c(sex = "Sex", race = "Race", hiqual = "Education"),
@@ -31,15 +27,11 @@ make_em_graph <- function(em_results, stratum_labels,
          " -- expected the row-bound effect_modification(\"gform\") outputs", call. = FALSE)
   }
 
-  # Only the contrasts. Row 1 of the diff fit is the (Intercept), the mean under the
-  # reference regime, and the marginal means sit on another scale altogether.
   df <- filter(em_results, estimand == "diff", term != "(Intercept)")
   if (!nrow(df)) {
     stop("make_em_graph(): em_results holds no diff contrasts to draw", call. = FALSE)
   }
 
-  # A stratum without a label would fall out of the legend, one without a colour out of
-  # the plot, and a modifier or outcome without a label would be drawn as NA.
   outcome_labels <- c(mcs = mcs_label, pcs = pcs_label)
   need_entry <- function(have, used, arg, what) {
     gap <- setdiff(unique(used), names(have))
@@ -53,7 +45,6 @@ make_em_graph <- function(em_results, stratum_labels,
   need_entry(modifier_labels, df$modifier, "modifier_labels", "modifier")
   need_entry(outcome_labels,  df$outcome,  "mcs_label/pcs_label", "outcome")
 
-  # window_labels fixes the window order too: the first is drawn filled, the second open.
   if (is.null(window_labels)) window_labels <- setNames(nm = unique(df$window))
   need_entry(window_labels,   df$window,   "window_labels",   "window")
   windows <- intersect(names(window_labels), df$window)
@@ -62,10 +53,6 @@ make_em_graph <- function(em_results, stratum_labels,
          "are told apart only as filled and open, so at most two fit", call. = FALSE)
   }
 
-  # stratum_labels fixes the order of the legend and of the strata within a regime. The
-  # shape follows a stratum's place within its modifier, so the first-listed stratum of
-  # every modifier (its reference in em_spec) is a circle. The shapes take a fill, which
-  # tells a stratum's two windows apart.
   shape_pool <- c(21, 24, 22, 23, 25)
   strata <- distinct(df, modifier, stratum) |>
     mutate(label = unname(stratum_labels[stratum]),
@@ -79,10 +66,6 @@ make_em_graph <- function(em_results, stratum_labels,
   stratum_colours <- setNames(unname(colours[strata$stratum]), strata$label)
   stratum_shapes  <- setNames(strata$shape, strata$label)
 
-  # A CI is drawn only when syntheticPool's df reaches min_df. A total variance near zero
-  # gives a df far below 1, and then an interval of +-Inf or +-1e6 that would set the
-  # whole x axis; the fallback for a non-positive total leaves no interval at all.
-  # min_df = 0 draws every finite interval, and then only a missing one is left out.
   no_ci <- if (min_df > 0) {
     paste0("pooling df below ", min_df, ", or no interval")
   } else {
