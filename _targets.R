@@ -397,7 +397,7 @@ em_chain <- function(values) {
 map_em <- purrr::map(split(em_grid, em_grid$em_gform_gb), em_chain)
 
 # All strata, one table, rows in em_grid order whatever the tier
-em_gform_all   <- unlist(unname(purrr::map(map_em, "em_gform")), recursive = FALSE)
+em_gform_all   <- purrr::list_flatten(unname(purrr::map(map_em, "em_gform")))
 em_gform_names <- paste("em_gform", em_grid$em_outcome, em_grid$em_modifier,
                         em_grid$em_stratum, em_grid$em_window, sep = "_")
 stopifnot(setequal(names(em_gform_all), em_gform_names))
